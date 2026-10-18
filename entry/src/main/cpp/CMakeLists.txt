@@ -46,6 +46,12 @@ set(XRAY_SO "${CMAKE_CURRENT_SOURCE_DIR}/../libs/${OHOS_ARCH}/libxray.so")
 if(EXISTS "${XRAY_SO}")
     add_library(xraycore SHARED IMPORTED)
     set_target_properties(xraycore PROPERTIES IMPORTED_LOCATION "${XRAY_SO}")
+    # 关键：**不要**让 libxray.so 进入 libentry.so 的 DT_NEEDED。
+    # 一旦成为 DT_NEEDED，动态加载器会在**进程启动时**就加载它，Go runtime 随即初始化
+    # 并快照 environ；之后 ArkTS 再 setenv("xray.location.asset") 对 Go 的
+    # os.LookupEnv 完全无效。实测表现：内核去 /system/bin/geosite.dat 找资源并失败。
+    # --as-needed + 不引用其符号 = 不进 DT_NEEDED，但仍留在 link 图里供 hvigor 打包。
+    target_link_options(entry PRIVATE "-Wl,--as-needed")
     target_link_libraries(entry PUBLIC xraycore)
     message(STATUS "M6: libxray.so attached for packaging: ${XRAY_SO}")
 else()

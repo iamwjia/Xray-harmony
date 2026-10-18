@@ -11,3 +11,7 @@ export const m7CGoVersion: () => string;
 export const m8Invoke: (method: string, payloadJson: string) => string;
 // M9: SOCKS inbound + freedom outbound probe (forwarding path evidence)
 export const m9ProxyProbe: () => string;
+// geo: set the asset directory for geoip.dat / geosite.dat.
+// Must be called BEFORE m8Invoke('runXrayFromJson', ...), otherwise
+// `geosite:cn` / `geoip:cn` rules fail to resolve.
+export const setAssetPath: (dir: string) => string;

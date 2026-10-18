@@ -41,40 +41,45 @@ export class KernelConfigBuilder {
     return cfg;
   }
 
-  /**
-   * 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底。
-   * `credential` 由调用方从安全存储取出（Asset Store 里只有别名，本层不该自己去读密钥）；
-   * 传空串时回落到 `node.credentialRef`，仅供尚未迁移的调试路径使用。
-   */
+  /** 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底 */
   static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
     routingMode: RoutingMode = RoutingMode.RULE, socksUser: string = '', socksPass: string = '',
-    credential: string = ''): string {
+    credential: string = '', geoReady: boolean = false): string {
     const inbound: string = KernelConfigBuilder.buildInbound(socksPort, socksUser, socksPass);
     const proxy: string = KernelConfigBuilder.buildOutbound(node, credential);
     const direct: string = '{"tag":"direct","protocol":"freedom"}';
-    const routing: string = KernelConfigBuilder.buildRouting(routingMode);
+    const routing: string = KernelConfigBuilder.buildRouting(routingMode, geoReady);
     return '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],"outbounds":[' +
       proxy + ',' + direct + ']' + routing + '}';
   }
 
   /**
    * 分流配置。
-   * 说明：不依赖 geoip.dat / geosite.dat（当前应用未内置资源文件），
-   * 只用内置可判定的内网网段，避免"资源缺失 → 内核启动失败"。
-   * TODO: 内置 geo 资源后，规则模式补 geosite:cn / geoip:cn。
+   *
+   * geoReady=true 时使用内置 geoip/geosite 资源（`geosite:cn` 域名规则 + `geoip:cn` IP 规则）；
+   * geoReady=false 时**必须降级**：只保留内网/回环网段直连。
+   * 原因：内核启动时会解析 `geosite:cn`，资源缺失就是硬性配置错误（启动即失败），
+   * 而不是"规则不生效"。宁可少一条规则，不能让整个内核起不来。
    */
-  private static buildRouting(mode: RoutingMode): string {
+  private static buildRouting(mode: RoutingMode, geoReady: boolean): string {
     if (mode === RoutingMode.DIRECT) {
       return ',"routing":{"rules":[{"type":"field","network":"tcp,udp","outboundTag":"direct"}]}';
     }
     if (mode === RoutingMode.GLOBAL) {
       return '';
     }
-    // RULE：内网/回环直连，其余走代理
-    return ',"routing":{"domainStrategy":"IPIfNonMatch","rules":[' +
-      '{"type":"field","ip":["127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16",' +
-      '"169.254.0.0/16","::1/128","fc00::/7","fe80::/10"],"outboundTag":"direct"}' +
-      ']}';
+    const lan: string = '"127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16",' +
+      '"169.254.0.0/16","::1/128","fc00::/7","fe80::/10"';
+    const ipRule: string = geoReady
+      ? '"ip":["geoip:cn",' + lan + ']'
+      : '"ip":[' + lan + ']';
+    let rules: string = '';
+    if (geoReady) {
+      // 域名优先：命中 geosite:cn 直接直连，避免走 IP 判定后被代理
+      rules += '{"type":"field","domain":["geosite:cn"],"outboundTag":"direct"},';
+    }
+    rules += '{"type":"field",' + ipRule + ',"outboundTag":"direct"}';
+    return ',"routing":{"domainStrategy":"IPIfNonMatch","rules":[' + rules + ']}';
   }
   private static buildOutbound(node: XrayNode, credential: string): string {
     const proto: string = (node.protocol || 'vless').toLowerCase();

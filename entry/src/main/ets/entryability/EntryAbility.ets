@@ -2,6 +2,7 @@ import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { ConfigService } from '../service/ConfigService';
+import { GeoAssets } from '../service/GeoAssets';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_BOOT';
@@ -17,6 +18,15 @@ export default class EntryAbility extends UIAbility {
       const msg: string = e instanceof Error ? e.message : String(e);
       // 异常文本可能来自第三方，用 private 打：现在文案是我们自己的，但这不变量保不住
       hilog.error(DOMAIN, TAG, 'credential migration at startup failed: %{private}s', msg);
+    });
+
+    // geo 资源必须在**任何 runXrayFromJson 之前**解好并挂上：
+    // RULE 模式的 geosite:cn / geoip:cn 是在实例创建时解析的，缺资源就是启动失败。
+    GeoAssets.ensure(this.context).then((ok: boolean) => {
+      hilog.info(DOMAIN, TAG, 'geo assets at startup: ok=%{public}s', ok ? 'true' : 'false');
+    }).catch((e: Object) => {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      hilog.error(DOMAIN, TAG, 'geo assets at startup failed: %{private}s', msg);
     });
   }
 

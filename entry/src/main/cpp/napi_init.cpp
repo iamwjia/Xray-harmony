@@ -16,6 +16,9 @@ extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info);
 extern "C" napi_value M8Invoke(napi_env env, napi_callback_info info);
 // M9: start SOCKS inbound + freedom outbound, request through it, compare exit IP.
 extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info);
+// geo: point xray-core at the directory holding geoip.dat / geosite.dat.
+// Must be called before runXrayFromJson (rules are parsed at instance creation).
+extern "C" napi_value SetAssetPath(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -54,6 +57,7 @@ napi_value Init(napi_env env, napi_value exports)
         {"m7CGoVersion", nullptr, M7CGoVersion, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m8Invoke", nullptr, M8Invoke, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m9ProxyProbe", nullptr, M9ProxyProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setAssetPath", nullptr, SetAssetPath, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

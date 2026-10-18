@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { ConfigService } from '../service/ConfigService';
 import { RoutingMode } from '../model/AppConfig';
+import { GeoAssets } from '../service/GeoAssets';
 
 /**
  * pages/Settings.ets — 设置（最小项：日志级别 / 关于）
@@ -14,6 +15,8 @@ struct Settings {
   @State routingMode: RoutingMode = RoutingMode.RULE;
   /** 设置写盘失败提示（FR-44：不允许"看着改了其实没存"） */
   @State persistError: string = '';
+  /** geo 资源版本（未就绪时明确显示"不可用"，不要显示空串让人以为正常） */
+  @State geoLabel: string = '';
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -22,6 +25,7 @@ struct Settings {
   aboutToAppear(): void {
     this.routingMode = this.cfg.getConfig().settings.routingMode;
     this.logLevel = this.cfg.getLogLevel();
+    this.geoLabel = GeoAssets.isReady() ? `${GeoAssets.getVersion()}（规则模式下国内直连生效）` : '未就绪（规则模式已降级为仅内网直连）';
   }
 
   private setRouting(mode: RoutingMode): void {
@@ -103,7 +107,9 @@ struct Settings {
         Text('关于').fontSize(14).fontWeight(FontWeight.Medium)
         Text('Tunnelix · 骨架版本').fontSize(12).fontColor('#666666')
         Text('内核：libXray v26.7.28（libxray.so）').fontSize(12).fontColor('#666666')
-        Text('说明：当前未接入真实连接链路，所有网络行为在下一阶段接入。').fontSize(11).fontColor('#999999')
+        Text(`分流资源：${this.geoLabel}`).fontSize(12).fontColor('#666666')
+        Text('说明：内置 geo 资源为 v2fly 官方构建；规则随版本更新，需发版才会变化（不做后台自动下载）。')
+          .fontSize(11).fontColor('#999999')
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)

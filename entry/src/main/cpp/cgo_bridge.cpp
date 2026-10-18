@@ -407,6 +407,35 @@ extern "C" napi_value M8Invoke(napi_env env, napi_callback_info info)
 }
 
 // ---------------------------------------------------------------------------
+// Asset path for geoip/geosite.
+//
+// xray-core resolves `geosite:cn` / `geoip:cn` by READing files from the directory
+// named by the `xray.location.asset` environment variable. ArkTS has no setenv, so
+// this hook is the only way to point the kernel at the extracted geo files.
+//
+// MUST be called before runXrayFromJson: the routing rules are parsed when the
+// instance is created, and a missing asset directory at that moment is a hard
+// config error, not a lazy lookup.
+// ---------------------------------------------------------------------------
+extern "C" napi_value SetAssetPath(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    const std::string dir = (argc >= 1) ? GetStringArg(env, argv[0]) : std::string();
+    if (dir.empty()) {
+        return MakeString(env, "rejected: empty path");
+    }
+    // xray-core reads the lower-case dotted name; XRAY_LOCATION_ASSET is the
+    // documented CLI convention. Set both so neither path silently misses.
+    setenv("xray.location.asset", dir.c_str(), 1);
+    setenv("XRAY_LOCATION_ASSET", dir.c_str(), 1);
+    OH_LOG_INFO(LOG_APP, "asset path set len=%{public}d", static_cast<int>(dir.size()));
+    return MakeString(env, "ok");
+}
+
+// ---------------------------------------------------------------------------
 // M9 / P-01 prerequisite: prove the kernel forwards traffic over a real socket.
 //
 // Two layers are kept strictly separate (do NOT merge them in reports):
