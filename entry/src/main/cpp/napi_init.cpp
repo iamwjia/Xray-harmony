@@ -6,6 +6,9 @@
 // Declared in the prebuilt shared library (libprebuilt.so, source: cpp/prebuilt/prebuilt.c)
 extern "C" int prebuilt_add(int a, int b);
 
+// M5: implemented in cgo_bridge.cpp (dlopen libcgoping.so + dlsym CGoPing).
+extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info);
+
 namespace {
 
 napi_value Hello(napi_env env, napi_callback_info info)
@@ -38,6 +41,7 @@ napi_value Init(napi_env env, napi_value exports)
     napi_property_descriptor desc[] = {
         {"hello", nullptr, Hello, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"prebuiltAdd", nullptr, PrebuiltAdd, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m5CGoPing", nullptr, M5CGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

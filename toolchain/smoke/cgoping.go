@@ -52,6 +52,7 @@ func CGoPing() *C.char {
 	// 说明工具链/环境变量用错了（这是最常见的失败，且往往静默）。
 	payload := `{"success":true,"data":{"marker":"pong","version":"` + cgopingVersion +
 		`","goos":"` + runtime.GOOS + `","goarch":"` + runtime.GOARCH +
+		`","buildtag":"` + buildTagOS() +
 		`","cside":"` + C.GoString(C.c_side_marker()) + `"}}`
 	return C.CString(payload)
 }

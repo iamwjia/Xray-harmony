@@ -16,6 +16,7 @@ struct Index {
   @State m2Result: string = '(M2 not run)';
   @State m3Result: string = '(M3 not run)';
   @State m4Result: string = '(M4 not run)';
+  @State m5Result: string = '(M5 not run)';
 
   // 启动即探测：无需点击即可区分「API 不存在 / 调用悬挂 / 调用被拒」
   aboutToAppear(): void {
@@ -93,6 +94,22 @@ struct Index {
       });
   }
 
+  // M5：调用 Go 侧 CGoPing。
+  // libcgoping.so 随 HAP 的 libs/<abi>/ 分发（已设 SONAME，DT_NEEDED 只记 soname），
+  // 运行期由 native 侧 dlopen("libcgoping.so") + dlsym("CGoPing") 完成调用。
+  private runM5(): void {
+    hilog.info(DOMAIN, TAG, 'M5 clicked');
+    try {
+      const ret: string = nativeEntry.m5CGoPing();
+      this.m5Result = ret;
+      hilog.info(DOMAIN, TAG, 'M5 result=%{public}s', ret);
+    } catch (e) {
+      const err = e as BusinessError;
+      this.m5Result = `M5 failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'M5 failed code=%{public}d msg=%{public}s', err.code, err.message);
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('xray-harmony PoC skeleton').fontSize(20).fontWeight(FontWeight.Bold)
@@ -105,6 +122,9 @@ struct Index {
 
       Button('M4: start VpnExtensionAbility (code only)').onClick(() => this.runM4()).width('90%')
       Text(this.m4Result).fontSize(14)
+
+      Button('M5: call Go CGoPing()').onClick(() => this.runM5()).width('90%')
+      Text(this.m5Result).fontSize(14)
     }
     .width('100%')
     .padding(16)
