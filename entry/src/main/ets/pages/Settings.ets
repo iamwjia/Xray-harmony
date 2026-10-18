@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { ConfigService } from '../service/ConfigService';
 import { RoutingMode } from '../model/AppConfig';
 import { GeoAssets } from '../service/GeoAssets';
+import { KernelService } from '../service/KernelService';
 
 /**
  * pages/Settings.ets — 设置（最小项：日志级别 / 关于）
@@ -17,6 +18,9 @@ struct Settings {
   @State persistError: string = '';
   /** geo 资源版本（未就绪时明确显示"不可用"，不要显示空串让人以为正常） */
   @State geoLabel: string = '';
+  /** geo 手动更新状态 */
+  @State geoBusy: boolean = false;
+  @State geoMsg: string = '';
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -39,6 +43,57 @@ struct Settings {
     const ok: boolean = this.cfg.setLogLevel(v);
     this.logLevel = this.cfg.getLogLevel();
     this.persistError = ok ? '' : this.cfg.getPersistError();
+  }
+
+  /**
+   * geo 手动更新。点击前必须弹确认：这是在**用用户的流量**下载约 25 MB，
+   * 不能做成"点了就开始下、下完才告诉用户"。
+   */
+  private confirmGeoUpdate(): void {
+    AlertDialog.show({
+      title: '更新分流规则',
+      message: '将从 v2fly 官方下载最新 geoip / geosite（约 25 MB），使用当前网络流量。\n' +
+        '更新不影响已保存的节点；若正在连接，需断开重连后生效。',
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '开始更新',
+        action: () => {
+          this.doGeoUpdate();
+        }
+      }
+    });
+  }
+
+  private doGeoUpdate(): void {
+    if (this.geoBusy) {
+      return;
+    }
+    this.geoBusy = true;
+    this.geoMsg = '准备中…';
+    GeoAssets.updateFromNetwork((m: string) => {
+      this.geoMsg = m;
+    }).then((err: string) => {
+      this.geoBusy = false;
+      this.geoLabel = GeoAssets.isReady()
+        ? `${GeoAssets.getVersion()}（规则模式下国内直连生效）`
+        : this.geoLabel;
+      if (err.length > 0) {
+        this.geoMsg = `更新失败：${err}（已保留原有规则）`;
+        return;
+      }
+      this.geoMsg = KernelService.getInstance().isRunning()
+        ? '已更新，请断开后重连使新规则生效'
+        : '已更新，下次连接生效';
+    }).catch((e: Object) => {
+      this.geoBusy = false;
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.geoMsg = `更新失败：${msg}（已保留原有规则）`;
+    });
   }
 
   build() {
@@ -96,7 +151,8 @@ struct Settings {
             .fontColor(this.routingMode === RoutingMode.DIRECT ? '#FFFFFF' : '#333333')
             .onClick(() => this.setRouting(RoutingMode.DIRECT))
         }
-        Text('规则：内网/回环直连，其余走代理（geo 规则待内置资源后补齐）').fontSize(10).fontColor('#999999')
+        Text('规则：国内域名/IP 与内网直连，其余走代理（依赖下方 geo 资源；资源不可用时降级为仅内网直连）')
+          .fontSize(10).fontColor('#999999')
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
@@ -108,7 +164,16 @@ struct Settings {
         Text('Tunnelix · 骨架版本').fontSize(12).fontColor('#666666')
         Text('内核：libXray v26.7.28（libxray.so）').fontSize(12).fontColor('#666666')
         Text(`分流资源：${this.geoLabel}`).fontSize(12).fontColor('#666666')
-        Text('说明：内置 geo 资源为 v2fly 官方构建；规则随版本更新，需发版才会变化（不做后台自动下载）。')
+        Row({ space: 8 }) {
+          Button(this.geoBusy ? '更新中…' : '更新分流规则（约 25 MB）')
+            .fontSize(12)
+            .enabled(!this.geoBusy)
+            .onClick(() => this.confirmGeoUpdate())
+        }
+        if (this.geoMsg.length > 0) {
+          Text(this.geoMsg).fontSize(11).fontColor('#1976D2')
+        }
+        Text('说明：内置 geo 资源为 v2fly 官方构建；只有点上面按钮才会联网下载，不做后台自动更新。')
           .fontSize(11).fontColor('#999999')
       }
       .width('100%')

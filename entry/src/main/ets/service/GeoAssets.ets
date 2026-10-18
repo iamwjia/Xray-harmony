@@ -23,6 +23,7 @@
 import { fileIo } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
+import { http as httpClient } from '@kit.NetworkKit';
 import nativeEntry from 'libentry.so';
 import { Logger } from '../platform/Logger';
 
@@ -31,6 +32,24 @@ const ZIP_NAME: string = 'geo.zip';
 const GEOIP: string = 'geoip.dat';
 const GEOSITE: string = 'geosite.dat';
 const VERSION_FILE: string = '.version';
+/** 手动更新的数据源：v2fly 官方 releases（与内置资源同源，避免口径不一致） */
+const GEOIP_URL: string = 'https://github.com/v2fly/geoip/releases/latest/download/geoip.dat';
+const GEOSITE_URL: string = 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat';
+
+/** 一次下载任务：临时文件 → 目标文件 */
+class GeoDownload {
+  name: string = '';
+  url: string = '';
+  temp: string = '';
+  target: string = '';
+
+  constructor(url: string, target: string, temp: string) {
+    this.url = url;
+    this.target = target;
+    this.temp = temp;
+    this.name = target.substring(target.lastIndexOf('/') + 1);
+  }
+}
 /**
  * 资源版本标记。**更新 geo 数据时必须同步改这个常量**，否则老用户不会重新解包。
  * 格式：来源-日期，与设置页显示的值保持一致。
@@ -125,17 +144,28 @@ export class GeoAssets {
   }
 
   private static writeVersion(dir: string): void {
+    GeoAssets.writeVersionValue(dir, GEO_VERSION);
+  }
+
+  private static writeVersionValue(dir: string, value: string): void {
     try {
       const f = fileIo.openSync(`${dir}/${VERSION_FILE}`,
         fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
       try {
-        fileIo.writeSync(f.fd, GEO_VERSION);
+        fileIo.writeSync(f.fd, value);
       } finally {
         fileIo.closeSync(f);
       }
     } catch (e) {
       Logger.warn('geo: failed to write version marker (will re-extract next launch)');
     }
+  }
+
+  private static todayTag(): string {
+    const d = new Date();
+    const m: string = d.getMonth() + 1 < 10 ? `0${d.getMonth() + 1}` : `${d.getMonth() + 1}`;
+    const day: string = d.getDate() < 10 ? `0${d.getDate()}` : `${d.getDate()}`;
+    return `v2fly-${d.getFullYear()}-${m}-${day}`;
   }
 
   /** 只用于读版本标记这类 ASCII 短文本；不用于解析 .dat */
@@ -190,16 +220,133 @@ export class GeoAssets {
     }
   }
 
-  private static attach(dir: string): boolean {
+  private static attach(dir: string, version: string = GEO_VERSION): boolean {
     const resp: string = nativeEntry.setAssetPath(dir);
     if (resp !== 'ok') {
       Logger.error(`setAssetPath rejected: ${resp}`);
       return false;
     }
     GeoAssets.dir = dir;
-    GeoAssets.version = GEO_VERSION;
+    GeoAssets.version = version;
     GeoAssets.ready = true;
-    Logger.info(`geo assets ready (${GEO_VERSION})`);
+    Logger.info(`geo assets ready (${version})`);
     return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // 手动更新（用户显式发起，绝不后台自动下载）
+  //
+  // 为什么不做自动更新：VPN 类应用在用户不知情时联网下载，是信任问题，
+  // 不值得为省一次点击去冒。所以只有这一个入口，且点击前必须告知体积。
+  //
+  // 失败策略：**任一步失败都保留旧文件**。宁可继续用旧规则，
+  // 也不能留下"geoip 是新的、geosite 是旧的"这种半更新状态——那种状态
+  // 内核能起但分流结果不可解释，排查成本远高于"更新失败请重试"。
+  // -------------------------------------------------------------------------
+
+  /** 返回空串 = 成功；否则为可读失败原因 */
+  static async updateFromNetwork(onProgress: (msg: string) => void): Promise<string> {
+    const dir: string = GeoAssets.dir;
+    if (dir.length === 0) {
+      return '资源目录未就绪，请先启动一次应用';
+    }
+    // 先下小的 geosite（2.3 MB）再下大的 geoip（23 MB）：
+    // 网络差时能更快给出"到底通不通"的信号，也避免用户盯着一个巨型文件干等。
+    const targets: GeoDownload[] = [
+      new GeoDownload(GEOSITE_URL, `${dir}/${GEOSITE}`, `${dir}/${GEOSITE}.tmp`),
+      new GeoDownload(GEOIP_URL, `${dir}/${GEOIP}`, `${dir}/${GEOIP}.tmp`)
+    ];
+    for (let i = 0; i < targets.length; i++) {
+      const t: GeoDownload = targets[i];
+      onProgress(`正在下载 ${t.name}（${i + 1}/${targets.length}）…`);
+      const err: string = await GeoAssets.download(t);
+      if (err.length > 0) {
+        GeoAssets.cleanupTemps(targets);
+        return `${t.name} 下载失败：${err}`;
+      }
+    }
+    // 两个都下载完成后才替换：先落盘再原子改名，避免替换到一半
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const t: GeoDownload = targets[i];
+        if (fileIo.accessSync(t.target)) {
+          fileIo.unlinkSync(t.target);
+        }
+        fileIo.renameSync(t.temp, t.target);
+      }
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      GeoAssets.cleanupTemps(targets);
+      return `替换资源失败：${msg}`;
+    }
+    const tag: string = GeoAssets.todayTag();
+    GeoAssets.writeVersionValue(dir, tag);
+    GeoAssets.ready = false;
+    const ok: boolean = GeoAssets.attach(dir, tag);
+    if (!ok) {
+      return '资源已更新但挂载内核失败，请重启应用';
+    }
+    onProgress('更新完成');
+    return '';
+  }
+
+  private static cleanupTemps(targets: GeoDownload[]): void {
+    for (let i = 0; i < targets.length; i++) {
+      try {
+        if (fileIo.accessSync(targets[i].temp)) {
+          fileIo.unlinkSync(targets[i].temp);
+        }
+      } catch (e) {
+        Logger.warn('geo update: temp cleanup failed');
+      }
+    }
+  }
+
+  /**
+   * 流式下载到临时文件。
+   * 用 requestInStream 而不是一次性 ARRAY_BUFFER：geoip 有 23 MB，
+   * 整块读进内存对低端机不友好，而且失败时白占一次峰值。
+   */
+  private static async download(t: GeoDownload): Promise<string> {
+    const req: httpClient.HttpRequest = httpClient.createHttp();
+    const file = fileIo.openSync(t.temp,
+      fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+    let received: number = 0;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        req.on('dataReceive', (data: ArrayBuffer) => {
+          try {
+            fileIo.writeSync(file.fd, data);
+            received += data.byteLength;
+          } catch (e) {
+            reject(new Error('写入临时文件失败'));
+          }
+        });
+        req.on('dataEnd', () => {
+          resolve();
+        });
+        req.requestInStream(t.url, {
+          method: httpClient.RequestMethod.GET,
+          connectTimeout: 30000,
+          // 600s：geoip 23 MB，弱网下 100 KB/s 也要约 4 分钟。
+          // 超时设小了会表现成"更新永远失败"，而用户网络其实是能下完的。
+          readTimeout: 600000
+        }).then(() => {
+        }).catch((err: Error) => {
+          reject(new Error(err.message));
+        });
+      });
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      fileIo.closeSync(file);
+      return msg;
+    }
+    fileIo.closeSync(file);
+    req.destroy();
+    if (received < MIN_EXPECTED_BYTES) {
+      return `下载内容过小（${received} B），疑似失败`;
+    }
+    Logger.info(`geo ${t.name} downloaded: ${received} bytes`);
+    return '';
   }
 }
