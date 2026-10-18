@@ -15,7 +15,24 @@ import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 
 const KEY: string = 'tunnelix_nodes_v1';
-const SCHEMA: number = 1;
+/**
+ * schema 2：`credentialRef` 语义从「明文凭据」改为「Asset Store 别名（`node:<id>`）」。
+ * v1 数据仍可读，由 ConfigService 做一次性迁移（不静默丢弃）。
+ */
+const SCHEMA: number = 2;
+/** v1：credentialRef 是明文凭据 */
+const SCHEMA_PLAINTEXT: number = 1;
+
+/** 载入结果：把 schema 一并交给调用方，迁移决策必须基于它，不能靠猜 */
+export class NodeLoadResult {
+  /** false = 读到了但解析失败（调用方必须保留原数据、禁止覆盖写） */
+  ok: boolean = false;
+  /** 落盘时的 schema 版本；首次启动为 0 */
+  schema: number = 0;
+  nodes: XrayNode[] = [];
+  /** 是否所有凭据都已是别名形式（false ⇒ 需要迁移） */
+  allSecretsMigrated: boolean = true;
+}
 
 /** 落盘用的扁平结构（只存必要字段，且字段名短一些以减小体积） */
 interface StoredNode {
@@ -66,37 +83,54 @@ export class NodeStore {
   }
 
   /**
-   * 读取节点列表。
-   * 返回 null 表示「读到了但解析失败」，调用方必须**保留原数据、不得覆盖**。
-   * 返回空数组表示「没有已保存的节点」（首次启动）。
+   * 读取节点列表（含 schema 与迁移状态）。
+   * ok=false 表示「读到了但解析失败」，调用方必须**保留原数据、不得覆盖**。
+   * ok=true 且 nodes 为空表示「没有已保存的节点」（首次启动）。
    */
-  static load(): XrayNode[] | null {
+  static loadResult(): NodeLoadResult {
+    const out = new NodeLoadResult();
     try {
       NodeStore.ensure();
       const raw: string | undefined = AppStorage.get<string>(KEY);
       if (raw === undefined || raw === '') {
-        return [];
+        out.ok = true;
+        out.schema = 0;
+        return out;
       }
       const payload: StoredPayload = JSON.parse(raw) as StoredPayload;
       if (payload === null || payload.nodes === undefined) {
         Logger.error('nodeStore load: payload malformed (missing nodes)');
-        return null;
+        out.ok = false;
+        return out;
       }
-      if (payload.schema !== SCHEMA) {
-        // 版本不符：当前只有 v1，不做静默丢弃，交由调用方决定
-        Logger.warn(`nodeStore load: schema ${payload.schema} != ${SCHEMA}`);
+      out.schema = payload.schema === undefined ? SCHEMA_PLAINTEXT : payload.schema;
+      if (out.schema !== SCHEMA) {
+        // 版本不符：不静默丢弃，交给调用方决定迁移或安全失败
+        Logger.warn(`nodeStore load: schema ${out.schema} != ${SCHEMA}`);
       }
-      const out: XrayNode[] = [];
       for (let i = 0; i < payload.nodes.length; i++) {
-        out.push(NodeStore.fromStored(payload.nodes[i]));
+        const n: XrayNode = NodeStore.fromStored(payload.nodes[i]);
+        out.nodes.push(n);
+        // v1 数据的 credentialRef 是明文；别名形如 node:<id>
+        if (n.credentialRef.length > 0 && !n.credentialRef.startsWith('node:')) {
+          out.allSecretsMigrated = false;
+        }
       }
-      Logger.info(`nodeStore load ok: ${out.length} node(s)`);
+      out.ok = true;
+      Logger.info(`nodeStore load ok: ${out.nodes.length} node(s) schema=${out.schema} migrated=${out.allSecretsMigrated}`);
       return out;
     } catch (e) {
       const msg: string = e instanceof Error ? e.message : String(e);
       Logger.error(`nodeStore load failed: ${msg}`);
-      return null;
+      out.ok = false;
+      return out;
     }
+  }
+
+  /** 兼容旧调用：只需要节点列表时用它；失败返回 null */
+  static load(): XrayNode[] | null {
+    const r: NodeLoadResult = NodeStore.loadResult();
+    return r.ok ? r.nodes : null;
   }
 
   private static toStored(n: XrayNode): StoredNode {

@@ -38,16 +38,24 @@ struct Nodes {
     }
   }
 
-  /** 导入分享链接：解析成功后加入列表并选中 */
+  /** 导入分享链接：解析成功后写入安全存储 + 节点表，并选中 */
   private doImport(): void {
     const link: string = this.linkInput.trim();
     if (!link) {
       this.importMsg = '请先粘贴分享链接';
       return;
     }
+    let node: XrayNode;
     try {
-      const node = ShareLinkParser.parse(link);
-      const added: boolean = this.cfg.addNode(node);
+      node = ShareLinkParser.parse(link);
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.importMsg = `导入失败：${msg}`;
+      Logger.warn(`import failed: ${msg}`);
+      return;
+    }
+    // 凭据先落 Asset Store，节点表只存别名（新增数据不再有明文凭据）
+    this.cfg.addNodeSecure(node).then((added: boolean) => {
       this.cfg.selectNode(node.id);
       this.reload();
       this.importMsg = added
@@ -55,11 +63,11 @@ struct Nodes {
         : `节点已存在，已切换选中：${node.name}`;
       this.linkInput = '';
       Logger.info(`import ok: ${node.protocol} @ ${node.address}:${node.port}`);
-    } catch (e) {
+    }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
-      this.importMsg = `导入失败：${msg}`;
-      Logger.warn(`import failed: ${msg}`);
-    }
+      this.importMsg = `导入失败：凭据写入安全存储失败（${msg}）`;
+      Logger.error(`import failed at secret store: ${msg}`);
+    });
   }
   build() {
     Column({ space: 12 }) {

@@ -26,6 +26,8 @@ struct Index {
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
   @State socksInfo: string = '';
+  /** 凭据迁移失败提示（FR-35 / NFR-06） */
+  @State migrationWarning: string = '';
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
@@ -47,6 +49,7 @@ struct Index {
     this.nodeName = n === null ? '（未选择）' : n.name;
     // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
+    this.migrationWarning = this.cfg.getMigrationError();
   }
 
   private isIdleOrError(): boolean {
@@ -63,35 +66,60 @@ struct Index {
   }
 
   private doConnect(): void {
+    this.runConnect().then(() => {
+    }).catch((e: Object) => {
+      this.busyHint = '';
+      this.vm.onKernelError(this.toReadable(e));
+      this.refreshAll();
+    });
+  }
+
+  private async runConnect(): Promise<void> {
     this.vm.requestConnect();
     this.busyHint = '';
     this.refreshAll();
 
+    // v1 明文凭据在此迁移到 Asset Store（幂等）；失败不阻断连接，但必须可见
+    await this.cfg.ensureSecureMigration();
+
     const sel: XrayNode | null = this.cfg.getSelectedNode();
+    let credential: string = '';
+    if (sel !== null) {
+      const c: string | null = await this.cfg.resolveCredential(sel);
+      if (c === null) {
+        // 拿不到凭据就必须阻断：拿空串去连，内核只会给一个与真实原因无关的握手错误
+        this.busyHint = '';
+        this.vm.onKernelError('节点凭据不可用（安全存储中找不到对应密钥），请重新导入该节点');
+        this.refreshAll();
+        return;
+      }
+      credential = c;
+    }
+
     const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
     // 每次连接轮换本地 SOCKS 端口与口令（FR-35：loopback 同设备共享，不能免鉴权）
     const ep: SocksEndpoint = SocksGuard.rotate();
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)
-      : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password);
+      : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password, credential);
     this.socksInfo = `本地 SOCKS 127.0.0.1:${ep.port}（已启用口令鉴权）`;
-    this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS)
-      .then(() => {
-        this.vm.onKernelConnected();
-        this.busyHint = '';
-        this.refreshAll();
-      })
-      .catch((err: Object) => {
-        const msg: string = this.toReadable(err);
-        this.busyHint = '';
-        this.vm.onKernelError(msg);
-        this.refreshAll();
-        // 失败/超时可能留下"半启动"内核（占着 18080），必须后台收尾，
-        // 否则用户点重试会直接被端口占用挡住。不 await：用户已经在看错误文案，不该再等 5 秒。
-        this.kernel.bestEffortStop().then(() => {
-          Logger.warn('post-failure cleanup finished');
-        });
+
+    try {
+      await this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS);
+      this.vm.onKernelConnected();
+      this.busyHint = '';
+      this.refreshAll();
+    } catch (err) {
+      const msg: string = this.toReadable(err as Object);
+      this.busyHint = '';
+      this.vm.onKernelError(msg);
+      this.refreshAll();
+      // 失败/超时可能留下"半启动"内核（占着端口），必须后台收尾，
+      // 否则用户点重试会直接被端口占用挡住。不 await：用户已经在看错误文案，不该再等 5 秒。
+      this.kernel.bestEffortStop().then(() => {
+        Logger.warn('post-failure cleanup finished');
       });
+    }
   }
 
   private doDisconnect(): void {
@@ -147,6 +175,17 @@ struct Index {
           .width('100%')
           .padding(10)
           .backgroundColor('#FFF3E0')
+          .borderRadius(8)
+      }
+
+      // 凭据迁移失败横幅：不允许"以为已加密，其实还是明文"
+      if (this.migrationWarning.length > 0) {
+        Text(this.migrationWarning)
+          .fontSize(12)
+          .fontColor('#B71C1C')
+          .width('100%')
+          .padding(10)
+          .backgroundColor('#FFEBEE')
           .borderRadius(8)
       }
 

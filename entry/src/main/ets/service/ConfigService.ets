@@ -1,6 +1,7 @@
 import { AppConfig, AppSettings, ConfigCodec, createDefaultConfig, XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
-import { NodeStore } from './NodeStore';
+import { SecretStore } from '../platform/SecretStore';
+import { NodeStore, NodeLoadResult } from './NodeStore';
 import { SettingsStore, SettingsSnapshot } from './SettingsStore';
 
 /**
@@ -28,6 +29,10 @@ export class ConfigService {
   private overwriteConfirmed: boolean = false;
   /** 上次设置写盘失败的原因（空串 = 没有失败），供 UI 横幅使用 */
   private persistError: string = '';
+  /** v1 明文凭据待迁移到 Asset Store */
+  private pendingCredentialMigration: boolean = false;
+  /** 迁移失败原因（空串 = 无失败）；失败时必须阻断依赖明文凭据的连接 */
+  private migrationError: string = '';
 
   private constructor() {
     this.config = createDefaultConfig();
@@ -43,13 +48,18 @@ export class ConfigService {
       this.config = decoded;
     }
     // 载入已保存的节点：解析失败时**保留原数据**，只记日志（不覆盖、不清空）
-    const persisted: XrayNode[] | null = NodeStore.load();
-    if (persisted === null) {
+    const loaded: NodeLoadResult = NodeStore.loadResult();
+    if (!loaded.ok) {
       Logger.error('nodeStore: persisted nodes unreadable; keeping in-memory defaults, persistence blocked until user confirms');
-    } else if (persisted.length > 0) {
-      this.config.nodes = persisted;
+    } else if (loaded.nodes.length > 0) {
+      this.config.nodes = loaded.nodes;
       if (!this.config.selectedNodeId) {
-        this.config.selectedNodeId = persisted[0].id;
+        this.config.selectedNodeId = loaded.nodes[0].id;
+      }
+      // v1 明文凭据需要迁移到 Asset Store（FR-35 / NFR-06）
+      this.pendingCredentialMigration = !loaded.allSecretsMigrated;
+      if (this.pendingCredentialMigration) {
+        Logger.warn('credential migration pending: v1 plaintext credentialRef detected');
       }
     }
     // 载入设置（分流模式/日志级别）：解析失败时保留默认值，不写盘覆盖
@@ -189,6 +199,85 @@ export class ConfigService {
     Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
     return true;
   }
+  /** 是否存在待迁移的明文凭据（UI 可据此提示） */
+  hasPendingCredentialMigration(): boolean {
+    return this.pendingCredentialMigration;
+  }
+
+  /** 迁移失败原因（空串 = 无失败） */
+  getMigrationError(): string {
+    return this.migrationError;
+  }
+
+  /**
+   * 一次性迁移：v1 明文 `credentialRef` → Asset Store，节点表只留别名（`node:<id>`）。
+   *
+   * 顺序是刻意的：**先写入安全存储，全部成功后才写 v2 节点表**。
+   * 任一步失败就保留明文原数据并返回 false —— 宁可继续用明文跑，
+   * 也不能出现"凭据进了安全存储、节点表却写坏"的半成品状态。
+   */
+  async ensureSecureMigration(): Promise<boolean> {
+    if (!this.pendingCredentialMigration) {
+      return true;
+    }
+    if (!this.canPersist()) {
+      this.migrationError = '配置读取异常，暂不迁移凭据（原数据未改动）';
+      Logger.error('credential migration skipped: persistence blocked');
+      return false;
+    }
+    const nodes: XrayNode[] = this.config.nodes;
+    for (let i = 0; i < nodes.length; i++) {
+      const n: XrayNode = nodes[i];
+      if (n.credentialRef.length === 0 || n.credentialRef.startsWith('node:')) {
+        continue;
+      }
+      const alias: string = SecretStore.aliasForNode(n.id);
+      const ok: boolean = await SecretStore.put(alias, n.credentialRef);
+      if (!ok) {
+        this.migrationError = '凭据迁移失败（原数据未改动，仍为明文），请查看日志';
+        Logger.error(`credential migration aborted at node ${n.id}: asset store put failed`);
+        return false;
+      }
+      n.credentialRef = alias;
+    }
+    if (!NodeStore.save(nodes)) {
+      this.migrationError = '凭据已迁移但节点表写入失败，仍按原数据运行';
+      Logger.error('credential migration: nodes persist failed');
+      return false;
+    }
+    this.pendingCredentialMigration = false;
+    this.migrationError = '';
+    Logger.info('credential migration done: credentialRef are asset aliases now');
+    return true;
+  }
+
+  /**
+   * 取节点凭据明文。
+   * 返回 null = 取不到。调用方**必须阻断连接**，不能拿空串当凭据硬连——
+   * 那样内核只会给出一个与真实原因无关的握手错误。
+   */
+  async resolveCredential(node: XrayNode): Promise<string | null> {
+    const alias: string = node.credentialRef.startsWith('node:')
+      ? node.credentialRef
+      : SecretStore.aliasForNode(node.id);
+    return await SecretStore.get(alias);
+  }
+
+  /** 导入节点：先把凭据写进 Asset Store，再落节点表（新数据从第一天起就不存明文） */
+  async addNodeSecure(node: XrayNode): Promise<boolean> {
+    if (!this.canPersist()) {
+      Logger.error('addNodeSecure blocked: persistence disabled');
+      return false;
+    }
+    const alias: string = SecretStore.aliasForNode(node.id);
+    if (!await SecretStore.put(alias, node.credentialRef)) {
+      Logger.error(`addNodeSecure: secret store put failed for ${node.protocol}@${node.address}:${node.port}`);
+      return false;
+    }
+    node.credentialRef = alias;
+    return this.addNode(node);
+  }
+
   /**
    * 设置分流模式（全局 / 规则 / 直连）。
    * 返回 false 表示**未保存成功**：此时内存值已回滚，UI 必须据此提示（FR-44）。

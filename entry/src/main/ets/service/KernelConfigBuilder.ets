@@ -41,11 +41,16 @@ export class KernelConfigBuilder {
     return cfg;
   }
 
-  /** 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底 */
+  /**
+   * 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底。
+   * `credential` 由调用方从安全存储取出（Asset Store 里只有别名，本层不该自己去读密钥）；
+   * 传空串时回落到 `node.credentialRef`，仅供尚未迁移的调试路径使用。
+   */
   static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
-    routingMode: RoutingMode = RoutingMode.RULE, socksUser: string = '', socksPass: string = ''): string {
+    routingMode: RoutingMode = RoutingMode.RULE, socksUser: string = '', socksPass: string = '',
+    credential: string = ''): string {
     const inbound: string = KernelConfigBuilder.buildInbound(socksPort, socksUser, socksPass);
-    const proxy: string = KernelConfigBuilder.buildOutbound(node);
+    const proxy: string = KernelConfigBuilder.buildOutbound(node, credential);
     const direct: string = '{"tag":"direct","protocol":"freedom"}';
     const routing: string = KernelConfigBuilder.buildRouting(routingMode);
     return '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],"outbounds":[' +
@@ -71,14 +76,16 @@ export class KernelConfigBuilder {
       '"169.254.0.0/16","::1/128","fc00::/7","fe80::/10"],"outboundTag":"direct"}' +
       ']}';
   }
-  private static buildOutbound(node: XrayNode): string {
+  private static buildOutbound(node: XrayNode, credential: string): string {
     const proto: string = (node.protocol || 'vless').toLowerCase();
     const stream: string = KernelConfigBuilder.buildStreamSettings(node);
     const addr: string = KernelConfigBuilder.esc(node.address);
     const port: string = node.port.toString();
+    // 优先用调用方从安全存储取出的明文；取不到时回落（仅调试路径）
+    const cred: string = credential.length > 0 ? credential : node.credentialRef;
 
     if (proto === 'vless') {
-      let user: string = '{"id":' + KernelConfigBuilder.esc(node.credentialRef) + ',"encryption":"none"';
+      let user: string = '{"id":' + KernelConfigBuilder.esc(cred) + ',"encryption":"none"';
       if (node.flow) {
         user += ',"flow":' + KernelConfigBuilder.esc(node.flow);
       }
@@ -88,18 +95,18 @@ export class KernelConfigBuilder {
     }
     if (proto === 'vmess') {
       return '{"tag":"proxy","protocol":"vmess","settings":{"vnext":[{"address":' + addr +
-        ',"port":' + port + ',"users":[{"id":' + KernelConfigBuilder.esc(node.credentialRef) +
+        ',"port":' + port + ',"users":[{"id":' + KernelConfigBuilder.esc(cred) +
         ',"alterId":0,"security":"auto"}]}]},"streamSettings":' + stream + '}';
     }
     if (proto === 'trojan') {
       return '{"tag":"proxy","protocol":"trojan","settings":{"servers":[{"address":' + addr +
-        ',"port":' + port + ',"password":' + KernelConfigBuilder.esc(node.credentialRef) +
+        ',"port":' + port + ',"password":' + KernelConfigBuilder.esc(cred) +
         '}]},"streamSettings":' + stream + '}';
     }
     if (proto === 'shadowsocks') {
-      const sep: number = node.credentialRef.indexOf(':');
-      const method: string = sep > 0 ? node.credentialRef.substring(0, sep) : 'aes-256-gcm';
-      const password: string = sep > 0 ? node.credentialRef.substring(sep + 1) : node.credentialRef;
+      const sep: number = cred.indexOf(':');
+      const method: string = sep > 0 ? cred.substring(0, sep) : 'aes-256-gcm';
+      const password: string = sep > 0 ? cred.substring(sep + 1) : cred;
       return '{"tag":"proxy","protocol":"shadowsocks","settings":{"servers":[{"address":' + addr +
         ',"port":' + port + ',"method":' + KernelConfigBuilder.esc(method) +
         ',"password":' + KernelConfigBuilder.esc(password) + '}]}}';
