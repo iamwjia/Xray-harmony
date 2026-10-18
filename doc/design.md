@@ -359,6 +359,11 @@ R1 结论：内核**无「整体重载配置」能力**（全部 proto 无 reloa
 - **关联约束**：预构建 `.so` **必须设 SONAME**，否则 `DT_NEEDED` 写入构建期绝对路径，安装后启动即报 `Error loading shared library D:/.../libs/<abi>/libxray.so`（见 §2.9 S-1）。
 - **不是"暂不支持"**：这是平台沙箱约束，**不会随版本演进消失**；不能写成"后续支持热更新"。
 
+> **PC11 补记（2026-10-18，实现偏离设计，已核实）**
+> 1. **`libxray.so` 不再进 `DT_NEEDED`，改为运行时 `dlopen` 延迟加载**（实现：`CMakeLists.txt` 加 `-Wl,--as-needed`）。原因：若作为链接依赖，动态加载器在进程启动即加载它，Go runtime 随即快照 `environ`，此后设置的 `xray.location.asset` 读不到 → 实测报错 `stat /system/bin/geosite.dat`。**影响面**：这同时是 geo 资源（`geosite:cn`/`geoip:cn`）能生效的前提，故 `setAssetPath` 必须在首次 `runXrayFromJson` 之前调用。
+> 2. **配置生成采用"字符串构造 + 逐值 `JSON.stringify` 转义"**，而非"结构化对象 + 整体 `JSON.stringify`"。原因：ArkTS 严格模式禁止无类型对象字面量（`arkts-no-untyped-obj-literals`），对象字面量方案在本工程不可编译。**补偿手段**：`_toolchain/verify-routing-json.js` 对三模式生成结果做 JSON 结构断言（已全 PASS）。
+> 以上两条属**平台/语言约束导致的实现偏离**，不是设计选择变化；原设计文字保留不删。
+
 # 3. 进程与生命周期模型
 
 

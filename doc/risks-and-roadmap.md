@@ -244,6 +244,23 @@
 
 ---
 
+## 8.9 进度更新（PC11，2026-10-18 22:20 实测口径）
+
+> 依据：`poc/PC11-impl-vs-doc.md`。**只记录"有执行证据的进度"**；无证据者仍按原风险描述处理，不下调等级。
+
+| 项 | 原状态 | 现状态 | 证据 |
+|---|---|---|---|
+| `P-01` 内核 so 加载（M6/M7） | 未完成 | **已达成** | `DevPanel.ets:123-147`；`KernelService.start` 实测 `confirmed running=true` |
+| `P-02` 构建链 | 未完成 | 部分（`--as-needed` 延迟加载、`setAssetPath` 已落地；性能基线仍缺） | `cgo_bridge.cpp` `setAssetPath`、`CMakeLists.txt` `-Wl,--as-needed` |
+| `P-03` tun 链 / `J-01` | 未开始 | **仍未开始**（无 `createVpnConnection`） | `VpnExtAbility.ets:16-23` 仍为骨架 |
+| 风险：凭据明文落盘 | 已发生 | **已缓解**（Asset Store + schema v1→v2 迁移 + 迁移失败阻断连接）；残留：删除节点不擦除历史 secret | `SecretStore.ets:158-251`、`ConfigService.ets:396-442`；`:227-230` 注释已如实标注 |
+| 风险 `R-06`（IPv6 默认泄漏） | 存在 | **未缓解**（尚无 `VpnConfig`，v6 未接管） | 无 VPN 配置代码 |
+| 风险 `R-13`（`routes` 不可增量） | 存在 | 未缓解；FR-39 未实现 | `KernelConfigBuilder` 只生成 routing |
+| 门禁 `RG-02`（v6 不泄漏） | 未验证 | 仍不可验证（依赖 `P-03`） | — |
+| 新增风险（PC11 提出） | — | **geo 资源版本靠常量 `GEO_VERSION` 手工推进**；若将来改为远程改版本号，将新增一条"远程配置通道"攻击面 | `GeoAssets.ets:55-58` |
+
+**保持不变**：`J-01` 仍是唯一不可跳过的门；三条红线（FR-13/14/15）仍全部未满足。
+
 ## 9. PoC 清单（`P-01`~`P-31`）
 
 > 字段：断言 / 最小实验 / 判定标准 / 依赖 / 工作量（人日）/ 优先级 / 为否后果。**所有阈值标「待测」**。

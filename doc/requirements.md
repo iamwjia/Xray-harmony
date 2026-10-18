@@ -157,29 +157,29 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 
 | ID | 需求 | 形态依赖 | 优先级 | 期次 | 依据 |
 |---|---|---|---|---|---|
-| FR-01 | 分享链接导入单节点 | 共用 | P0 | MVP | R1 §3.2 |
+| FR-01 ✅ | 分享链接导入单节点 | 共用 | P0 | MVP | R1 §3.2 |
 | FR-02 | 订阅链接导入（含 Base64） | 共用 | P0 | MVP | R1 §3.2 |
-| FR-03 | 节点列表 CRUD 与排序 | 共用 | P0 | MVP | R1 §3.2 |
-| FR-04 | 手动新建/编辑节点与参数校验 | 共用 | P0 | MVP | R1 §3.2 |
-| FR-05 | 配置生成与合法性校验 | 共用 | P0 | MVP | R1 §3.2、§3.1 |
-| FR-06 | 分流模式三态（全局/规则/直连） | A | P0 | MVP | R1 §3.1 routing；NFR-11 F-4 |
-| FR-07 | 自定义路由规则编辑 | A | P1 | V1 | R1 §3.1、§4.2 |
+| FR-03 ✅ | 节点列表 CRUD 与排序 | 共用 | P0 | MVP | R1 §3.2 |
+| FR-04 ◐ | 手动新建/编辑节点与参数校验 | 共用 | P0 | MVP | R1 §3.2 |
+| FR-05 ✅ | 配置生成与合法性校验 | 共用 | P0 | MVP | R1 §3.2、§3.1 |
+| FR-06 ✅ | 分流模式三态（全局/规则/直连） | A | P0 | MVP | R1 §3.1 routing；NFR-11 F-4 |
+| FR-07 ◐ | 自定义路由规则编辑 | A | P1 | V1 | R1 §3.1、§4.2 |
 | FR-08 | DNS 策略（默认隧道内解析） | A | P0 | MVP | R1 §3.1 dns；R2 §3.1 |
-| FR-09 | 节点切换（快速重启内核） | A | P0 | MVP | R1 §4.2 |
+| FR-09 ◐ | 节点切换（快速重启内核） | A | P0 | MVP | R1 §4.2 |
 | FR-10 | 建立连接与首次 VPN 授权引导 | A | P0 | MVP | R2 §3.1、§3.2 |
 | FR-11 | 长时任务保活与常驻通知 | A | P0 | MVP | R2 §4.1、§4.2 |
 | FR-12 | VPN 冲突诊断（2203002） | A | P0 | MVP | R2 §3.5 |
-| FR-13 | **UI 状态与真实隧道状态严格一致（红线1）** | 共用 | P0 | MVP | R2 §9.5 |
+| FR-13 ◐ | **UI 状态与真实隧道状态严格一致（红线1）** | 共用 | P0 | MVP | R2 §9.5 |
 | FR-14 | **终止可感知（红线2）** | 共用 | P0 | MVP | leader 裁定；R2 §3.2 |
 | FR-15 | **事实不通可检出（红线3）** | 共用 | P0 | MVP | R2 §9.5；P-19 |
-| FR-16 | 中断后的恢复体验（一键恢复） | 共用 | P0 | MVP | leader 裁定；§2.1 B-1 |
+| FR-16 ◐ | 中断后的恢复体验（一键恢复） | 共用 | P0 | MVP | leader 裁定；§2.1 B-1 |
 | FR-17 | 首次连接一次性明示（忠诚披露） | 共用 | P0 | MVP | leader 裁定；§2.1 |
 | FR-18 | 网络切换后自动重连 | A | P0 | MVP | R2 §7 #22 |
 | FR-19 | IPv6 纳入隧道（四条件） | A | P0 | MVP | R2 §9.6；leader 定案 |
 | FR-20 | IPv6 保护状态可见 | A | P0 | MVP | leader 裁定 |
 | FR-21 | 分应用分流（免权限配置模式） | A | P0 | MVP | R2 §3.6、§9.5 |
-| FR-22 | 连接诊断（分步定位） | 共用 | P0 | MVP | R1 §4.1；R2 §7 |
-| FR-23 | 日志查看与导出（脱敏） | 共用 | P0 | MVP | R2 §5、§7 #23 |
+| FR-22 ◐ | 连接诊断（分步定位） | 共用 | P0 | MVP | R1 §4.1；R2 §7 |
+| FR-23 ◐ | 日志查看与导出（脱敏） | 共用 | P0 | MVP | R2 §5、§7 #23 |
 | FR-24 | 崩溃诊断（上次异常退出） | 共用 | P0 | MVP | leader 裁定；R2 §2.4 P8 |
 | FR-25 | 流量与连接统计 | 共用 | P1 | V1 | R1 §4.1 |
 | FR-26 | 订阅更新（手动 + 频率可控） | 共用 | P1 | V1 | R1 §3.2 |
@@ -187,20 +187,43 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | FR-28 | 停用/重置/清除数据 | 共用 | P1 | V1 | 通用 |
 | FR-29 | 许可与来源声明（MPL-2.0 义务） | 共用 | P0 | MVP | R1 §1.3 |
 | FR-30 | 预置应用包名表（覆盖量与更新机制） | A | P0 | MVP | R2 §9.5 缺口（**不依赖 P-18**：表为离线内置资源，见 §4.8 与 K1 附录 A.3） |
-| FR-31 | 协议/传输支持集合（能力声明与兼容） | 共用 | P0 | MVP | R1 §2.1–§2.3 |
+| FR-31 ◐ | 协议/传输支持集合（能力声明与兼容） | 共用 | P0 | MVP | R1 §2.1–§2.3 |
 | FR-32 | 应用内局部代理模式（形态 B） | B | P2 | V1 | R2 §3.4；leader 批准 |
 | FR-33 | 多语言（简体中文 / English） | 共用 | P1 | V1 | NFR-07 |
 | FR-34 | 无障碍基础能力 | 共用 | P1 | V1 | NFR-07 |
-| FR-35 | 本地入站端口安全（回环绑定 + 随机端口 + 可选鉴权） | 共用 | P0 | MVP | R3 §9 K6、§7.1 #5457 |
+| FR-35 ✅ | 本地入站端口安全（回环绑定 + 随机端口 + 可选鉴权） | 共用 | P0 | MVP | R3 §9 K6、§7.1 #5457 |
 | FR-36 | 数据面健康探测与自愈（红线前提） | A | **P0** | MVP | R3 §9 K8；leader 裁决 |
 | FR-37 | 规则命中可解释（连接到命中规则的可视映射） | A | P1 | V1 | R3 §8.3 |
 | FR-38 | 高级字段三层能力（白名单可编辑 / 生成结果只读 / JSON 仅导入转换） | 共用 | P1 | V1 | R3 §8.2；leader 裁决 |
 | FR-39 | 接管面配置变更必须断连并提前告知 | A | P0 | MVP | R3 §9 K12；leader 裁决 |
-| FR-40 | `startVpnExtensionAbility` 超时兜底（5~10s 未 settle 即提示 + 重试，禁止无限等待） | A | P0 | MVP | **实测回写 2026-10-18**：Promise 可永久悬挂（`poc/PC6-skeleton-build-log.md` §11.5） |
+| FR-40 ✅ | `startVpnExtensionAbility` 超时兜底（5~10s 未 settle 即提示 + 重试，禁止无限等待） | A | P0 | MVP | **实测回写 2026-10-18**：Promise 可永久悬挂（`poc/PC6-skeleton-build-log.md` §11.5） |
 | FR-41 | 节点测速与延迟测试（结果可判定、失败可归因） | 共用 | P1 | V1 | PC9 §6（来源：R3 §7.1 #1346 用户痛点） |
 | FR-42 | 多配置（profile）切换与删除 | 共用 | P2 | V1 | PC9 §6 |
 | FR-43 | UDP 转发开关（状态与内核配置一致） | A | P1 | V1 | PC9 §6（当前 `udp:false` 硬编码） |
-| FR-44 | 设置持久化完整性（写失败必须可见 + 内存值回滚） | 共用 | P0 | MVP | PC9 §6；同源原则见 `ConfigService` 数据安全约束 |
+| FR-44 ◐ | 设置持久化完整性（写失败必须可见 + 内存值回滚） | 共用 | P0 | MVP | PC9 §6；同源原则见 `ConfigService` 数据安全约束 |
+
+### 4.2.1 实现状态（2026-10-18）
+
+> **图例**：`✅ 已实现（有执行证据）` ｜ `◐ 部分（有代码未验证 / 只做子集）` ｜ **无标记 = 未实现**（未实现不标记，避免符号满屏失去信息量；全量差距见 `poc/PC11-impl-vs-doc.md`）。
+> **标记口径**：只表示"当前有执行证据"，**不代表已验收**。判定沿用三值口径，且 `running:true` 只代表内核进程活着、**不代表隧道可用**（故 FR-13/14/15 三条红线不可能标 ✅）。
+
+| FR | 状态 | 证据 | 说明 |
+|---|---|---|---|
+| FR-01 | ✅ | `ShareLinkParser.ets:45-64` + `Nodes.ets:42-63`；实测 `import ok: vless @ a.example.org:443` | 导入→入库→可选中闭环；"失败四分类"仍是解析器直出（子项未达） |
+| FR-03 | ✅ | 删除 `ConfigService.ets:232-273`（含落盘失败回滚）、编辑 `:283-320`、排序 `:327-360`、分组 `:363-373`、`NodeStore.ets:23`（schema=3）；`5778e61` 修列表刷新；实测：改协议 vless→vmess 即时显示、改名 NodeAZ、moveNode 1→0、分组筛选生效 | 增/删/改/排序/分组五类全有；"订阅恢复不覆盖用户删除"随订阅（FR-02）待补 |
+| FR-05 | ✅ | `KernelConfigBuilder.ets:26-83`（逐值 `esc()` `:147`）+ `_toolchain/verify-routing-json.js` 三模式 JSON 断言全 PASS | 生成与结构断言成立；"规则数超限阻止启动"随 FR-07 待补 |
+| FR-06 | ✅ | `KernelConfigBuilder.ets:64-83`（RULE：`geosite:cn`+`geoip:cn`，无资源则降级仅内网）+ `GeoAssets.ets:85-235`；实测 `start bytes=802 → confirmed running=true` | 验收点为"三模式可下发且配置合法"；**分流结果正确性（国内直连/国外代理）未做真机出口验证** |
+| FR-35 | ✅ | `SocksGuard.ets:41-79`（CSPRNG 随机端口 20000-40000 + 128bit 口令）+ `KernelConfigBuilder.ets:26-33`（`auth:"password"`）+ `Index.ets:24-29` 每次连接轮换；实测 `socks endpoint rotated: 127.0.0.1:28117 (auth=password)` | 回环 + 随机端口 + 默认鉴权三件齐全；无"关闭鉴权的风险提示"开关（当前无开关可关） |
+| FR-40 | ✅ | `KernelService.ets:71-74/166-176`（8s/5s 硬超时）+ `Index.ets:78-124`（失败即 ERROR、`bestEffortStop()` 收尾、按钮给「重试」）；实测失败路径不卡 CONNECTING | 覆盖**内核启动**超时闭环；`startVpnExtensionAbility` 那条 Promise 尚未接入（随 FR-10） |
+| FR-04 | ◐ | `NodeEdit.ets:38-191`（12 字段 + `validate()` + `updateNode`） | 编辑可用；**无"手动新建空节点"入口**、REALITY 组合校验未实现 |
+| FR-07 | ◐ | `KernelConfigBuilder.ets:71-82` 固定生成 geo 规则；`AppConfig.ets:81-89` 规则模型仍无 UI、`rules` 不入内核 | geo 侧有实质进展，自定义规则编辑仍缺 |
+| FR-09 | ◐ | `KernelService.start/stop` + `Index.ets:127-141` | 仍是"先断开再连接"两步；无一键切换/切换中提示/失败回退 |
+| FR-13 | ◐ | `ConnectionViewModel.deriveView()` + `getXrayState.running` 为准；`Index.ets:29` 展示 socks 端点 | **不升级**：`running:true` ≠ 隧道可用；无 `BEARER_VPN`、无被动停止感知 |
+| FR-16 | ◐ | 节点/选中/设置均已持久化（`NodeStore` schema3、`SettingsStore`）；`Index.ets:143-157` ERROR 态给「重试」 | 有重试入口，但无"上次中断原因"（FR-14 未实现），恢复体验未闭环 |
+| FR-22 | ◐ | `KernelService.humanize()` + 超时归因（`886e5ad`）；`Index.ets:184-186`、`Settings.ets:134` 横幅 | 无分步诊断页、无原始错误展开 |
+| FR-23 | ◐ | `Logger.ets:25-38`（`%{private}s`）、`DevPanel.ets:156/179-180` | 脱敏有进展；无日志页、无级别过滤、无导出 |
+| FR-31 | ◐ | `KernelConfigBuilder.ets:139-142`（REALITY 缺 `publicKey/shortId`）、`:158-160`（`http2 → "http"` 已移除） | 两条"导入成功但必失败"未修 |
+| FR-44 | ◐ | `ConfigService.ets:103-121/491-514`（写失败回滚 + `persistError`）、`Settings.ets:37-46/134-135` 横幅、`SettingsStore.ets` | 代码齐全，**未做"注入写失败"实测** → 按纪律记 ◐ |
 
 ### 4.3 配置与节点管理（FR-01 ~ FR-05）
 
@@ -943,4 +966,5 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 |---|---|---|
 | 2026-10-18 | ① §4.2 新增 **FR-40**（`startVpnExtensionAbility` 超时兜底，P0），§4.5 末尾补其验收条文；② §6 新增 **T-16 / T-17** 两条平台约束（内核 `.so` 只能随包分发；启动 API 可能不 settle）并补"开发期签名事实"说明；③ §12.3 结论演进表新增两条（`runtime.GOOS` 不可判 fork；未签名包在模拟器可装） | ① 启动 API 的 Promise 永久悬挂：`poc/PC6-skeleton-build-log.md` §11.4/§11.5（`M4PROBE pending-after-6s`，根因镜像缺 `com.huawei.hmos.vpndialog`）；② 私有目录 `.so` 不可 `dlopen`：`toolchain/BOOTSTRAP-RESULT.md`「规则 B」；③ `runtime.GOOS` 恒 `linux`：同上「规则 A」+ `toolchain/smoke/tag_openharmony.go`；④ 未签名可装：`poc/PC6-skeleton-build-log.md` §11.1（`install bundle successfully`） |
 | 2026-10-18 追加 FR-41~FR-44（来源：PC9 §6） | ① §4.2 FR 表末尾新增 **FR-41 节点测速与延迟测试（P1/共用）**、**FR-42 多配置 profile 切换与删除（P2/共用）**、**FR-43 UDP 转发开关（P1/A）**、**FR-44 设置持久化完整性（P0/共用）**；② 新增 **§4.13** 承载四条的可验收标准、依赖与阻塞关系；③ **未改动 FR-01~FR-40 任何文字与编号** | `poc/PC9-feature-gap.md` §6「待补 FR」（源自实现差距分析：无测速、无 profile、`udp:false` 硬编码、设置写失败无 UI 消费） |
+| 2026-10-18：加入实现状态标记（依据 PC11）；标记只表示"当前有执行证据"，不代表已验收 | ① §4.2 FR 表主键单元加 `✅`（6 条）/`◐`（9 条）后缀，未实现者不加标记；② 新增 §4.2.1「实现状态（2026-10-18）」小节（图例 + 只列 ✅/◐ 的状态表 + 证据列）；③ 未改任何 FR 的正文、优先级、期次 | `poc/PC11-impl-vs-doc.md`：FR-01/03/05/06/35/40 有执行证据，FR-04/07/09/13/16/22/23/31/44 为部分；三条红线（FR-13/14/15）因"`running:true` ≠ 隧道可用"不标 ✅ |
 
