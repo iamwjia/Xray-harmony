@@ -51,8 +51,28 @@ export class KernelError extends Error {
   }
 }
 
+/** 状态查询结果：把「查询失败」与「查到了但没在跑」分开，否则超时归因只能靠猜 */
+export class KernelProbe {
+  ok: boolean = false;
+  running: boolean = false;
+  error: string = '';
+}
+
 export class KernelService {
   private static instance: KernelService | null = null;
+
+  /**
+   * 超时上限（FR-40：启动/停止 API 可能不 settle，任何等待都必须有上限）。
+   *
+   * 8000ms 的依据：内核是**同进程加载 38MB .so**，模拟器实测冷启到 running 约 1~1.5s；
+   * 给 6 倍余量以覆盖低端机首次解压与 IO 抖动，同时不超过 10s（超过这个长度用户会
+   * 认为应用卡死，而不是"在连接"）。
+   */
+  static readonly CONNECT_TIMEOUT_MS: number = 8000;
+  /** 停止通常远快于启动（只是关监听 + 退出 loop），5s 足够；超时说明内核已僵死 */
+  static readonly DISCONNECT_TIMEOUT_MS: number = 5000;
+  /** 轮询步长：250ms —— 比这更密是浪费 CPU，更疏会让用户感到"点了没反应" */
+  static readonly PROBE_INTERVAL_MS: number = 250;
 
   /**
    * 单例：内核是**进程级单例资源**（一个进程只能跑一个实例）。
@@ -112,6 +132,25 @@ export class KernelService {
     return false;
   }
 
+  /**
+   * 带归因的探针：把「查询本身失败」与「查到了但没在跑」分开。
+   * 这两类在 UX 上完全不同（内核没响应 vs 内核启动了但没进 running），
+   * 合成一个 boolean 就只能给用户一句含糊的"超时"。
+   */
+  private probe(): KernelProbe {
+    const p = new KernelProbe();
+    const raw: string = this.invoke('getXrayState', '{}');
+    const resp = this.parse(raw);
+    if (resp.success !== true) {
+      p.ok = false;
+      p.error = resp.error === undefined ? `unparsable: ${raw}` : resp.error;
+      return p;
+    }
+    p.ok = true;
+    p.running = resp.data !== null && resp.data !== undefined && resp.data.running === true;
+    return p;
+  }
+
   /** 带超时的等待：到点即失败，绝不无限等 */
   private async waitUntil(check: () => boolean, timeoutMs: number, stepMs: number, timeoutMsg: string): Promise<void> {
     const deadline: number = Date.now() + timeoutMs;
@@ -127,7 +166,7 @@ export class KernelService {
   }
 
   /** 启动内核并确认真的在跑；失败抛 KernelError（消息已人话化） */
-  async start(configJson: string, timeoutMs: number = 8000): Promise<void> {
+  async start(configJson: string, timeoutMs: number = KernelService.CONNECT_TIMEOUT_MS): Promise<void> {
     const effectiveConfig: string = this.debugInvalidConfig ? '{"this_is":"not a valid xray config"' : configJson;
     const payload: string = JSON.stringify({ configJSON: effectiveConfig } as RunPayload);
     Logger.info(`KernelService.start bytes=${effectiveConfig.length}`);
@@ -137,20 +176,62 @@ export class KernelService {
     if (resp.success !== true) {
       throw new KernelError(this.humanize(resp.error === undefined ? '' : resp.error), raw);
     }
-    // start 成功 ≠ 真在跑：必须以 getXrayState 为准
-    await this.waitUntil(() => this.queryRunning(), timeoutMs, 250, '内核启动超时（未进入 running 状态）');
-    Logger.info('KernelService.start confirmed running=true');
+
+    // start 返回成功 ≠ 真在跑：必须以 getXrayState 为准
+    const deadline: number = Date.now() + timeoutMs;
+    let lastProbeError: string = '';
+    while (Date.now() < deadline) {
+      const p: KernelProbe = this.probe();
+      if (p.ok && p.running) {
+        Logger.info('KernelService.start confirmed running=true');
+        return;
+      }
+      if (!p.ok) {
+        lastProbeError = p.error;
+      }
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), KernelService.PROBE_INTERVAL_MS);
+      });
+    }
+
+    // 超时归因：区分「内核没响应」与「内核在但没进 running」
+    if (lastProbeError.length > 0) {
+      Logger.error(`kernel probe failed during start: ${lastProbeError}`);
+      throw new KernelError('内核未响应（启动后无法确认运行状态）', lastProbeError);
+    }
+    throw new KernelError(
+      `内核已接收配置但 ${timeoutMs}ms 内未进入运行状态（可能启动即崩溃，详见日志）`,
+      `running=false after ${timeoutMs}ms`);
   }
 
   /** 停止内核并确认已停 */
-  async stop(timeoutMs: number = 5000): Promise<void> {
+  async stop(timeoutMs: number = KernelService.DISCONNECT_TIMEOUT_MS): Promise<void> {
     const raw: string = this.invoke('stopXray', '{}');
     const resp = this.parse(raw);
     if (resp.success !== true) {
       throw new KernelError(this.humanize(resp.error === undefined ? '' : resp.error), raw);
     }
-    await this.waitUntil(() => !this.queryRunning(), timeoutMs, 200, '内核停止超时（仍处于 running）');
+    await this.waitUntil(() => !this.queryRunning(), timeoutMs, KernelService.PROBE_INTERVAL_MS,
+      `内核停止超时（${timeoutMs}ms 后仍处于 running）`);
     Logger.info('KernelService.stop confirmed running=false');
+  }
+
+  /**
+   * 尽力收尾：连接失败/超时后调用，避免留下"半启动"内核（占着 18080，导致下次启动直接失败）。
+   * **绝不抛异常**，也绝不让调用方等它——失败只记日志，因为此时用户已经在看错误文案了。
+   */
+  async bestEffortStop(): Promise<void> {
+    try {
+      if (!this.queryRunning()) {
+        Logger.info('bestEffortStop: kernel not running, nothing to clean up');
+        return;
+      }
+      Logger.warn('bestEffortStop: kernel still running after failure, stopping it');
+      await this.stop(KernelService.DISCONNECT_TIMEOUT_MS);
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      Logger.error(`bestEffortStop failed (kernel may be wedged): ${msg}`);
+    }
   }
 
   /** 供 UI 显示的当前真实状态 */

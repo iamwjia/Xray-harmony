@@ -69,7 +69,7 @@ struct Index {
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal()
       : KernelConfigBuilder.buildWithNode(sel, KernelConfigBuilder.DEFAULT_SOCKS_PORT, mode);
-    this.kernel.start(cfgJson, 8000)
+    this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS)
       .then(() => {
         this.vm.onKernelConnected();
         this.busyHint = '';
@@ -80,12 +80,17 @@ struct Index {
         this.busyHint = '';
         this.vm.onKernelError(msg);
         this.refreshAll();
+        // 失败/超时可能留下"半启动"内核（占着 18080），必须后台收尾，
+        // 否则用户点重试会直接被端口占用挡住。不 await：用户已经在看错误文案，不该再等 5 秒。
+        this.kernel.bestEffortStop().then(() => {
+          Logger.warn('post-failure cleanup finished');
+        });
       });
   }
 
   private doDisconnect(): void {
     this.busyHint = '正在停止内核…';
-    this.kernel.stop(5000)
+    this.kernel.stop(KernelService.DISCONNECT_TIMEOUT_MS)
       .then(() => {
         this.vm.requestDisconnect();
         this.busyHint = '';
@@ -97,6 +102,21 @@ struct Index {
         this.vm.onKernelError(msg);
         this.refreshAll();
       });
+  }
+
+  /** 按钮文案：ERROR 态明确给出「重试」，而不是让用户猜「连接」还能不能再点 */
+  private buttonLabel(): string {
+    const st: ConnState = this.vm.getState();
+    if (st === ConnState.ERROR) {
+      return '重试';
+    }
+    if (st === ConnState.DISCONNECTED) {
+      return '连接';
+    }
+    if (this.view.busy) {
+      return '取消';
+    }
+    return '断开';
   }
 
   private onToggle(): void {
@@ -133,7 +153,7 @@ struct Index {
           Text(this.busyHint).fontSize(11).fontColor('#1976D2')
         }
         Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
-        Button(this.isIdleOrError() ? '连接' : (this.view.busy ? '取消' : '断开'))
+        Button(this.buttonLabel())
           .enabled(this.view.canToggle)
           .onClick(() => this.onToggle())
           .width('70%')
