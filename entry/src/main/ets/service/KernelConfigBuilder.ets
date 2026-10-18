@@ -18,20 +18,33 @@ import { XrayNode, TransportKind, SecurityKind, RoutingMode } from '../model/App
 export class KernelConfigBuilder {
   static readonly DEFAULT_SOCKS_PORT: number = 18080;
 
+  /**
+   * 本地 SOCKS 入站。
+   * 传了口令就启用 password 鉴权（FR-35）：loopback 在同设备内是共享的，
+   * 无鉴权等于给本机所有应用开了一个走用户节点的出网口。
+   */
+  private static buildInbound(socksPort: number, socksUser: string, socksPass: string): string {
+    const settings: string = (socksPass.length > 0)
+      ? '{"auth":"password","accounts":[{"user":' + KernelConfigBuilder.esc(socksUser) +
+        ',"pass":' + KernelConfigBuilder.esc(socksPass) + '}],"udp":false}'
+      : '{"auth":"noauth","udp":false}';
+    return '{"tag":"socks-in","listen":"127.0.0.1","port":' + socksPort.toString() +
+      ',"protocol":"socks","settings":' + settings + '}';
+  }
+
   /** 最小配置：socks 入站 + freedom 出站 */
-  static buildMinimal(socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT): string {
-    const cfg: string = '{"log":{"loglevel":"warning"},' +
-      '"inbounds":[{"tag":"socks-in","listen":"127.0.0.1","port":' + socksPort.toString() + ',' +
-      '"protocol":"socks","settings":{"auth":"noauth","udp":false}}],' +
+  static buildMinimal(socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
+    socksUser: string = '', socksPass: string = ''): string {
+    const inbound: string = KernelConfigBuilder.buildInbound(socksPort, socksUser, socksPass);
+    const cfg: string = '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],' +
       '"outbounds":[{"tag":"direct","protocol":"freedom"}]}';
     return cfg;
   }
 
   /** 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底 */
   static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
-    routingMode: RoutingMode = RoutingMode.RULE): string {
-    const inbound: string = '{"tag":"socks-in","listen":"127.0.0.1","port":' +
-      socksPort.toString() + ',"protocol":"socks","settings":{"auth":"noauth","udp":false}}';
+    routingMode: RoutingMode = RoutingMode.RULE, socksUser: string = '', socksPass: string = ''): string {
+    const inbound: string = KernelConfigBuilder.buildInbound(socksPort, socksUser, socksPass);
     const proxy: string = KernelConfigBuilder.buildOutbound(node);
     const direct: string = '{"tag":"direct","protocol":"freedom"}';
     const routing: string = KernelConfigBuilder.buildRouting(routingMode);

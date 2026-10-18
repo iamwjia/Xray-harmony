@@ -3,6 +3,7 @@ import { ConnectionView, ConnState, ConnectionViewModel } from '../viewmodel/Con
 import { ConfigService } from '../service/ConfigService';
 import { KernelService, KernelError } from '../service/KernelService';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
+import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 import { XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 
@@ -23,6 +24,8 @@ struct Index {
   @State stateTag: string = 'DISCONNECTED';
   @State configWarning: string = '';
   @State busyHint: string = '';
+  /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
+  @State socksInfo: string = '';
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
@@ -66,9 +69,12 @@ struct Index {
 
     const sel: XrayNode | null = this.cfg.getSelectedNode();
     const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
+    // 每次连接轮换本地 SOCKS 端口与口令（FR-35：loopback 同设备共享，不能免鉴权）
+    const ep: SocksEndpoint = SocksGuard.rotate();
     const cfgJson: string = sel === null
-      ? KernelConfigBuilder.buildMinimal()
-      : KernelConfigBuilder.buildWithNode(sel, KernelConfigBuilder.DEFAULT_SOCKS_PORT, mode);
+      ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)
+      : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password);
+    this.socksInfo = `本地 SOCKS 127.0.0.1:${ep.port}（已启用口令鉴权）`;
     this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS)
       .then(() => {
         this.vm.onKernelConnected();
@@ -153,6 +159,9 @@ struct Index {
           Text(this.busyHint).fontSize(11).fontColor('#1976D2')
         }
         Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
+        if (this.socksInfo.length > 0) {
+          Text(this.socksInfo).fontSize(10).fontColor('#90A4AE')
+        }
         Button(this.buttonLabel())
           .enabled(this.view.canToggle)
           .onClick(() => this.onToggle())
