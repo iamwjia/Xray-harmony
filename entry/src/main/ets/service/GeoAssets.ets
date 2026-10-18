@@ -24,6 +24,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { http as httpClient } from '@kit.NetworkKit';
+import { picker } from '@kit.CoreFileKit';
 import nativeEntry from 'libentry.so';
 import { Logger } from '../platform/Logger';
 
@@ -348,5 +349,154 @@ export class GeoAssets {
     }
     Logger.info(`geo ${t.name} downloaded: ${received} bytes`);
     return '';
+  }
+
+  // -------------------------------------------------------------------------
+  // 本地文件导入（离线更新路径）
+  //
+  // 为什么需要它：能访问 GitHub 的用户点上面那个按钮就行；而访问不了 GitHub 的，
+  // 恰恰是最需要代理工具的那批人。让他们自己找来源、由系统文件选择器导入，
+  // 是唯一**不依赖"应用能联网"**的更新路径。
+  //
+  // 返回值约定：'' = 成功；'CANCEL' = 用户取消；其它 = 可读失败原因。
+  // -------------------------------------------------------------------------
+  static async pickAndImport(context: common.UIAbilityContext): Promise<string> {
+    const geoDir: string = GeoAssets.dir;
+    if (geoDir.length === 0) {
+      return '资源目录未就绪，请先启动一次应用';
+    }
+    let uris: string[] = [];
+    try {
+      const p = new picker.DocumentViewPicker(context);
+      const opts = new picker.DocumentSelectOptions();
+      opts.maxSelectNumber = 2;
+      opts.fileSuffixFilters = ['.zip', '.dat'];
+      uris = await p.select(opts);
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      return `打开文件选择器失败：${msg}`;
+    }
+    if (uris === undefined || uris.length === 0) {
+      return 'CANCEL';
+    }
+
+    const work: string = `${context.cacheDir}/geoimport`;
+    const unz: string = `${work}/unz`;
+    try {
+      GeoAssets.resetDir(work);
+      fileIo.mkdirSync(work);
+
+      const sources: string[] = []; // 候选文件路径（.dat 或 解压后的 .dat）
+      for (let i = 0; i < uris.length; i++) {
+        const name: string = GeoAssets.baseName(uris[i]);
+        const local: string = `${work}/${name}`;
+        GeoAssets.copyUriToFile(uris[i], local);
+        if (name.toLowerCase().endsWith('.zip')) {
+          fileIo.mkdirSync(unz);
+          await zlib.unzipFile(local, unz, {});
+          const entries = fileIo.listFileSync(unz);
+          for (let k = 0; k < entries.length; k++) {
+            sources.push(`${unz}/${entries[k]}`);
+          }
+        } else {
+          sources.push(local);
+        }
+      }
+
+      const geoipSrc: string = GeoAssets.pickSource(sources, GEOIP);
+      const geositeSrc: string = GeoAssets.pickSource(sources, GEOSITE);
+      if (geoipSrc.length === 0 || geositeSrc.length === 0) {
+        return '未找到 geoip.dat 与 geosite.dat（需要两个文件，或一个同时包含两者的 zip）';
+      }
+      // 先校验再替换：半截/错误的文件如果先替换进去，内核会以"资源损坏"启动失败
+      const szGeoip: number = fileIo.statSync(geoipSrc).size;
+      const szGeosite: number = fileIo.statSync(geositeSrc).size;
+      if (szGeoip < MIN_EXPECTED_BYTES || szGeosite < MIN_EXPECTED_BYTES) {
+        return `文件过小（geoip=${szGeoip} B, geosite=${szGeosite} B），疑似不是有效资源`;
+      }
+
+      GeoAssets.replaceWith(geoipSrc, `${geoDir}/${GEOIP}`);
+      GeoAssets.replaceWith(geositeSrc, `${geoDir}/${GEOSITE}`);
+
+      const tag: string = `local-${GeoAssets.todayTag().replace('v2fly-', '')}`;
+      GeoAssets.writeVersionValue(geoDir, tag);
+      GeoAssets.ready = false;
+      if (!GeoAssets.attach(geoDir, tag)) {
+        return '资源已导入但挂载内核失败，请重启应用';
+      }
+      Logger.info(`geo imported locally: geoip=${szGeoip} geosite=${szGeosite}`);
+      return '';
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      Logger.error(`geo local import failed: ${msg}`);
+      return msg;
+    } finally {
+      GeoAssets.resetDir(work);
+    }
+  }
+
+  private static baseName(uri: string): string {
+    let s: string = uri;
+    const q: number = s.indexOf('?');
+    if (q > 0) {
+      s = s.substring(0, q);
+    }
+    const i: number = s.lastIndexOf('/');
+    const name: string = i >= 0 ? s.substring(i + 1) : s;
+    return name.length > 0 ? name : 'geo-import.bin';
+  }
+
+  private static copyUriToFile(uri: string, dest: string): void {
+    const src = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
+    try {
+      const dst = fileIo.openSync(dest,
+        fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+      try {
+        fileIo.copyFileSync(src.fd, dst.fd);
+      } finally {
+        fileIo.closeSync(dst);
+      }
+    } finally {
+      fileIo.closeSync(src);
+    }
+  }
+
+  /** 在候选文件里按文件名找目标（大小写与结尾匹配，避免 path 提取带来的差异） */
+  private static pickSource(sources: string[], wanted: string): string {
+    for (let i = 0; i < sources.length; i++) {
+      const n: string = GeoAssets.baseName(sources[i]).toLowerCase();
+      if (n === wanted) {
+        return sources[i];
+      }
+    }
+    return '';
+  }
+
+  private static replaceWith(src: string, target: string): void {
+    if (fileIo.accessSync(target)) {
+      fileIo.unlinkSync(target);
+    }
+    const s = fileIo.openSync(src, fileIo.OpenMode.READ_ONLY);
+    try {
+      const d = fileIo.openSync(target,
+        fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+      try {
+        fileIo.copyFileSync(s.fd, d.fd);
+      } finally {
+        fileIo.closeSync(d);
+      }
+    } finally {
+      fileIo.closeSync(s);
+    }
+  }
+
+  private static resetDir(dir: string): void {
+    try {
+      if (fileIo.accessSync(dir)) {
+        fileIo.rmdirSync(dir);
+      }
+    } catch (e) {
+      Logger.warn('geo import: temp dir cleanup failed');
+    }
   }
 }

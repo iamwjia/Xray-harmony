@@ -3,6 +3,7 @@ import { ConfigService } from '../service/ConfigService';
 import { RoutingMode } from '../model/AppConfig';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelService } from '../service/KernelService';
+import { common } from '@kit.AbilityKit';
 
 /**
  * pages/Settings.ets — 设置（最小项：日志级别 / 关于）
@@ -96,6 +97,28 @@ struct Settings {
     });
   }
 
+  private doGeoImport(): void {
+    const ctx = getContext(this) as common.UIAbilityContext;
+    GeoAssets.pickAndImport(ctx).then((err: string) => {
+      if (err === 'CANCEL') {
+        return;
+      }
+      this.geoLabel = GeoAssets.isReady()
+        ? `${GeoAssets.getVersion()}（规则模式下国内直连生效）`
+        : this.geoLabel;
+      if (err.length === 0) {
+        this.geoMsg = KernelService.getInstance().isRunning()
+          ? '已导入，请断开后重连使新规则生效'
+          : '已导入，下次连接生效';
+      } else {
+        this.geoMsg = `导入失败：${err}（已保留原有规则）`;
+      }
+    }).catch((e: Object) => {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.geoMsg = `导入失败：${msg}（已保留原有规则）`;
+    });
+  }
+
   build() {
     Column({ space: 16 }) {
       Row({ space: 8 }) {
@@ -165,15 +188,21 @@ struct Settings {
         Text('内核：libXray v26.7.28（libxray.so）').fontSize(12).fontColor('#666666')
         Text(`分流资源：${this.geoLabel}`).fontSize(12).fontColor('#666666')
         Row({ space: 8 }) {
-          Button(this.geoBusy ? '更新中…' : '更新分流规则（约 25 MB）')
+          Button(this.geoBusy ? '更新中…' : '联网更新（约 25 MB）')
             .fontSize(12)
             .enabled(!this.geoBusy)
             .onClick(() => this.confirmGeoUpdate())
+          Button('从本地文件导入')
+            .fontSize(12)
+            .enabled(!this.geoBusy)
+            .backgroundColor('#607D8B')
+            .onClick(() => this.doGeoImport())
         }
         if (this.geoMsg.length > 0) {
           Text(this.geoMsg).fontSize(11).fontColor('#1976D2')
         }
-        Text('说明：内置 geo 资源为 v2fly 官方构建；只有点上面按钮才会联网下载，不做后台自动更新。')
+        Text('说明：内置资源为 v2fly 官方构建。只有点上面按钮才会联网；访问不了 GitHub 时，' +
+          '可自行下载 geoip.dat + geosite.dat（或含两者的 zip）后用「从本地文件导入」，全程不联网。')
           .fontSize(11).fontColor('#999999')
       }
       .width('100%')
