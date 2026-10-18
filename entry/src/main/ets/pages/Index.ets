@@ -1,189 +1,170 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
-import { vpnExtension } from '@kit.NetworkKit';
-import { BusinessError } from '@kit.BasicServicesKit';
-import { Want } from '@kit.AbilityKit';
-import nativeEntry from 'libentry.so';
+import { router } from '@kit.ArkUI';
+import { ConnectionView, ConnState, ConnectionViewModel } from '../viewmodel/ConnectionViewModel';
+import { ConfigService } from '../service/ConfigService';
+import { XrayNode } from '../model/AppConfig';
+import { Logger } from '../platform/Logger';
 
-const DOMAIN: number = 0x0001;
-const TAG: string = 'XVPN_POC';
-// 启动即自动探测 M4（无需点击）。默认关闭：真机上每次启动都会触发系统 VPN 授权流程，会被用户当成 bug。
-// 需要排查时临时置 true 并重建。
-const AUTO_PROBE_M4: boolean = false;
+/**
+ * 骨架期模拟开关。
+ *
+ * TODO(必须删除)：`KernelService` 接入完成（能真实驱动 runXrayFromJson + 用户态健康探测）后，
+ *   删除本常量与下方 onToggle() 里的 simulateTimer 分支，改由 KernelService 回调
+ *   onKernelConnected / onKernelError。
+ *
+ * 为什么保留：让骨架能演示状态流转。但它"看起来像真的连上了"，
+ * 所以 UI 必须显示 `(模拟)` 标识——避免两周后有人拿它演示、对方误以为已能连接。
+ */
+const IS_SKELETON_MOCK: boolean = true;
 
+/**
+ * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
+ *
+ * 结构约束：
+ *   - 展示信息全部来自 ConnectionViewModel.deriveView()，页面不自己判断状态；
+ *   - 页面只调用 requestConnect / requestDisconnect，不直接置位状态（FR-13）；
+ *   - 骨架实现：连接为占位（无内核、无 tun），真实链路见 toolchain/APP-SKELETON.md。
+ */
 @Entry
 @Component
 struct Index {
-  @State m2Result: string = '(M2 not run)';
-  @State m3Result: string = '(M3 not run)';
-  @State m4Result: string = '(M4 not run)';
-  @State m5Result: string = '(M5 not run)';
-  @State m6Result: string = '(M6 not run)';
-  @State m7Result: string = '(M7 not run)';
-  @State m8Result: string = '(M8 not run)';
+  @State view: ConnectionView = new ConnectionView();
+  @State nodeName: string = '（未选择）';
+  @State stateTag: string = 'DISCONNECTED';
+  @State configWarning: string = '';
 
-  // 启动即探测：无需点击即可区分「API 不存在 / 调用悬挂 / 调用被拒」
+  private vm: ConnectionViewModel = new ConnectionViewModel();
+  private cfg: ConfigService = ConfigService.getInstance();
+  private simulateTimer: number = -1;
+
   aboutToAppear(): void {
-    if (AUTO_PROBE_M4) {
-      this.probeM4();
+    this.refreshAll();
+  }
+
+  aboutToDisappear(): void {
+    if (this.simulateTimer >= 0) {
+      clearTimeout(this.simulateTimer);
+      this.simulateTimer = -1;
     }
   }
 
-  private probeM4(): void {
-    try {
-      const t: string = typeof vpnExtension.startVpnExtensionAbility;
-      hilog.info(DOMAIN, TAG, 'M4PROBE typeof=%{public}s', t);
-    } catch (e) {
-      const err = e as BusinessError;
-      hilog.error(DOMAIN, TAG, 'M4PROBE typeof threw code=%{public}d msg=%{public}s', err.code, err.message);
-    }
-    const want: Want = {
-      deviceId: '',
-      bundleName: 'com.example.xraypoc',
-      abilityName: 'MyVpnExtAbility',
-    };
-    hilog.info(DOMAIN, TAG, 'M4PROBE invoking startVpnExtensionAbility');
-    vpnExtension.startVpnExtensionAbility(want)
-      .then(() => {
-        hilog.info(DOMAIN, TAG, 'M4PROBE resolved');
-      })
-      .catch((err: BusinessError) => {
-        hilog.error(DOMAIN, TAG, 'M4PROBE rejected code=%{public}d msg=%{public}s', err.code, err.message);
-      });
-    setTimeout(() => {
-      hilog.info(DOMAIN, TAG, 'M4PROBE pending-after-6s (no resolve/reject within 6s)');
-    }, 6000);
+  /** 回到前台时重新拉取（等价于 FR-13 的"先拉真实状态再渲染"的最小版） */
+  onPageShow(): void {
+    this.refreshAll();
   }
 
-  private runM2(): void {
-    try {
-      const ret: string = nativeEntry.hello();
-      this.m2Result = ret;
-      hilog.info(DOMAIN, TAG, 'M2 hello=%{public}s', ret);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m2Result = `M2 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M2 failed code=%{public}d msg=%{public}s', err.code, err.message);
-    }
+  private refreshAll(): void {
+    this.view = this.vm.deriveView();
+    this.stateTag = this.vm.getState().toString();
+    const n: XrayNode | null = this.cfg.getSelectedNode();
+    this.nodeName = n === null ? '（未选择）' : n.name;
+    // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
+    this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
   }
 
-  private runM3(): void {
-    try {
-      const sum: number = nativeEntry.prebuiltAdd(1, 2);
-      this.m3Result = `prebuilt_add(1,2)=${sum}`;
-      hilog.info(DOMAIN, TAG, 'M3 prebuiltAdd result=%{public}d', sum);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m3Result = `M3 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M3 failed code=%{public}d msg=%{public}s', err.code, err.message);
-    }
+  private isIdleOrError(): boolean {
+    const st: ConnState = this.vm.getState();
+    return st === ConnState.DISCONNECTED || st === ConnState.ERROR;
   }
 
-  private runM4(): void {
-    hilog.info(DOMAIN, TAG, 'M4 clicked');
-    // M4：仅验证「代码可编译 + 声明合法」。真机上的行为需要单独记录，见 doc/poc 构建记录。
-    const want: Want = {
-      deviceId: '',
-      bundleName: 'com.example.xraypoc',
-      abilityName: 'MyVpnExtAbility',
-    };
-    vpnExtension.startVpnExtensionAbility(want)
-      .then(() => {
-        this.m4Result = 'startVpnExtensionAbility: ok (check device log)';
-        hilog.info(DOMAIN, TAG, 'M4 start ok');
-      })
-      .catch((err: BusinessError) => {
-        this.m4Result = `start failed: ${err.code} ${err.message}`;
-        hilog.error(DOMAIN, TAG, 'M4 start failed code=%{public}d msg=%{public}s', err.code, err.message);
-      });
-  }
-
-  // M5：调用 Go 侧 CGoPing。
-  // libcgoping.so 随 HAP 的 libs/<abi>/ 分发（已设 SONAME，DT_NEEDED 只记 soname），
-  // 运行期由 native 侧 dlopen("libcgoping.so") + dlsym("CGoPing") 完成调用。
-  private runM5(): void {
-    hilog.info(DOMAIN, TAG, 'M5 clicked');
-    try {
-      const ret: string = nativeEntry.m5CGoPing();
-      this.m5Result = ret;
-      hilog.info(DOMAIN, TAG, 'M5 result=%{public}s', ret);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m5Result = `M5 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M5 failed code=%{public}d msg=%{public}s', err.code, err.message);
-    }
-  }
-
-  // M6 / P-02：加载真正的 Xray 内核 libxray.so，并用一个「故意非法」的调用证明内核可响应。
-  // 判据：返回合法 JSON（哪怕 success=false）即说明 内核可被加载 + Go runtime 初始化 + 处理器被执行。
-  private runM6(): void {
-    hilog.info(DOMAIN, TAG, 'M6 clicked');
-    try {
-      const ret: string = nativeEntry.m6CGoInvoke();
-      this.m6Result = ret;
-      hilog.info(DOMAIN, TAG, 'M6 result=%{public}s', ret);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m6Result = `M6 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M6 failed code=%{public}d msg=%{public}s', err.code, err.message);
-    }
-  }
-
-  // M7 / P-02 收口：调用 libXray 的真实方法（xrayVersion / getXrayState）。
-  // 只有拿到 success:true 才能说「xray-core 已初始化并可服务」；unknown method 只证明分发层通。
-  private runM7(): void {
-    hilog.info(DOMAIN, TAG, 'M7 clicked');
-    try {
-      const ret: string = nativeEntry.m7CGoVersion();
-      this.m7Result = ret;
-      hilog.info(DOMAIN, TAG, 'M7 result=%{public}s', ret);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m7Result = `M7 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M7 failed code=%{public}d msg=%{public}s', err.code, err.message);
-    }
-  }
-
-  // M8 / P-01 前置：SOCKS 入站 + freedom 出站，经内核发一次真实 HTTP 请求，并与直连出口 IP 对照。
-  // 判据：经代理 IP == 直连 IP ⇒ 只证明「转发链路通」；不同才说明「出网经节点」（本步无节点，预期相同）。
-  private runM8(): void {
-    hilog.info(DOMAIN, TAG, 'M8 clicked');
-    try {
-      const ret: string = nativeEntry.m9ProxyProbe();
-      this.m8Result = ret;
-      hilog.info(DOMAIN, TAG, 'M8 result=%{public}s', ret);
-    } catch (e) {
-      const err = e as BusinessError;
-      this.m8Result = `M8 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M8 failed code=%{public}d msg=%{public}s', err.code, err.message);
+  private onToggle(): void {
+    if (this.isIdleOrError()) {
+      this.vm.requestConnect();
+      this.refreshAll();
+      // TODO(必须删除)：骨架期模拟服务回调；KernelService 接入后改为由其回调
+      // onKernelConnected / onKernelError（并配合用户态健康探测，见 design §3.7）。
+      if (IS_SKELETON_MOCK) {
+        this.simulateTimer = setTimeout(() => {
+          if (this.vm.getState() === ConnState.CONNECTING) {
+            this.vm.onKernelConnected();
+            this.refreshAll();
+          }
+        }, 800);
+      }
+    } else {
+      this.vm.requestDisconnect();
+      this.refreshAll();
     }
   }
 
   build() {
-    Column({ space: 12 }) {
-      Text('xray-harmony PoC skeleton').fontSize(20).fontWeight(FontWeight.Bold)
+    Column({ space: 16 }) {
+      Text('xray-harmony').fontSize(24).fontWeight(FontWeight.Bold)
+      Text('骨架版本 · 未接入真实链路').fontSize(12).fontColor('#999999')
 
-      Button('M2: call NAPI hello()').onClick(() => this.runM2()).width('90%')
-      Text(this.m2Result).fontSize(14)
+      // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
+      if (this.configWarning.length > 0) {
+        Text(this.configWarning)
+          .fontSize(12)
+          .fontColor('#8D6E63')
+          .width('100%')
+          .padding(10)
+          .backgroundColor('#FFF3E0')
+          .borderRadius(8)
+      }
 
-      Button('M3: call prebuilt_add(1,2)').onClick(() => this.runM3()).width('90%')
-      Text(this.m3Result).fontSize(14)
+      Column({ space: 8 }) {
+        Row({ space: 6 }) {
+          Text(this.view.label).fontSize(22).fontColor(this.view.colorHex)
+          // 模拟标识：避免"看起来像真连上了"
+          if (IS_SKELETON_MOCK) {
+            Text('(模拟)').fontSize(12).fontColor('#FF7043')
+          }
+        }
+        Text(this.view.hint).fontSize(13).fontColor('#666666').textAlign(TextAlign.Center)
+        Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
+        Button(this.isIdleOrError() ? '连接' : (this.view.busy ? '取消' : '断开'))
+          .enabled(this.view.canToggle)
+          .onClick(() => this.onToggle())
+          .width('70%')
+      }
+      .width('100%')
+      .padding(20)
+      .backgroundColor('#F5F5F5')
+      .borderRadius(12)
 
-      Button('M4: start VpnExtensionAbility (code only)').onClick(() => this.runM4()).width('90%')
-      Text(this.m4Result).fontSize(14)
+      Row({ space: 8 }) {
+        Text('当前节点').fontSize(14).fontColor('#666666')
+        Text(this.nodeName).fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
+        Button('更换').fontSize(12)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
+              Logger.error(`nav Nodes failed: ${e.message}`);
+            });
+          })
+      }
+      .width('100%')
+      .padding(12)
+      .backgroundColor('#FAFAFA')
+      .borderRadius(8)
 
-      Button('M5: call Go CGoPing()').onClick(() => this.runM5()).width('90%')
-      Text(this.m5Result).fontSize(14)
+      Blank()
 
-      Button('M6: load libxray + CGoInvoke').onClick(() => this.runM6()).width('90%')
-      Text(this.m6Result).fontSize(14)
+      Row({ space: 12 }) {
+        Button('节点列表').layoutWeight(1)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
+              Logger.error(`nav Nodes failed: ${e.message}`);
+            });
+          })
+        Button('设置').layoutWeight(1)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/Settings' }).catch((e: Error) => {
+              Logger.error(`nav Settings failed: ${e.message}`);
+            });
+          })
+      }
+      .width('100%')
 
-      Button('M7: libxray xrayVersion').onClick(() => this.runM7()).width('90%')
-      Text(this.m7Result).fontSize(14)
-
-      Button('M8: SOCKS via kernel + IP compare').onClick(() => this.runM8()).width('90%')
-      Text(this.m8Result).fontSize(14)
+      Button('开发者面板（PoC 探针）').width('100%')
+        .backgroundColor('#455A64')
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/DevPanel' }).catch((e: Error) => {
+            Logger.error(`nav DevPanel failed: ${e.message}`);
+          });
+        })
     }
     .width('100%')
+    .height('100%')
     .padding(16)
   }
 }
