@@ -15,6 +15,7 @@
  * 后续 tun2socks 接入时，通过 `SocksGuard.get()` 拿到当前端口的账号口令即可。
  */
 
+import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { Logger } from '../platform/Logger';
 
 /** 端口范围：避开知名端口与常见开发端口，降低被本机其他应用"顺手扫到"的概率 */
@@ -39,7 +40,7 @@ export class SocksGuard {
   /** 生成新的一组端口 + 口令（每次连接内核前调用） */
   static rotate(): SocksEndpoint {
     const ep = new SocksEndpoint();
-    ep.port = PORT_MIN + Math.floor(Math.random() * (PORT_MAX - PORT_MIN));
+    ep.port = PORT_MIN + SocksGuard.randomUint32() % (PORT_MAX - PORT_MIN);
     ep.user = SOCKS_USER;
     ep.password = SocksGuard.randomHex(SECRET_HEX_LEN);
     ep.authEnabled = true;
@@ -47,6 +48,12 @@ export class SocksGuard {
     // 只记录端口：口令进日志就等于没有口令
     Logger.info(`socks endpoint rotated: 127.0.0.1:${ep.port} (auth=password)`);
     return ep;
+  }
+
+  private static randomUint32(): number {
+    const blob: cryptoFramework.DataBlob = cryptoFramework.createRandom().generateRandomSync(4);
+    const v: number = ((blob.data[0] << 24) | (blob.data[1] << 16) | (blob.data[2] << 8) | blob.data[3]);
+    return v < 0 ? -v : v;
   }
 
   /** 当前会话的端点；未初始化时惰性生成 */
@@ -58,11 +65,16 @@ export class SocksGuard {
   }
 
   private static randomHex(len: number): string {
+    // 口令必须是密码学随机：`Math.random()` 是可预测的 PRNG，
+    // 用它生成的口令等于没有口令——本机其他应用只要能预测就能借道出网。
+    const bytes: number = Math.ceil(len / 2);
+    const blob: cryptoFramework.DataBlob = cryptoFramework.createRandom().generateRandomSync(bytes);
     const alphabet: string = '0123456789abcdef';
     let out: string = '';
-    for (let i = 0; i < len; i++) {
-      out += alphabet.charAt(Math.floor(Math.random() * 16));
+    for (let i = 0; i < blob.data.length; i++) {
+      out += alphabet.charAt((blob.data[i] >> 4) & 0x0f);
+      out += alphabet.charAt(blob.data[i] & 0x0f);
     }
-    return out;
+    return out.substring(0, len);
   }
 }

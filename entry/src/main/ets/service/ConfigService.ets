@@ -255,12 +255,28 @@ export class ConfigService {
    * 取节点凭据明文。
    * 返回 null = 取不到。调用方**必须阻断连接**，不能拿空串当凭据硬连——
    * 那样内核只会给出一个与真实原因无关的握手错误。
+   *
+   * 兼容旧别名：早期版本的别名是 `node:<host:port>`，命中旧别名时顺手迁到
+   * 哈希别名并删除旧条目（别名本身不该泄漏服务器地址）。
    */
   async resolveCredential(node: XrayNode): Promise<string | null> {
-    const alias: string = node.credentialRef.startsWith('node:')
-      ? node.credentialRef
-      : SecretStore.aliasForNode(node.id);
-    return await SecretStore.get(alias);
+    const alias: string = SecretStore.aliasForNode(node.id);
+    const fresh: string | null = await SecretStore.get(alias);
+    if (fresh !== null) {
+      return fresh;
+    }
+    const legacy: string = SecretStore.legacyAliasForNode(node.id);
+    const old: string | null = await SecretStore.get(legacy);
+    if (old === null) {
+      return null;
+    }
+    Logger.warn('credential found under legacy alias, re-keying to hashed alias');
+    if (await SecretStore.put(alias, old)) {
+      node.credentialRef = alias;
+      NodeStore.save(this.config.nodes);
+      await SecretStore.remove(legacy);
+    }
+    return old;
   }
 
   /** 导入节点：先把凭据写进 Asset Store，再落节点表（新数据从第一天起就不存明文） */

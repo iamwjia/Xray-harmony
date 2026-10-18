@@ -15,7 +15,7 @@ $hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-defau
 
 | 检查 | 命令 | 期望输出 | 不符时 |
 |---|---|---|---|
-| 设备可见 | `& $hdc list targets` | 一行设备串，如 `7001005458323933328C3F0F25000000`（或 `127.0.0.1:5555` 模拟器） | 输出 `Empty` → **【需人工】启动模拟器 GUI / 连真机并在设备上确认 USB 调试授权** |
+| 设备可见 | `& $hdc list targets` | 一行设备串（真机为一串十六进制序列号，模拟器为 `127.0.0.1:5555`） | 输出 `Empty` → **【需人工】启动模拟器 GUI / 连真机并在设备上确认 USB 调试授权** |
 | 设备 API = 26 | `& $hdc shell param get const.ohos.apiversion` | `26` | 非 26 → 记录实际值后**停止**（本工程 `compatibleSdkVersion=26.0.0`，低版本装不上） |
 | 系统版本（记录用） | `& $hdc shell param get const.ohos.fullname` | 形如 `HarmonyOS x.y.z` | 仅记录 |
 | 现有版本（如有旧包） | `& $hdc shell bm dump -n com.example.xraypoc` | 有 `versionName` 输出 = 已装 | 空 = 未装，正常 |

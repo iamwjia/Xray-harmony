@@ -101,10 +101,16 @@ export class KernelService {
     }
   }
 
-  /** 把内核错误文本转成人话；**原文始终进日志** */
+  /**
+   * 把内核错误文本转成人话；**原文只进私有日志**，不回显到 UI。
+   *
+   * 为什么不再把原文拼进 UI 文案：内核的解析错误常常带上配置片段，
+   * 而配置里就有节点凭据——那等于把 UUID/密码显示在用户屏幕上。
+   * 排查需要原文时看 hilog 的私有日志即可。
+   */
   private humanize(rawErr: string): string {
     const e: string = rawErr.length > 0 ? rawErr : '(empty error)';
-    Logger.error(`kernel raw error: ${e}`);
+    Logger.sensitiveError(`kernel raw error: ${KernelService.truncate(e, 400)}`);
     if (e.indexOf('unknown method') >= 0) {
       return '内核不支持该操作（内核版本与桥接不匹配）';
     }
@@ -120,7 +126,12 @@ export class KernelService {
     if (e === '(empty error)') {
       return '内核报告失败但未给出原因';
     }
-    return `内核错误：${e}`;
+    return '内核错误（详细原因已写入日志）';
+  }
+
+  /** 日志截断：避免一次异常把几十 KB 的配置全刷进日志 */
+  private static truncate(v: string, max: number): string {
+    return v.length <= max ? v : `${v.substring(0, max)}…(${v.length} chars)`;
   }
 
   /** 探针：内核是否在运行（唯一可信的状态来源） */

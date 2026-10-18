@@ -151,7 +151,8 @@ struct DevPanel {
     try {
       const ret: string = nativeEntry.m9ProxyProbe();
       this.m8Result = ret;
-      hilog.info(DOMAIN, TAG, 'M8 result=%{public}s', ret);
+      // 内核原始响应不可控（可能回显配置片段），日志走 private + 长度，避免整段落进公共日志
+      hilog.info(DOMAIN, TAG, 'M8 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
       this.m8Result = `M8 failed: ${err.code} ${err.message}`;
