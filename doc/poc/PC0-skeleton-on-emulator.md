@@ -19,7 +19,7 @@
 
 **本文的成功标准**：M1~M3 全绿 + M4 记录到"模拟器上到底发生了什么"。**M4 不做结论，只做记录。**
 
-**时间预算（半天 ≈ 4~5h）**：M1 ≈ 1~1.5h；M2 ≈ 1~1.5h；M3 ≈ 0.5~1h；M4 ≈ 0.5~1h（含踩 `type: "vpn"` 的坑）。
+**时间预算（半天 ≈ 4~5h）**：M1 ≈ 1~1.5h；M2 ≈ 1~1.5h；M3 ≈ 0.5~1h；M4 ≈ 0.5~1h（旧 SDK 需处理 `type: "vpn"` 的 `modulecheck` 枚举；**SDK 26 实测无需任何 patch**，见 §1.1.1）。
 
 ---
 
@@ -87,9 +87,16 @@ MyXrayPoc/
 ```
 
 - 官方示例里这三项（`name` / `srcEntry` / `type`）即全部必需字段，**不需要** `metadata`、`permissions`、`requestPermissions`（R2 §3.1.1、`harmony-evidence-quotes.md` A1）。
-- **已知坑（官方文档原文）**："如果 DevEco Studio 工具提示不能识别 `"type": "vpn"`，需要您手动在 SDK 的 `toolchains/modulecheck/module.json` 文件中，给 `extensionAbilities` 对应的 `type` 枚举添加 `"vpn"` 定义，并清除 build 缓存和重启 DevEco Studio 工具。"
-  → **这条坑在模拟器上同样会命中**，且它是 M4 的第一个卡点：**报错发生在构建期，不是运行期**。
-- 结论：M4 若卡在构建期，先按上面这段原文处理再判"模拟器不支持"，否则会把**构建配置问题**误判成**平台能力问题**（这正是 R2 §5 的"报错=版位不足 / 静默=语义不同"要防的事）。
+- **旧说法（官方文档原文，保留以便追溯）**："如果 DevEco Studio 工具提示不能识别 `"type": "vpn"`，需要您手动在 SDK 的 `toolchains/modulecheck/module.json` 文件中，给 `extensionAbilities` 对应的 `type` 枚举添加 `"vpn"` 定义，并清除 build 缓存和重启 DevEco Studio 工具。"
+- **已修正（实测回写 · 2026-10-18 · 依据 `PC6-skeleton-build-log.md`）**：在 **SDK 26.0.0.105 + hvigor 6.26.8** 上，`"type": "vpn"` **构建期直接通过，无需任何 patch**。`ProcessProfile` / `GeneratePkgModuleJson` / `PackingCheck` 全程无相关 WARN/ERROR；打包后 HAP 内 `module.json` 完整保留：
+  ```json
+  "extensionAbilities":[{"exported":false,"srcEntry":"./ets/vpnability/VpnExtAbility.ets",
+    "name":"MyVpnExtAbility","type":"vpn"}]
+  ```
+  → 上面那条"必须 hand-patch `modulecheck`"是**旧 SDK 的已知做法**；SDK 26 上**不要**再去改 SDK 目录（改了反而污染安装）。
+- **边界（必须一起读）**：**构建期通过 ≠ 运行期能力可用**。这只证明"声明合法、能打包"；`VpnExtensionAbility` 能否被拉起、能否建 tun、授权弹窗是否存在，**仍须真机验证**（见 §2 M4 观察表、§6）。
+- 仍需保留的判定纪律：若构建期真报 `type` 非法，先按上面旧原文确认是否旧 SDK，再判"平台不支持"——避免把**构建配置问题**误判成**平台能力问题**（R2 §5「报错=版位不足 / 静默=语义不同」）。
+
 
 ### 1.2 `entry/build-profile.json5`（native 构建的实际开关）
 
@@ -179,7 +186,10 @@ hdc hilog
 | `failed to install ... signature` | 未签名 / 证书与 Profile 不匹配 | DevEco `File → Project Structure → Signing Configs → 自动签名`（见 §5） |
 | `aa start` 报 ability 不存在 | `-a` 的名字与 `module.json5` 的 `abilities[].name` 不一致 | 用 `module.json5` 里的 `name` 原值，区分大小写 |
 | 应用启动后白屏 | `pages` profile 缺失 / 首页路径错 | 检查 `resources/base/profile/main_pages.json` 与 `Index.ets` 路径 |
-| 构建报 `module.json5` 校验失败 | 字段缺失或非法值（含 M4 的 `type: "vpn"`） | 按 §1.1 / §1.1.1 逐字段核对 |
+| 构建报 `module.json5` 校验失败 | 字段缺失或非法值 | 按 §1.1 / §1.1.1 逐字段核对；**`type:"vpn"` 在 SDK 26 上不会被拒**（§1.1.1 已修正） |
+| `api version parameter is illegal! Expected format: <major>[.<minor>][.<patch>]` | `compatibleSdkVersion` 写了旧格式 `"26.0.0(26)"`；hvigor 6.26.8 只接受纯版本号 | 改成 `"26.0.0"`（详见 §2.5 坑 1） |
+| `ninja: error: '.../entry/src/libs/<abi>/libprebuilt.so' ... missing` | CMake 里预编译库相对路径少一层 `main` | `../../libs` → `../libs`（详见 §2.5 坑 2） |
+| `spawn java ENOENT`（打包阶段 `PackageHap`） | 本机 PATH 无 java | 设 `JAVA_HOME=<DevEco>\jbr` 并把 `%JAVA_HOME%\bin` 前置到 PATH（详见 §2.5 坑 3） |
 
 ### M2 ArkTS 调自写 C 函数（NAPI 全链路）
 
@@ -230,7 +240,7 @@ hdc hilog
 **做什么**
 1. 新建 `ets/vpnability/VpnExtAbility.ets`（`export default class MyVpnExtAbility extends VpnExtensionAbility`，在 `onCreate` 里打一行 `hilog`）；
 2. 按 §1.1.1 在 `module.json5` 加 `extensionAbilities`（`type: "vpn"`）；
-3. 先构建。**若构建期报 `type: "vpn"` 非法** → 按 §1.1.1 的官方原文处理（patch `modulecheck/module.json` + 清缓存 + 重启 DevEco），再构建；
+3. 先构建。**SDK 26 上这一步会直接通过**（实测，见 §1.1.1）；**仅当**你用的是旧 SDK 且明确报 `type` 非法时，才按 §1.1.1 的旧原文处理（patch `modulecheck/module.json` + 清缓存 + 重启 DevEco），再构建；
 4. 首页放一个按钮，调 `vpnExtension.startVpnExtensionAbility(want)`；
 5. 采集日志：`hdc hilog | Select-String -Pattern "Vpn|vpn|XVPN"`。
 
@@ -262,14 +272,52 @@ hdc hilog
 
 ---
 
+### 2.5 搭建环境必踩的三个坑（实测回写 · 2026-10-18 · 依据 `PC6-skeleton-build-log.md`）
+
+> **重要前提：三条都不是平台缺陷。** 两条是工程配置、一条是环境变量。把它们当成"平台不支持"会让整条可行性判断跑偏。
+
+| # | 现象（真实报错原文） | 真因（配置 / 平台） | 解法 |
+|---|---|---|---|
+| 1 | `api version parameter is illegal! Expected format: <major>[.<minor>][.<patch>], e.g., "17", "17.2", "17.2.3"` → `BUILD FAILED` | **工程配置**：`compatibleSdkVersion` 写了 DevEco 5 时代的 `"26.0.0(26)"`；**hvigor 6.26.8 只接受纯版本号** | 根 `build-profile.json5` 改为 `"compatibleSdkVersion": "26.0.0"`（`targetSdkVersion` / `compileSdkVersion` 同格式）。修完实测 `minAPIVersion`/`targetAPIVersion` = `260000026`，确认落在 API 26 |
+| 2 | `ninja: error: 'D:/.../entry/src/libs/arm64-v8a/libprebuilt.so', needed by '.../obj/arm64-v8a/libentry.so', missing and no known rule to make it` → `00303300 Configuration Error` | **工程配置**：`CMAKE_CURRENT_SOURCE_DIR` 是 `entry/src/main/cpp`，写 `../../libs` 会解析成 `entry/src/libs`（少一层 `main`） | `CMakeLists.txt` 改用 `${CMAKE_CURRENT_SOURCE_DIR}/../libs/${OHOS_ARCH}`，并把 `libprebuilt.so` 放在 `entry/src/main/libs/<abi>/` |
+| 3 | `Failed :entry:default@PackageHap` → `spawn java ENOENT`，`BUILD FAILED` | **环境变量**：`PackageHap` 依赖 `java`，本机 PATH 没有 | 设 `JAVA_HOME=<DevEco>\jbr`，并把 `%JAVA_HOME%\bin` 前置到 `PATH`（另需 `NODE_HOME=<DevEco>\tools\node`、`DEVECO_SDK_HOME=<DevEco>\sdk`） |
+
+**可复制的最小环境准备（三条坑一次全避）**
+
+```powershell
+$dev = 'C:\Program Files\Huawei\DevEco Studio'
+$env:NODE_HOME="$dev\tools\node"; $env:DEVECO_SDK_HOME="$dev\sdk"; $env:JAVA_HOME="$dev\jbr"
+$env:PATH = "$env:JAVA_HOME\bin;$env:NODE_HOME;$env:PATH"
+Set-Location 'D:\projects\xray-harmony'
+& "$dev\tools\hvigor\bin\hvigorw.bat" --mode module -p product=default assembleHap --no-daemon
+```
+
+**两条判读提醒**
+- PowerShell 里即使出现 `Exit Code: 1`，只要输出里有 `BUILD SUCCESSFUL` 就算成功——hvigor 把 WARN 写 stderr，PowerShell 会当成 `NativeCommandError`。
+- 空 `signingConfigs` 只产生 `Will skip sign 'hos_hap'` 的 WARN，产出 `*-unsigned.hap`，属预期中间态（签名见 §5）。
+
+### 2.6 字段层级陷阱：**加错层级不会报错，只会静默失效**
+
+来自 SDK 自带 schema（`<DevEco>\tools\hvigor\hvigor-ohos-plugin\res\schemas\`）的三条事实（实测回写 · 2026-10-18）：
+
+1. `ohos-project-build-profile-schema.json`：`app.products.items.required = ["name", "compatibleSdkVersion"]`；
+2. 同文件：`targetSdkVersion` 原文 **"It defaults to the same value as compileSdkVersion unless otherwise specified."**；`compileSdkVersion` 原文 **"For HarmonyOS, it defaults to the SDK version bundled with DevEco Studio unless otherwise specified"** ⇒ 不显式写，IDE 与 CLI 可能得出不同默认值；
+3. `ohos-module-build-profile-schema.json` **完全不含 `targetSdkVersion`**（顶层只有 `targets`/`buildOption`/`buildOptionSet`/`apiType`/`entryModules`/`showInServiceCenter`/`buildModeBinder`）。
+
+> ⇒ **把 `targetSdkVersion` 写进 `entry/build-profile.json5` 能通过 schema 校验，但永远不会生效——这是"假修"**。它和 R2 §5 的「静默 vs 报错」是同一个坑的另一种形态：**字段加错层级不会报错，只会静默失效**。
+> 排查口诀：**版本三元组只在工程级 `app.products[]`；模块级只放 `targets`/`buildOption`。**
+
+---
+
 ## 3. 模拟器能力边界（本手册最重要的一节）
+
 
 ### 3.1 ✅ 模拟器上可靠可用（结论可外推）
 
 | 能力 | 依据 | 备注 |
 |---|---|---|
 | ArkTS / ArkUI 编译与运行 | R2 §1.1 | 与真机同一套 IDE/编译器 |
-| HAP 构建链（hvigor/ohpm）、目录结构与 `module.json5` 校验规则 | R2 §1.2 | 校验规则与真机一致（`type: "vpn"` 的坑在两边同样命中） |
+| HAP 构建链（hvigor/ohpm）、目录结构与 `module.json5` 校验规则 | R2 §1.2 | 校验规则与真机一致（`type: "vpn"` 在 SDK 26 上构建期直接通过，见 §1.1.1） |
 | NAPI 调用链（ArkTS ↔ C/C++，含参数/返回值/线程回调） | R2 §2.1 | 只要 so 的 ABI 与模拟器一致即可 |
 | `hilog`、安装/卸载/冷启动流程、`aa start` / `aa force-stop` | PC4 §2 | 命令与真机同一套 |
 | 资源与页面路由、权限声明（normal 级） | R2 §3.2 | 权限校验逻辑一致 |
@@ -400,7 +448,8 @@ hdc shell aa force-stop <你的 bundleName>  # 冷启动前必做（PC4 §2.1）
 
 | 事实 | 出处 |
 |---|---|
-| `type: "vpn"` 声明写法 + DevEco 不识别时的官方处置 | R2 §3.1、§3.1.1；`research/harmony-evidence-quotes.md` A1 |
+| `type: "vpn"` 声明写法 | R2 §3.1、§3.1.1；`research/harmony-evidence-quotes.md` A1 |
+| `type: "vpn"` 在 **SDK 26 上无需 patch**（构建期实测通过） | 本文 §1.1.1、§9；原始记录 `doc/poc/PC6-skeleton-build-log.md` §5 |
 | 系统只建网卡/下发路由，隧道与 fd 读写由应用实现 | R2 §3.1.1 |
 | NAPI 加载时序（import → ModuleManager → 模块注册） | R2 §2.1 |
 | ABI 集合、`--target=*-linux-ohos`、STL 一致性、SONAME 与预构建库约束 | R2 §2.2 |
@@ -419,7 +468,7 @@ hdc shell aa force-stop <你的 bundleName>  # 冷启动前必做（PC4 §2.1）
 |---|---|---|
 | C1 | 你的模拟器实际 ABI | `deviceInfo.abiList`（§4.2 方法 1） |
 | C2 | 模拟器镜像 API Level | `hdc shell param get const.ohos.apiversion` |
-| C3 | 当前 SDK 是否已收录 `extensionAbilities.type = "vpn"` | M4 构建期是否报校验失败 |
+| C3 | ~~当前 SDK 是否已收录 `extensionAbilities.type = "vpn"`~~ → **已由实测关闭**：SDK 26.0.0.105 构建期直接通过（§1.1.1、§9） | — |
 | C4 | 模拟器是否提供 VPN 授权弹窗与 `vpn-tun` | M4 观察表 |
 | C5 | `hdc shell param get const.product.cpu.abilist` 参数名有效性 | 实跑，返回空则改用方法 1/2 |
 | C6 | 模拟器安装是否要求 Profile 绑定设备 | 直接 `hdc install` 试；失败看报错文本 |
@@ -429,4 +478,80 @@ hdc shell aa force-stop <你的 bundleName>  # 冷启动前必做（PC4 §2.1）
 
 ---
 
+## 9. 实测固化信息（SDK 26 环境事实 · 2026-10-18）
+
+> 来源：`doc/poc/PC6-skeleton-build-log.md`（原始记录，含真实命令与输出）。本节只做"可引用的固化结论"，便于后续任何人在同一环境上对齐判断。
+
+### 9.1 环境版本（实测读到，非假设）
+
+| 项 | 实测值 |
+|---|---|
+| DevEco build | `DS-261.23567.138.36.2600851` |
+| SDK | `apiVersion 26` / `platformVersion 26.0.0` / `version 26.0.0.105` / `Release` |
+| hvigor 引擎与插件 | `@ohos/hvigor 6.26.8`、`@ohos/hvigor-ohos-plugin 6.26.8` |
+| hdc | **3.2.0f**（`<DevEco>\sdk\default\openharmony\toolchains\hdc.exe`，探测时无设备连接） |
+| node / java | DevEco 内置 `tools\node`、`jbr`（须显式设 `NODE_HOME` / `JAVA_HOME`） |
+| NDK clang | `<DevEco>\sdk\default\openharmony\native\llvm\bin\clang.exe`（`aarch64-unknown-linux-ohos-clang` 在该目录**无 `.exe`**，用 `clang.exe --target=...` 更稳） |
+
+### 9.2 构建结果与产物
+
+| 项 | 实测值 |
+|---|---|
+| 命令 | `hvigorw.bat --mode module -p product=default assembleHap --no-daemon` |
+| 冷构建结果 | `BUILD SUCCESSFUL in 5 s 380 ms`，`34 tasks: 34 executed, 0 up-to-date` |
+| 增量构建结果 | `BUILD SUCCESSFUL in 4 s 768 ms`，`33 tasks: 22 executed, 11 up-to-date` |
+| 产物 | `entry\build\default\outputs\default\entry-default-unsigned.hap`，**1,346,634 B**（未签名，"另议"状态） |
+| 产物内 API 字段 | `minAPIVersion=260000026`、`targetAPIVersion=260000026`、`compileSdkVersion=26.0.0.105` ⇒ **与设备 HarmonyOS 7 / API 26 对齐（环境对齐已确认）** |
+
+### 9.3 HAP 内部结构（实测）
+
+| 条目 | 大小 |
+|---|---|
+| `module.json` | 1,685 B（含 `extensionAbilities[].type="vpn"`、`requestPermissions[INTERNET]`） |
+| `libs/arm64-v8a/libentry.so` | 50,712 B（M2 NAPI 模块） |
+| `libs/arm64-v8a/libprebuilt.so` | 4,120 B（M3 预编译库，strip 后） |
+| `libs/arm64-v8a/libc++_shared.so` | 1,262,504 B（`OHOS_STL=c++_shared` 默认；占包体 ~93%） |
+| `ets/modules.abc` | 18,652 B |
+
+### 9.4 `DT_NEEDED` 实测（证明 M3 真的链上，不是"配了没生效"）
+
+```
+libentry.so:
+  (NEEDED)  libace_napi.z.so
+  (NEEDED)  libprebuilt.so      ← M3 链接成立
+  (NEEDED)  libc++_shared.so
+  (NEEDED)  libc.so
+  (SONAME)  libentry.so
+
+libprebuilt.so:
+  (NEEDED)  libc.so
+  (SONAME)  libprebuilt.so      ← SONAME 必须存在，否则安装后加载失败
+```
+
+### 9.5 当前 ABI 边界（禁止外推）
+
+- **当前只构建 `arm64-v8a`**（`entry/build-profile.json5` → `externalNativeOptions.abiFilters`）。
+- **能得出**：`arm64-v8a` 的编译 / 链接 / 打包链路通。
+- **不能得出**：① 运行期能否 `dlopen`（需设备）；② `x86_64`（模拟器）是否同样可行；③ 任何性能数据。
+- 模拟器要用时：`abiFilters` 加 `"x86_64"` **并且**用 `--target=x86_64-linux-ohos` 重编一份 `libprebuilt.so` 放到 `entry/src/main/libs/x86_64/`（漏这步会因"该 ABI 无预编译库"失败）。
+
+### 9.6 已由实测关闭的旧结论（保可追溯）
+
+| 旧结论 | 状态 | 新结论 |
+|---|---|---|
+| `type:"vpn"` 必须手改 SDK `toolchains/modulecheck/module.json` | **已修正（仅适用旧 SDK）** | SDK 26.0.0.105 构建期直接通过，**不要改 SDK 目录** |
+| `compatibleSdkVersion` 可写 `"5.0.0(12)"` 这类带 API 的格式 | **已修正** | hvigor 6.26.8 只接受纯版本号（`"26.0.0"`） |
+
+---
+
+## 10. 修订记录
+
+| 日期 | 版本 | 修订内容 | 依据 |
+|---|---|---|---|
+| 2026-10-18 | v1.0 | 初版（模拟器骨架指南） | PC6 任务 |
+| 2026-10-18 | v1.1 | **实测回写**：①§1.1.1 修正 `type:"vpn"` 需 patch 的过时结论（SDK 26 无需 patch，保留旧说法并标"已修正"）；②新增 §2.5 三条真实报错（api version / ninja 路径 / spawn java ENOENT）、§2.6 字段层级陷阱（加错层级静默失效）；③新增 §9 实测固化信息（版本/产物/HAP 内容/`DT_NEEDED`/ABI 边界）；④同步更新 §0 时间预算、§2 M1 与 M4 报错表、§3.1、§7 索引、§8 的 C3 项 | `doc/poc/PC6-skeleton-build-log.md`（E1 原始构建记录） |
+
+---
+
 *本手册与 PC4 同一口径：**命令可直接复制、结论必须标依据、不确定必须标出**。M1~M3 全绿说明"你会用这套工具链了"；M4 的观察表是**交给真机阶段的输入**，不是结论。*
+

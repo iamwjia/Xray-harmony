@@ -294,4 +294,66 @@ $args=@('--target=aarch64-linux-ohos',"--sysroot=$sdk\sysroot",'-shared','-fPIC'
 
 ---
 
-*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。*
+## 9. 追加：DevEco IDE 同步报「没有设置 targetSdkVersion」的处理（2026-10-18 补记）
+
+### 9.1 现象
+
+- **CLI 构建一直是绿的**（见 §4.2、§4.6）；
+- 用户在 **DevEco IDE** 里同步时报「没有设置 targetSdkVersion」。
+- 说明：**IDE 的 sync 与 hvigor 的 build 是两条校验路径**，结论可能不同（IDE 走 DevEco 自己的工程模型校验，hvigor 走插件 schema）。
+
+### 9.2 本次修法（已改，CLI 已复验）
+
+根 `build-profile.json5` 的 `products` 段**显式补齐三者**（原文件只有 compatible + target，缺 compile）：
+
+```json5
+"products": [
+  {
+    "name": "default",
+    "signingConfig": "default",
+    "compileSdkVersion": "26.0.0",
+    "compatibleSdkVersion": "26.0.0",
+    "targetSdkVersion": "26.0.0",
+    "runtimeOS": "HarmonyOS"
+  }
+]
+```
+
+同时给 `entry/build-profile.json5` 的 `targets` 补 `"runtimeOS": "HarmonyOS"`（模块级 schema 允许该字段，属"补齐不给 IDE 猜"）。
+
+### 9.3 CLI 复验输出（真实）
+
+```
+> hvigor BUILD SUCCESSFUL in 4 s 768 ms
+
+33 tasks in total: 22 executed, 11 up-to-date
+```
+（改动前后均成功；本节改动未引入回归）
+
+### 9.4 为什么怀疑是 `compileSdkVersion` 缺省（schema 原文证据）
+
+读取 SDK 自带 schema（`<DevEco>\tools\hvigor\hvigor-ohos-plugin\res\schemas\`）：
+
+| schema 文件 | 关键事实 |
+|---|---|
+| `ohos-project-build-profile-schema.json` | `app.products.items.required = ["name", "compatibleSdkVersion"]`；`targetSdkVersion` 描述原文："**It defaults to the same value as compileSdkVersion unless otherwise specified.**"；`compileSdkVersion` 描述原文："For HarmonyOS, **it defaults to the SDK version bundled with DevEco Studio** unless otherwise specified"；三者类型均为 `["integer","string"]` |
+| `ohos-module-build-profile-schema.json` | **完全不含 `targetSdkVersion` 字段**（顶层只有 `targets`/`buildOption`/`buildOptionSet`/`apiType`/`entryModules`/`showInServiceCenter`/`buildModeBinder`；`targets.items` 只有 `name`/`runtimeOS`/`output`/`config`/`source`/`resource`） |
+
+**推论**：`targetSdkVersion` 只在**工程级 `app.products[]`** 有意义；当 `compileSdkVersion` 未显式给出时，IDE 需要靠"DevEco 自带 SDK 版本"推断，推断失败就可能抛出与 target/compile 相关的缺失提示。**显式补齐三者**是最稳的写法，也避免了"IDE 与 CLI 看到不同默认值"。
+
+### 9.5 若 IDE 仍报同样的错，需要提供的信息（否则无法进一步定位）
+
+1. **IDE 报错原文全文**（含它指向的**文件路径与行号**）——IDE 有时指向的是另一个工程或被缓存的副本；
+2. 报错出现时机（打开工程时 / `Sync Now` 时 / 修改某文件后）；
+3. 依次尝试并记录结果：
+   - `File → Sync and Refresh Project`；
+   - `Build → Clean Project` 后再 Sync；
+   - 关闭 IDE，删除项目下 `.hvigor/` 与 `.idea/` 后重开（**只删这两个缓存目录，不动源码**）。
+4. 若 IDE 提示"没有设置 targetSdkVersion"但文件里明明有，**大概率是 IDE 读了缓存**：用上面第 3 步清缓存即可验证。
+
+> 附：`targetSdkVersion` **不是**模块级字段，别在 `entry/build-profile.json5` 里加——加了 schema 不报错但也不生效，属于"看起来解决了"的假修。这条建议写进团队环境搭建 SOP。
+
+---
+
+*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出。*
+
