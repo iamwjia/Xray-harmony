@@ -7,3 +7,7 @@ export const m5CGoPing: (soPath?: string) => string;
 export const m6CGoInvoke: () => string;
 // M7 / P-02: call real libXray methods (xrayVersion / getXrayState).
 export const m7CGoVersion: () => string;
+// M8: generic bridge — invoke(method, payloadJson) => response JSON
+export const m8Invoke: (method: string, payloadJson: string) => string;
+// M9: SOCKS inbound + freedom outbound probe (forwarding path evidence)
+export const m9ProxyProbe: () => string;

@@ -503,3 +503,67 @@ OK  arm64 -> entry\src\main\libs\arm64-v8a\libxray.so  (69,068,464 bytes)
 - arm64 真机同样必须携带 `libxray.so`（35.74 MB strip 后），这是 Xray 全量内核的**固有体重**（同类客户端 `libv2ray.so` 同量级），不是我们写胖了；
 - 想再小只能裁协议/传输，那要改 `xray-core` 的 import 列表 ⇒ **MPL-2.0 §3.1 公开被改文件 + 永久分叉维护 + 牺牲节点兼容性**，代价远大于收益，**本次不做**；
 - 「36.9 MiB 是否可接受」取决于应用市场的包体上限，属产品决策，不是技术问题。
+
+---
+
+## P-01 前置：真实出站验证（E11，节点缺失下的「转发链路」验证）
+
+> 目标：从「内核能初始化」推进到「内核能转发流量」。
+> 结论：**转发链路成立**（SOCKS 握手成功、经内核取到 HTTP 200），**但「出网经节点」这一层无法验证——仓库内无可用节点，已标 `【需要人工：提供一个可用节点】`**。
+
+### 1. 测试设计（这一层不需要节点）
+
+- 入站：`socks` 监听 `127.0.0.1:18080`（noauth）
+- 出站：`freedom`（**故意不用节点**：先把「内核转发链路」与「节点出口」两层拆开）
+- 驱动：`runXrayFromJson` 起实例 → `getXrayState` 确认 → **native 侧手写 SOCKS5**（`0x05` 握手 → CONNECT 域名 → `GET /`）→ 与直连同址对照 → `stopXray`
+
+新增两个 native 能力（避免每测一个方法就改一次 native）：
+- `m8Invoke(method, payloadJSON)`：通用 `CGoInvoke` 桥；
+- `m9ProxyProbe()`：一键完成「起实例 + SOCKS 探针 + 直连对照 + 停实例」。
+
+### 2. 实跑结果（hilog 原文）
+
+```
+M8 clicked
+M8 result=[verdict=SAME_IP(forwarding-only)]
+  run={"success":true,"data":{},"error":""}
+  state={"success":true,"data":{"running":true},"error":""}
+  via_proxy_status=HTTP/1.1 200  via_proxy_ip=113.246.178.167
+  socks_err=-
+  direct_status=HTTP/1.1 200   direct_ip=113.246.178.167
+  stop={"success":true,"data":{},"error":""}
+```
+
+### 3. 三层判据（分开写，不合并）
+
+| 层 | 问题 | 本次结论 |
+|---|---|---|
+| ① 内核运行 | `getXrayState.running` 是否为 true | ✅ **true**（`runXrayFromJson` 返回 `success:true`） |
+| ② 转发链路 | SOCKS 握手 + CONNECT 是否成功、经内核能否取到 HTTP 响应 | ✅ **成功**：`socks_err=-`、经代理拿到 `HTTP/1.1 200` 与正文 |
+| ③ 出网经节点 | 经代理出口 IP 是否 ≠ 直连 IP | ❌ **未验证**（本步用 `freedom`，两者同为 `113.246.178.167`，**预期相同**） |
+
+**⇒ 可以说的**：`Xray 内核在 OHOS 进程内可启动、可监听 SOCKS、可按配置转发并返回真实响应`。
+**⇒ 不能说的**：`流量经节点出网` / `具备隐私保护效果`——那需要 ③，本步未做。
+
+### 4. 待补：`【需要人工：提供一个可用节点】`
+
+仓库与环境里没有任何节点凭据（`_toolchain/`、环境变量、配置文件中均无 `vless/vmess/trojan/ss` 链接）。接上节点只需**把 outbound 从 `freedom` 换成节点配置，代码一行不改**。
+
+提供方可按此格式给测试节点（机房/地域即可，无需生产节点）：
+`协议 + 地址:端口 + 凭据（UUID/密码）+ 传输与安全层（ws+tls / reality 等）+ 是否需要 SNI/flow`
+
+到位后复跑本探针，判定表：
+- 经代理 IP ≠ 直连 IP，且为机房 ISP ⇒ **才可写「内核可代理出网」**；
+- 连不上但 `running:true` 且内核日志有出站握手 ⇒ 内核在跑，问题在节点/网络；
+- `runXrayFromJson` 返回错误 ⇒ 记原文，区分「配置非法」与「运行失败」。
+
+### 5. 顺带记录：HAP 压缩（`compressNativeLibs`）后的体积口径
+
+本期 `module.json5` 由平台侧开启 `compressNativeLibs`，实测（x86_64 单 ABI 包）：
+
+| 指标 | 值 |
+|---|---|
+| `libs/` 未压缩合计 | 40,850,184 B（≈39.0 MiB） |
+| **HAP（下载体积）** | **15,799,538 B（≈15.1 MiB）** |
+
+**注意口径**：压缩只减小**下载体积**；安装时仍会解压（`extractNativeLibs` 缺省 true）⇒ **安装占用仍约 39 MiB**。**不能写成「体积减半」**，应写「下载 15.1 MiB / 安装约 39 MiB」。

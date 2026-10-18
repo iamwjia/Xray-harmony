@@ -19,6 +19,7 @@ struct Index {
   @State m5Result: string = '(M5 not run)';
   @State m6Result: string = '(M6 not run)';
   @State m7Result: string = '(M7 not run)';
+  @State m8Result: string = '(M8 not run)';
 
   // 启动即探测：无需点击即可区分「API 不存在 / 调用悬挂 / 调用被拒」
   aboutToAppear(): void {
@@ -142,6 +143,21 @@ struct Index {
     }
   }
 
+  // M8 / P-01 前置：SOCKS 入站 + freedom 出站，经内核发一次真实 HTTP 请求，并与直连出口 IP 对照。
+  // 判据：经代理 IP == 直连 IP ⇒ 只证明「转发链路通」；不同才说明「出网经节点」（本步无节点，预期相同）。
+  private runM8(): void {
+    hilog.info(DOMAIN, TAG, 'M8 clicked');
+    try {
+      const ret: string = nativeEntry.m9ProxyProbe();
+      this.m8Result = ret;
+      hilog.info(DOMAIN, TAG, 'M8 result=%{public}s', ret);
+    } catch (e) {
+      const err = e as BusinessError;
+      this.m8Result = `M8 failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'M8 failed code=%{public}d msg=%{public}s', err.code, err.message);
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('xray-harmony PoC skeleton').fontSize(20).fontWeight(FontWeight.Bold)
@@ -163,6 +179,9 @@ struct Index {
 
       Button('M7: libxray xrayVersion').onClick(() => this.runM7()).width('90%')
       Text(this.m7Result).fontSize(14)
+
+      Button('M8: SOCKS via kernel + IP compare').onClick(() => this.runM8()).width('90%')
+      Text(this.m8Result).fontSize(14)
     }
     .width('100%')
     .padding(16)

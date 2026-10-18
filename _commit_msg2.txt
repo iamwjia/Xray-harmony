@@ -1,0 +1,12 @@
+perf(package): 开启 compressNativeLibs，HAP 38.7MB -> 14.5MB（-62%）
+
+实测 A/B（同一工程、同一内核 so，仅改 module.json5 一项）：
+- 缺省 false（不压缩）：HAP 38,656,796 B；libs/arm64-v8a/libxray.so STORED（ratio 1.000）
+- true（压缩）：        HAP 14,542,619 B；libxray.so 35,740,808 -> 13,206,202（ratio 0.369）
+
+注意（易误读）：extractNativeLibs 缺省 true，安装时仍会解压，
+故"下载 13.9MB"不等于"安装占用 13.9MB"——安装后占用仍约 36MB。
+遗留待验证：压缩包首次启动耗时 vs 未压缩包（需真机对比，不得当"应该没影响"）。
+
+文档：doc/poc/PC7-store-size-limits.md §6.0/§6.0.1/§6.1
+- 两条发布纪律各附数字依据：① 不含 x86_64（单 38.7MB / 双约 79.5MB）；② 开启压缩（38.7MB -> 14.5MB）

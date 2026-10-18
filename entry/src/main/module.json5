@@ -12,6 +12,9 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    // 发布纪律：libs 以压缩方式打包。实测 HAP 38,656,796 -> 14,542,619 B（-62%）。
+    // 注意：extractNativeLibs 缺省 true，安装时仍会解压，故"下载变小"不等于"安装占用变小"。
+    "compressNativeLibs": true,
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"

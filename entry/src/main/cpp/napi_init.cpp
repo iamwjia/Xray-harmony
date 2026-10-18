@@ -12,6 +12,10 @@ extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info);
 extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info);
 // M7: real libXray methods (xrayVersion / getXrayState) — proves xray-core is initialised.
 extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info);
+// M8: generic CGoInvoke bridge (method + payload JSON from ArkTS).
+extern "C" napi_value M8Invoke(napi_env env, napi_callback_info info);
+// M9: start SOCKS inbound + freedom outbound, request through it, compare exit IP.
+extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -48,6 +52,8 @@ napi_value Init(napi_env env, napi_value exports)
         {"m5CGoPing", nullptr, M5CGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m6CGoInvoke", nullptr, M6CGoInvoke, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m7CGoVersion", nullptr, M7CGoVersion, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m8Invoke", nullptr, M8Invoke, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m9ProxyProbe", nullptr, M9ProxyProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;
