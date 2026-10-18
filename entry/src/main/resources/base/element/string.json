@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "xray-harmony PoC entry module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "EntryAbility"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "XrayPoc"
+    },
+    {
+      "name": "VpnExtAbility_desc",
+      "value": "Minimal VpnExtensionAbility skeleton (M4, not verified on device yet)"
+    },
+    {
+      "name": "VpnExtAbility_label",
+      "value": "XrayPoc VPN"
+    }
+  ]
+}
