@@ -137,8 +137,14 @@ export class KernelConfigBuilder {
       s += ',"tlsSettings":{"serverName":' + KernelConfigBuilder.esc(node.serverName || node.address) +
         ',"allowInsecure":false}';
     } else if (security === 'reality') {
+      // REALITY 必须带 publicKey（及可选 shortId/fingerprint）。
+      // 缺 publicKey 时内核不会报"配置非法"，而是连接阶段握手失败——
+      // 表现为"导入成功、就是连不上"，所以这里把字段照实下发，并在编辑页做前置校验。
+      const fp: string = node.fingerprint.length > 0 ? node.fingerprint : 'chrome';
       s += ',"realitySettings":{"serverName":' + KernelConfigBuilder.esc(node.serverName || node.address) +
-        ',"fingerprint":"chrome","show":false}';
+        ',"fingerprint":' + KernelConfigBuilder.esc(fp) +
+        ',"publicKey":' + KernelConfigBuilder.esc(node.publicKey) +
+        ',"shortId":' + KernelConfigBuilder.esc(node.shortId) + ',"show":false}';
     }
     s += '}';
     return s;
@@ -156,7 +162,9 @@ export class KernelConfigBuilder {
       return 'grpc';
     }
     if (t === TransportKind.HTTP2) {
-      return 'http';
+      // 目标内核已移除旧的 "http" 传输名，HTTP/2 现为 "h2"。
+      // 之前映射成 "http" 会让配置在 parse 阶段就被拒（用户看到的是"导入成功但连不上"）。
+      return 'h2';
     }
     if (t === TransportKind.MKCP) {
       return 'mkcp';

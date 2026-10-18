@@ -64,6 +64,12 @@ export class XrayNode {
    * 多标签会让"某节点属于哪组"变成不可判定，筛选逻辑也会复杂一个量级。
    */
   group: string = '';
+  /** REALITY 公钥（pbk）。缺失时 REALITY 必然握手失败，不能当可选字段糊过去 */
+  publicKey: string = '';
+  /** REALITY shortId（sid） */
+  shortId: string = '';
+  /** uTLS 指纹（fp），如 chrome / firefox */
+  fingerprint: string = '';
 
   constructor(id: string = '', name: string = '', address: string = '', port: number = 443) {
     this.id = id;
@@ -131,6 +137,7 @@ export class AppConfig {
 interface RawNode {
   id?: string; name?: string; protocol?: string; address?: string; port?: number;
   transport?: string; security?: string; serverName?: string; credentialRef?: string; remark?: string;
+  publicKey?: string; shortId?: string; fingerprint?: string;
 }
 interface RawSubscription {
   id?: string; name?: string; urlRef?: string; lastUpdated?: number; nodeCount?: number;
@@ -210,6 +217,9 @@ export class ConfigCodec {
       n.serverName = rn.serverName === undefined ? '' : rn.serverName;
       n.credentialRef = rn.credentialRef === undefined ? '' : rn.credentialRef;
       n.remark = rn.remark === undefined ? '' : rn.remark;
+      n.publicKey = rn.publicKey === undefined ? '' : rn.publicKey;
+      n.shortId = rn.shortId === undefined ? '' : rn.shortId;
+      n.fingerprint = rn.fingerprint === undefined ? '' : rn.fingerprint;
       cfg.nodes.push(n);
     }
 

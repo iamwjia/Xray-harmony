@@ -45,6 +45,9 @@ struct NodeEdit {
   @State wsHost: string = '';
   @State grpcService: string = '';
   @State flow: string = '';
+  @State publicKey: string = '';
+  @State shortId: string = '';
+  @State fingerprint: string = '';
   @State group: string = '';
   @State remark: string = '';
   /** 留空 = 不修改凭据 */
@@ -99,6 +102,9 @@ struct NodeEdit {
     this.wsHost = node.wsHost;
     this.grpcService = node.grpcService;
     this.flow = node.flow;
+    this.publicKey = node.publicKey;
+    this.shortId = node.shortId;
+    this.fingerprint = node.fingerprint;
     this.group = node.group;
     this.remark = node.remark;
     this.transportIdx = this.indexOfTransport(node.transport);
@@ -147,12 +153,19 @@ struct NodeEdit {
     }
     const t: TransportKind = this.transports[this.transportIdx].value;
     if (t === TransportKind.HTTP2) {
-      // 已知缺陷（PC9 FR-31）：http2 会被映射成已被内核移除的 http 传输
-      return 'HTTP2 传输当前不可用（内核已移除 http 传输），请改用 WS 或 gRPC';
+      // 内核实测报错：“The feature HTTP transport ... has been removed and migrated to
+      // XHTTP stream-one H2 & H3”。既然不支持，就不要让用户存下一个必失败节点。
+      return '该内核版本已移除 HTTP/2 传输（迁移至 XHTTP），请改用 WS / gRPC';
     }
     const s: SecurityKind = this.securities[this.securityIdx].value;
-    if (s === SecurityKind.REALITY && this.serverName.trim().length === 0) {
-      return 'REALITY 必须填写 SNI / serverName';
+    if (s === SecurityKind.REALITY) {
+      if (this.serverName.trim().length === 0) {
+        return 'REALITY 必须填写 SNI / serverName';
+      }
+      // 缺 publicKey 的 REALITY 是「导入成功但必然握手失败」的典型静默坑，必须前置拦住
+      if (this.publicKey.trim().length === 0) {
+        return 'REALITY 必须填写公钥（publicKey / pbk）';
+      }
     }
     return '';
   }
@@ -182,6 +195,9 @@ struct NodeEdit {
     updated.wsHost = this.wsHost.trim();
     updated.grpcService = this.grpcService.trim();
     updated.flow = this.flow.trim();
+    updated.publicKey = this.publicKey.trim();
+    updated.shortId = this.shortId.trim();
+    updated.fingerprint = this.fingerprint.trim();
     updated.group = this.group.trim();
     updated.remark = this.remark.trim();
     updated.credentialRef = origin.credentialRef;
@@ -304,6 +320,25 @@ struct NodeEdit {
           TextInput({ text: $$this.flow }).fontSize(12)
             .onChange((v: string) => {
               this.flow = v;
+            })
+
+          // REALITY 参数：缺 publicKey 时握手必然失败，且内核不会在 parse 阶段报错
+          Text('REALITY 公钥 publicKey（pbk）').fontSize(12).fontColor('#666666').width('100%')
+          TextInput({ text: $$this.publicKey }).fontSize(12)
+            .onChange((v: string) => {
+              this.publicKey = v;
+            })
+
+          Text('REALITY shortId（sid，可空）').fontSize(12).fontColor('#666666').width('100%')
+          TextInput({ text: $$this.shortId }).fontSize(12)
+            .onChange((v: string) => {
+              this.shortId = v;
+            })
+
+          Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(12).fontColor('#666666').width('100%')
+          TextInput({ text: $$this.fingerprint }).fontSize(12)
+            .onChange((v: string) => {
+              this.fingerprint = v;
             })
 
           Text('分组（留空=未分组）').fontSize(12).fontColor('#666666').width('100%')

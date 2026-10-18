@@ -72,8 +72,11 @@ function mapTransport(t: string): TransportKind {
   if (v === 'grpc') {
     return TransportKind.GRPC;
   }
-  if (v === 'h2' || v === 'http') {
-    return TransportKind.HTTP2;
+  if (v === 'h2' || v === 'http' || v === 'http2') {
+    // 实测：当前内核已移除 HTTP 传输（报错原文 “The feature HTTP transport ... has been
+    // removed and migrated to XHTTP”），h2 也不再被接受。继续把它存成 HTTP2 会导致
+    // “导入成功、连接必失败且原因看不懂”，所以这里直接拒绝，并给出可执行的替代建议。
+    throw new ShareLinkParseError('该内核版本已移除 HTTP/2 传输（迁移至 XHTTP）：请改用 xhttp / ws / grpc 的节点');
   }
   if (v === 'mkcp' || v === 'kcp') {
     return TransportKind.MKCP;
@@ -155,6 +158,11 @@ export class ShareLinkParser {
     node.wsHost = query.get('host') || '';
     node.grpcService = query.get('serviceName') || '';
     node.flow = query.get('flow') || '';
+    // REALITY 必需参数。缺 publicKey 的 REALITY 节点"能导入但必然握手失败"，
+    // 所以这里照实解析出来，交由 KernelConfigBuilder / 编辑页校验。
+    node.publicKey = query.get('pbk') || '';
+    node.shortId = query.get('sid') || '';
+    node.fingerprint = query.get('fp') || '';
     node.credentialRef = uuid; // TODO: 改为 HUKS/ASSET 引用，当前为明文占位
     node.remark = name;
     return node;

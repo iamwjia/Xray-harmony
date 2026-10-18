@@ -53,6 +53,9 @@ interface StoredNode {
   remark: string;
   /** v3 新增；读旧数据时可能不存在 */
   group?: string;
+  publicKey?: string;
+  shortId?: string;
+  fingerprint?: string;
 }
 
 interface StoredPayload {
@@ -152,7 +155,10 @@ export class NodeStore {
       flow: n.flow,
       credentialRef: n.credentialRef, // TODO: 改为 HUKS/ASSET 引用
       remark: n.remark,
-      group: n.group
+      group: n.group,
+      publicKey: n.publicKey,
+      shortId: n.shortId,
+      fingerprint: n.fingerprint
     };
     return s;
   }
@@ -171,6 +177,9 @@ export class NodeStore {
     n.remark = s.remark;
     // v1/v2 没有 group 字段：缺失即"未分组"，不需要迁移动作
     n.group = s.group === undefined ? '' : s.group;
+    n.publicKey = s.publicKey === undefined ? '' : s.publicKey;
+    n.shortId = s.shortId === undefined ? '' : s.shortId;
+    n.fingerprint = s.fingerprint === undefined ? '' : s.fingerprint;
     return n;
   }
 
