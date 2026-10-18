@@ -47,3 +47,7 @@ oh_modules/
 entry/.cxx/
 local.properties
 .preview/
+
+# prebuilt libs: auditable/reproducible from entry/src/main/cpp/prebuilt/prebuilt.c
+# rebuild with: scripts/build-prebuilt.ps1
+!entry/src/main/libs/**/*.so
