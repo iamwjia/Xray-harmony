@@ -46,6 +46,14 @@ export class XrayNode {
   security: SecurityKind = SecurityKind.TLS;
   /** SNI / serverName，reality 必填 */
   serverName: string = '';
+  /** ws 路径（transport=ws 时使用） */
+  wsPath: string = '/';
+  /** ws Host 头（transport=ws 时使用，缺省用 address） */
+  wsHost: string = '';
+  /** grpc serviceName（transport=grpc 时使用） */
+  grpcService: string = '';
+  /** vless 流控（如 xtls-rprx-vision；为空则不下发该字段） */
+  flow: string = '';
   /** 凭据引用键（指向安全存储中的条目，不存明文） */
   credentialRef: string = '';
   /** 备注 */
