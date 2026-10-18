@@ -290,3 +290,280 @@ const IsOpenharmony = 1
 1. **������ `runtime.GOOS` �ж��Ƿ����� OHOS fork**��fork �� openharmony Ŀ���Ϊ `linux`������ֻ���� `//go:build openharmony` �����ǩ̽�롣
 2. **NDK �� `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` �� 171 �ֽڵ� `#!/bin/sh` �ű�**��Windows ����ִ�У�������� `clang.exe` + `-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`��
 3. **`hdc hilog` ����ʽ��**����һֱ�����豸��־ˢ����Ҫ���Ѳ����Ļ����� `hdc shell hilog -x`������ `hilog -r` ����ٸ��֣���
+
+---
+
+## P-02：libXray 在 OHOS 进程内加载与响应（E9）
+
+> 目标：把已验证的「Go → OHOS `.so`」链路用在**真内核**上——编 `libXray v26.7.28`（含 xray-core `v1.260327.1`），amd64 在模拟器加载并验证 `CGoInvoke` 有响应。
+> 结论：**✅ 成立**——`CGoInvoke` 返回合法 JSON（`{"success":false,"data":null,"error":"unknown method"}`），证明内核可被加载、Go runtime 完成初始化、xray-core 的调用分发器被执行。
+
+### 1. 源码与钉版
+
+```
+repo   : https://github.com/XTLS/libXray.git
+tag    : v26.7.28  (同时带 tag v1.260728.0)
+commit : 80263da83e96b2972455b0a94b13ee1a10e51391
+go.mod : go 1.26.3 ; require github.com/xtls/xray-core v1.260327.1-0.20260728075948-5ca6f4b7d4dc
+本地路径: _toolchain/libXray-v26.7.28（不入库）
+```
+
+> **踩坑：默认 `GOPROXY=https://proxy.golang.org` 在本机不可达**，`go mod download` 报
+> `dial tcp 142.250.73.81:443: connectex: A connection attempt failed ...`（连接超时）。
+> 解决：`GOPROXY=https://goproxy.cn,direct` + `GOSUMDB=sum.golang.google.cn` + `GOFLAGS=-mod=mod`，之后 `go mod download` 退出码 0。
+
+### 2. 编译（`-buildmode=c-shared`，带 version-script + SONAME）
+
+```powershell
+$env:GOOS="openharmony"; $env:GOARCH="amd64"; $env:CGO_ENABLED="1"
+$env:CC='"...\clang.exe" -target x86_64-linux-ohos "--sysroot=...\sysroot" -D__MUSL__'
+$env:CGO_CFLAGS ='-ftls-model=global-dynamic'
+$env:CGO_LDFLAGS='-ftls-model=global-dynamic -Wl,-soname,libxray.so'
+go build -trimpath -buildvcs=false -buildmode=c-shared `
+  -ldflags "-extldflags=-Wl,--version-script=<...>/libxray.map" `
+  -o ...\libxray.so ./cgo_bridge
+```
+
+`libxray.map`：`global: CGoInvoke; CGoFree; local: *;`
+
+首次编译（`EXIT=0`）产物：`libxray.so` **71,317,112 B**（未 strip，含符号与 DWARF）。
+
+### 3. 四验（`llvm-readelf`）
+
+| 检查 | 结果 |
+|---|---|
+| ELF 头 | ✅ `Type: DYN (Shared object file)` / `Machine: Advanced Micro Devices X86-64` |
+| `PT_TLS` | ✅ `TLS 0x1f506c0 ... R 0x8` |
+| `R_X86_64_TLSDESC` | ✅ 1 条 |
+| 导出符号 | ✅ **仅 `CGoInvoke` + `CGoFree`**（version-script 生效） |
+| `DT_NEEDED` | ✅ 仅 `libc.so`；`SONAME: libxray.so` |
+
+### 4. 接入应用
+
+- `entry/src/main/libs/x86_64/libxray.so` ← 构建产物；
+- `CMakeLists.txt`：`add_library(xraycore SHARED IMPORTED)` + `target_link_libraries(entry PUBLIC xraycore)`（同 M5 规则：**不参与链接图的 .so 不会进 HAP**）；
+- `cgo_bridge.cpp` 新增 `M6CGoInvoke`：`dlopen("libxray.so")` → `dlsym("CGoInvoke")` → 用**故意非法**的信封调用（`{"apiVersion":1,"method":"__p02_probe__","payload":{}}`）→ `CGoFree` 释放；
+- `Index.ets` 第 5 个按钮 **`M6: load libxray + CGoInvoke`**。
+
+HAP 内确认：`libs/x86_64/libxray.so` **38,069,288 B**（strip 后）；HAP 总大小 **42,421,112 B**。
+
+### 5. 实跑（模拟器 127.0.0.1:5555，API 26）
+
+```
+I A00001/XVPN_POC: M6 clicked
+I A00001/XVPN_POC: M6 result=[elapsed_ms=0] {"success":false,"data":null,"error":"unknown method"}
+```
+
+进程存活（PID 26110），**无 SIGSEGV**。
+
+判定：返回**合法 JSON**（`success:false` + 结构化 `error`）⇒ **Xray 内核在 OHOS 进程内可加载并响应调用**，`P-02` 核心证据成立。
+**注意**：这不是「能代理上网」——无节点、无出站连接，只验证「加载 + 分发器执行」。
+
+### 6. 采集到的数字（未采集项如实标注）
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| `libxray.so`（构建产物，未 strip） | **71,317,112 B** | — |
+| `libxray.so`（HAP 内，strip 后） | **38,069,288 B** | hvigor 自动 strip |
+| HAP 总大小 | **42,421,112 B** | 含 libentry/libprebuilt/libcgoping/libc++_shared |
+| 安装耗时（`hdc install -r`） | **2 s** | 模拟器，非真机 |
+| 冷启动到 UI 可用（代理指标） | **≈1.28 s** | `aa start` → `uitest dumpLayout` 成功；含 dumpLayout 自身开销，**非严格首帧** |
+| 进程内存（`VmRSS` / `VmHWM`） | **173,200 kB / 174,044 kB**（≈169/170 MB） | 整个应用进程，含 38 MB 映射的 `libxray.so` + Go runtime + ArkTS |
+| `CGoInvoke` 单次调用耗时 | **< 1 ms**（`elapsed_ms=0`） | 见下方观察 1 |
+
+### 7. 两条必须记录的观察
+
+1. **本架构下没有独立的「dlopen 耗时」**：`.so` 必须参与链接图才能进 HAP，因此它同时是 `libentry.so` 的 `DT_NEEDED`，**在应用启动时即被加载**；运行期 `dlopen("libxray.so")` 只是取已加载句柄。⇒ **内核真实加载成本在冷启动，不在点击按钮时**；1.28 s 冷启动中该部分未拆分（【未采集】细分）。
+2. **Native 侧 `OH_LOG_INFO` 未出现在 `hilog -x` 中**（只看到 ArkTS 的 `XVPN_POC` 行，M5 时亦然）。⇒ 阶段归因（dlopen/dlsym/call）**不能依赖 native 日志**；本次改为把 `elapsed_ms` 拼进返回值才拿到耗时。**后续 PoC 需阶段归因时，应把状态写进返回值或改用可达的日志通道。**
+
+### 8. 结论边界
+
+- 本次证据来自 **x86_64 模拟器**：证明「**Xray 内核可被 OHOS 应用加载并响应 `CGoInvoke`**」。
+- **仍未验证**：arm64 真机加载、真实节点出站、tun 数据面（属 `J-01` 范围）。
+- 故 `P-02` 记为**核心证据成立、真机部分待验**；**不能**据此宣布「可以代理上网」。
+
+### 9. M7（补测）：调用真实方法，证明 xray-core 已初始化并可服务
+
+M6 的 `unknown method` 只证明**分发层**被执行（且 `elapsed_ms=0` 说明未进入内核逻辑）。因此补测三个**真实存在**的方法：
+
+请求：`{"apiVersion":1,"method":"xrayVersion"}` / `"getXrayState"` / `"getFreePorts","payload":{"count":1}`
+
+实跑结果（hilog 原文）：
+
+```
+I A00001/XVPN_POC: M7 clicked
+I A00001/XVPN_POC: M7 result=[version_ms=0][state_ms=0][ports_ms=1]
+  version={"success":true,"data":{"version":"26.7.28"},"error":""}
+  state={"success":true,"data":{"running":false},"error":""}
+  ports={"success":true,"data":{"ports":[41861]},"error":""}
+```
+
+判定（按 Leader 给的判据表）：
+
+| 结果 | 含义 | 本次 |
+|---|---|---|
+| `success:true` 且有真实数据 | **xray-core 真的被初始化并可服务** | ✅ **版本 `26.7.28` + 空闲端口 `41861`** |
+| `getFreePorts` 返回端口 | 内核侧**实际执行了 socket 绑定**（不是常量返回） | ✅ 耗时 1 ms |
+| `getXrayState` | `running:false` = 尚未启动实例（预期，本步不启动内核） | ✅ |
+
+**⇒ P-02 完整成立**：`.so` 加载 → Go runtime 初始化 → libXray 逻辑执行 → xray-core 被调用并返回真实数据。
+
+**关于 `version_ms=0` / `state_ms=0` 的说明（不是计时错误）**：这三个方法里前两个是**常量/标志位读取**（`XrayVersion()` 返回编译期版本号、`GetXrayState()` 读一个 bool），耗时低于 1 ms 计时精度；只有 `getFreePorts` 做真实 socket 绑定，测到 **1 ms**。真正的「内核实例化」发生在 `runXray` / `runXrayFromJson`，本步**刻意不调用**（无节点、无配置，属 `J-01` 范围）。
+
+### 10. 体积事实（产品化门槛，非优化项）
+
+| 项 | 值 |
+|---|---|
+| `libxray.so`（未 strip） | **71,317,112 B**（≈68 MiB） |
+| `libxray.so`（HAP 内，hvigor strip 后） | **38,069,288 B**（≈36.3 MiB） |
+| HAP 总大小 | **42,421,112 B**（≈40.5 MiB） |
+
+- 单是内核就占了 HAP 的 **~90%**；对移动应用是硬门槛。
+- 可能的裁剪方向（**尚未验证，不写结论**）：①只 import 需要的协议/传输（不用 `main/distro/all` 的全量注册）；②`-ldflags="-s -w"` 进一步去符号/调试信息；③裁掉未使用的 DNS/geodata 相关包。**任何裁剪都必须重跑本节的验证，否则产物不再代表 Xray 的真实能力。**
+
+### 11. 由「链接图才能进包」推导出的版本策略后果（Leader 裁决）
+
+实测链条：
+1. hvigor **只打包参与 CMake 链接图的 `.so`**（未链接时即使放在 `libs/<abi>/` 也不进 HAP）；
+2. 一旦进链接图，它就成为 `libentry.so` 的 `DT_NEEDED` ⇒ **启动时即被加载**，无法懒加载；
+3. 应用私有目录的 `.so` 不可 `dlopen`（见 M5 规则 B-2）。
+
+⇒ **「包内 A/B 双内核版本」方案不成立**：两个版本都进链接图 = 两份都随启动加载（38 MB × 2 常驻映射），用确定的内存开销换很小的回滚灵活性，不划算。
+**结论（Leader 2026-10-18 裁决）：改为「单一内核版本 + 应用商店版本回滚」**，`D-18` 的 A/B 双版本作废；内核安全更新时效 = 商店发版时效。
+
+---
+
+## 体积与 ABI 策略（E10）
+
+> 目标：把「模拟器包」与「真机包」分开，别让真机包背 x86_64 专用的 38 MB 内核。
+> 结论：**仅 arm64 的发布包 = 38,656,796 B（≈36.9 MiB），双 ABI 包 = 79,485,000 B（≈75.8 MiB），分包省下 40,828,204 B（51.4%）**。
+
+### 1. arm64 版 `libxray.so`（新增，六项验证全绿）
+
+```
+Arch   : arm64  (GOARCH=arm64, ABI=arm64-v8a, triple=aarch64-linux-ohos)
+Validation (llvm-readelf):
+  [PASS] ELF type / machine         Type=DYN (Shared object file) Machine=AArch64
+  [PASS] PT_TLS present             TLS segment found
+  [PASS] R_AARCH64_TLSDESC count    1
+  [PASS] exported == 2              CGoInvoke,CGoFree
+  [PASS] NEEDED only libc.so        libc.so
+  [PASS] SONAME                     libxray.so
+OK  arm64 -> entry\src\main\libs\arm64-v8a\libxray.so  (69,068,464 bytes)
+```
+
+编译耗时 19 s（依赖已在 module cache）。新增 `toolchain/build-libxray.ps1 -Arch arm64|x86_64`，一条命令完成「编译 + version-script + SONAME + 六项验证」。
+
+顺带补齐 **arm64 版 `libcgoping.so`**（2,633,368 B），让真机包功能与模拟器包一致。
+
+### 2. ABI 分包（默认真机，按需模拟器）
+
+- `entry/build-profile.json5` 的 `abiFilters` **默认只有 `arm64-v8a`**（真机/发布）；
+- 新增 `scripts/build-hap.ps1 -Abi arm64|x86_64|both`：构建前改写 `abiFilters`，构建后**无论成败都恢复 arm64 默认值**，避免"忘了改回来"把 38 MB 带进发布包；
+- 脚本在构建前会 **touch `CMakeLists.txt`** 强制重新 configure —— 见 §4 的坑。
+
+### 3. 真实体积对照表（解包 `libs/` 统计，非估算）
+
+| 配置 | HAP 总大小 | arm64 `libxray.so` | x86_64 `libxray.so` | `libs/` 合计 |
+|---|---|---|---|---|
+| **双 ABI**（arm64 + x86_64） | **79,485,000 B**（≈75.8 MiB） | 35,740,808 B | 38,069,288 B | 79,221,944 B |
+| **仅 arm64（发布用）** | **38,656,796 B**（≈36.9 MiB） | 35,740,808 B | — | 38,394,368 B |
+
+其余 so（arm64 单 ABI 包内）：`libc++_shared.so` 1,262,504 / `libcgoping.so` 1,309,832 / `libentry.so` 77,104 / `libprebuilt.so` 4,120。
+
+- **省下 40,828,204 B（51.4%）**；x86_64 内核（38.07 MB）对真机完全没有价值。
+- 值得注意：**arm64 版的 `libxray.so` 比 x86_64 版小 2.33 MB**（35.74 vs 38.07 MB），ARM64 指令编码更紧凑。
+- **发版用哪个**：`hap-arm64-only.hap`（`-Abi arm64`，默认配置）。双 ABI 包只用于模拟器调试。
+
+### 4. 一个必须记录的坑：CMake 的 `EXISTS()` 在 configure 期求值
+
+首次做「both」构建时，HAP 里 **arm64 目录没有 `libxray.so`**（只有 x86_64 有），`libentry.so` 的 `DT_NEEDED` 也没有 `libxray.so` —— 因为该 ABI 的 CMake configure 发生在「arm64 内核还没编出来」之前，`if(EXISTS ...)` 结果被缓存了。
+⇒ **新增某个 ABI 的预构建 so 后，必须强制重新 configure**（touch `CMakeLists.txt` 或清理 `entry/build`）；`build-hap.ps1` 已自动 touch，避免复发。
+
+### 5. 验收细节（按任务要求）
+
+- **把仅 arm64 的包装到 x86_64 模拟器 → 失败，且是预期**（不是缺陷）：
+  ```
+  error: failed to install bundle. code:9568347
+  error: install parse native so failed. In the module named entry,
+  the Abi type supported by the device does not match the Abi type configured in the C++ project.
+  ```
+- **双 ABI 包回归通过**（装回模拟器后 M7 仍成功）：
+  ```
+  M7 result=[version_ms=0][state_ms=0][ports_ms=2]
+    version={"success":true,"data":{"version":"26.7.28"},"error":""}
+    state={"success":true,"data":{"running":false},"error":""}
+    ports={"success":true,"data":{"ports":[34373]},"error":""}
+  ```
+- M2/M3/M5/M6/M7 按钮与逻辑均未改动。
+
+### 6. 关于「体积能不能更小」的准确判断（防止误读）
+
+**ABI 分包解决的是「翻倍」问题，不是「38 MB」本身。**
+- arm64 真机同样必须携带 `libxray.so`（35.74 MB strip 后），这是 Xray 全量内核的**固有体重**（同类客户端 `libv2ray.so` 同量级），不是我们写胖了；
+- 想再小只能裁协议/传输，那要改 `xray-core` 的 import 列表 ⇒ **MPL-2.0 §3.1 公开被改文件 + 永久分叉维护 + 牺牲节点兼容性**，代价远大于收益，**本次不做**；
+- 「36.9 MiB 是否可接受」取决于应用市场的包体上限，属产品决策，不是技术问题。
+
+---
+
+## P-01 前置：真实出站验证（E11，节点缺失下的「转发链路」验证）
+
+> 目标：从「内核能初始化」推进到「内核能转发流量」。
+> 结论：**转发链路成立**（SOCKS 握手成功、经内核取到 HTTP 200），**但「出网经节点」这一层无法验证——仓库内无可用节点，已标 `【需要人工：提供一个可用节点】`**。
+
+### 1. 测试设计（这一层不需要节点）
+
+- 入站：`socks` 监听 `127.0.0.1:18080`（noauth）
+- 出站：`freedom`（**故意不用节点**：先把「内核转发链路」与「节点出口」两层拆开）
+- 驱动：`runXrayFromJson` 起实例 → `getXrayState` 确认 → **native 侧手写 SOCKS5**（`0x05` 握手 → CONNECT 域名 → `GET /`）→ 与直连同址对照 → `stopXray`
+
+新增两个 native 能力（避免每测一个方法就改一次 native）：
+- `m8Invoke(method, payloadJSON)`：通用 `CGoInvoke` 桥；
+- `m9ProxyProbe()`：一键完成「起实例 + SOCKS 探针 + 直连对照 + 停实例」。
+
+### 2. 实跑结果（hilog 原文）
+
+```
+M8 clicked
+M8 result=[verdict=SAME_IP(forwarding-only)]
+  run={"success":true,"data":{},"error":""}
+  state={"success":true,"data":{"running":true},"error":""}
+  via_proxy_status=HTTP/1.1 200  via_proxy_ip=113.246.178.167
+  socks_err=-
+  direct_status=HTTP/1.1 200   direct_ip=113.246.178.167
+  stop={"success":true,"data":{},"error":""}
+```
+
+### 3. 三层判据（分开写，不合并）
+
+| 层 | 问题 | 本次结论 |
+|---|---|---|
+| ① 内核运行 | `getXrayState.running` 是否为 true | ✅ **true**（`runXrayFromJson` 返回 `success:true`） |
+| ② 转发链路 | SOCKS 握手 + CONNECT 是否成功、经内核能否取到 HTTP 响应 | ✅ **成功**：`socks_err=-`、经代理拿到 `HTTP/1.1 200` 与正文 |
+| ③ 出网经节点 | 经代理出口 IP 是否 ≠ 直连 IP | ❌ **未验证**（本步用 `freedom`，两者同为 `113.246.178.167`，**预期相同**） |
+
+**⇒ 可以说的**：`Xray 内核在 OHOS 进程内可启动、可监听 SOCKS、可按配置转发并返回真实响应`。
+**⇒ 不能说的**：`流量经节点出网` / `具备隐私保护效果`——那需要 ③，本步未做。
+
+### 4. 待补：`【需要人工：提供一个可用节点】`
+
+仓库与环境里没有任何节点凭据（`_toolchain/`、环境变量、配置文件中均无 `vless/vmess/trojan/ss` 链接）。接上节点只需**把 outbound 从 `freedom` 换成节点配置，代码一行不改**。
+
+提供方可按此格式给测试节点（机房/地域即可，无需生产节点）：
+`协议 + 地址:端口 + 凭据（UUID/密码）+ 传输与安全层（ws+tls / reality 等）+ 是否需要 SNI/flow`
+
+到位后复跑本探针，判定表：
+- 经代理 IP ≠ 直连 IP，且为机房 ISP ⇒ **才可写「内核可代理出网」**；
+- 连不上但 `running:true` 且内核日志有出站握手 ⇒ 内核在跑，问题在节点/网络；
+- `runXrayFromJson` 返回错误 ⇒ 记原文，区分「配置非法」与「运行失败」。
+
+### 5. 顺带记录：HAP 压缩（`compressNativeLibs`）后的体积口径
+
+本期 `module.json5` 由平台侧开启 `compressNativeLibs`，实测（x86_64 单 ABI 包）：
+
+| 指标 | 值 |
+|---|---|
+| `libs/` 未压缩合计 | 40,850,184 B（≈39.0 MiB） |
+| **HAP（下载体积）** | **15,799,538 B（≈15.1 MiB）** |
+
+**注意口径**：压缩只减小**下载体积**；安装时仍会解压（`extractNativeLibs` 缺省 true）⇒ **安装占用仍约 39 MiB**。**不能写成「体积减半」**，应写「下载 15.1 MiB / 安装约 39 MiB」。
