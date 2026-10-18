@@ -51,3 +51,6 @@ local.properties
 # prebuilt libs: auditable/reproducible from entry/src/main/cpp/prebuilt/prebuilt.c
 # rebuild with: scripts/build-prebuilt.ps1
 !entry/src/main/libs/**/*.so
+
+# 体积过大的内核产物（可由 toolchain/ 脚本重建，不入库）
+entry/src/main/libs/**/libxray.so

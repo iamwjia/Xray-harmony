@@ -35,3 +35,16 @@ else()
     target_link_libraries(entry PUBLIC libace_napi.z.so prebuilt libhilog_ndk.z.so)
     message(WARNING "M5: libcgoping.so NOT found at ${CGOPING_SO} (run toolchain/build-cgoping.ps1 -Arch ...)")
 endif()
+
+# --- M6 / P-02: libxray.so (real Xray kernel). Same packaging rule as M5:
+# it must appear in the CMake link graph or hvigor will not put it into the HAP.
+# At runtime we still load it with dlopen() + dlsym("CGoInvoke").
+set(XRAY_SO "${CMAKE_CURRENT_SOURCE_DIR}/../libs/${OHOS_ARCH}/libxray.so")
+if(EXISTS "${XRAY_SO}")
+    add_library(xraycore SHARED IMPORTED)
+    set_target_properties(xraycore PROPERTIES IMPORTED_LOCATION "${XRAY_SO}")
+    target_link_libraries(entry PUBLIC xraycore)
+    message(STATUS "M6: libxray.so attached for packaging: ${XRAY_SO}")
+else()
+    message(WARNING "M6: libxray.so NOT found at ${XRAY_SO}")
+endif()

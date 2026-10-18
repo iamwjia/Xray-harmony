@@ -290,3 +290,94 @@ const IsOpenharmony = 1
 1. **������ `runtime.GOOS` �ж��Ƿ����� OHOS fork**��fork �� openharmony Ŀ���Ϊ `linux`������ֻ���� `//go:build openharmony` �����ǩ̽�롣
 2. **NDK �� `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` �� 171 �ֽڵ� `#!/bin/sh` �ű�**��Windows ����ִ�У�������� `clang.exe` + `-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`��
 3. **`hdc hilog` ����ʽ��**����һֱ�����豸��־ˢ����Ҫ���Ѳ����Ļ����� `hdc shell hilog -x`������ `hilog -r` ����ٸ��֣���
+
+---
+
+## P-02：libXray 在 OHOS 进程内加载与响应（E9）
+
+> 目标：把已验证的「Go → OHOS `.so`」链路用在**真内核**上——编 `libXray v26.7.28`（含 xray-core `v1.260327.1`），amd64 在模拟器加载并验证 `CGoInvoke` 有响应。
+> 结论：**✅ 成立**——`CGoInvoke` 返回合法 JSON（`{"success":false,"data":null,"error":"unknown method"}`），证明内核可被加载、Go runtime 完成初始化、xray-core 的调用分发器被执行。
+
+### 1. 源码与钉版
+
+```
+repo   : https://github.com/XTLS/libXray.git
+tag    : v26.7.28  (同时带 tag v1.260728.0)
+commit : 80263da83e96b2972455b0a94b13ee1a10e51391
+go.mod : go 1.26.3 ; require github.com/xtls/xray-core v1.260327.1-0.20260728075948-5ca6f4b7d4dc
+本地路径: _toolchain/libXray-v26.7.28（不入库）
+```
+
+> **踩坑：默认 `GOPROXY=https://proxy.golang.org` 在本机不可达**，`go mod download` 报
+> `dial tcp 142.250.73.81:443: connectex: A connection attempt failed ...`（连接超时）。
+> 解决：`GOPROXY=https://goproxy.cn,direct` + `GOSUMDB=sum.golang.google.cn` + `GOFLAGS=-mod=mod`，之后 `go mod download` 退出码 0。
+
+### 2. 编译（`-buildmode=c-shared`，带 version-script + SONAME）
+
+```powershell
+$env:GOOS="openharmony"; $env:GOARCH="amd64"; $env:CGO_ENABLED="1"
+$env:CC='"...\clang.exe" -target x86_64-linux-ohos "--sysroot=...\sysroot" -D__MUSL__'
+$env:CGO_CFLAGS ='-ftls-model=global-dynamic'
+$env:CGO_LDFLAGS='-ftls-model=global-dynamic -Wl,-soname,libxray.so'
+go build -trimpath -buildvcs=false -buildmode=c-shared `
+  -ldflags "-extldflags=-Wl,--version-script=<...>/libxray.map" `
+  -o ...\libxray.so ./cgo_bridge
+```
+
+`libxray.map`：`global: CGoInvoke; CGoFree; local: *;`
+
+首次编译（`EXIT=0`）产物：`libxray.so` **71,317,112 B**（未 strip，含符号与 DWARF）。
+
+### 3. 四验（`llvm-readelf`）
+
+| 检查 | 结果 |
+|---|---|
+| ELF 头 | ✅ `Type: DYN (Shared object file)` / `Machine: Advanced Micro Devices X86-64` |
+| `PT_TLS` | ✅ `TLS 0x1f506c0 ... R 0x8` |
+| `R_X86_64_TLSDESC` | ✅ 1 条 |
+| 导出符号 | ✅ **仅 `CGoInvoke` + `CGoFree`**（version-script 生效） |
+| `DT_NEEDED` | ✅ 仅 `libc.so`；`SONAME: libxray.so` |
+
+### 4. 接入应用
+
+- `entry/src/main/libs/x86_64/libxray.so` ← 构建产物；
+- `CMakeLists.txt`：`add_library(xraycore SHARED IMPORTED)` + `target_link_libraries(entry PUBLIC xraycore)`（同 M5 规则：**不参与链接图的 .so 不会进 HAP**）；
+- `cgo_bridge.cpp` 新增 `M6CGoInvoke`：`dlopen("libxray.so")` → `dlsym("CGoInvoke")` → 用**故意非法**的信封调用（`{"apiVersion":1,"method":"__p02_probe__","payload":{}}`）→ `CGoFree` 释放；
+- `Index.ets` 第 5 个按钮 **`M6: load libxray + CGoInvoke`**。
+
+HAP 内确认：`libs/x86_64/libxray.so` **38,069,288 B**（strip 后）；HAP 总大小 **42,421,112 B**。
+
+### 5. 实跑（模拟器 127.0.0.1:5555，API 26）
+
+```
+I A00001/XVPN_POC: M6 clicked
+I A00001/XVPN_POC: M6 result=[elapsed_ms=0] {"success":false,"data":null,"error":"unknown method"}
+```
+
+进程存活（PID 26110），**无 SIGSEGV**。
+
+判定：返回**合法 JSON**（`success:false` + 结构化 `error`）⇒ **Xray 内核在 OHOS 进程内可加载并响应调用**，`P-02` 核心证据成立。
+**注意**：这不是「能代理上网」——无节点、无出站连接，只验证「加载 + 分发器执行」。
+
+### 6. 采集到的数字（未采集项如实标注）
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| `libxray.so`（构建产物，未 strip） | **71,317,112 B** | — |
+| `libxray.so`（HAP 内，strip 后） | **38,069,288 B** | hvigor 自动 strip |
+| HAP 总大小 | **42,421,112 B** | 含 libentry/libprebuilt/libcgoping/libc++_shared |
+| 安装耗时（`hdc install -r`） | **2 s** | 模拟器，非真机 |
+| 冷启动到 UI 可用（代理指标） | **≈1.28 s** | `aa start` → `uitest dumpLayout` 成功；含 dumpLayout 自身开销，**非严格首帧** |
+| 进程内存（`VmRSS` / `VmHWM`） | **173,200 kB / 174,044 kB**（≈169/170 MB） | 整个应用进程，含 38 MB 映射的 `libxray.so` + Go runtime + ArkTS |
+| `CGoInvoke` 单次调用耗时 | **< 1 ms**（`elapsed_ms=0`） | 见下方观察 1 |
+
+### 7. 两条必须记录的观察
+
+1. **本架构下没有独立的「dlopen 耗时」**：`.so` 必须参与链接图才能进 HAP，因此它同时是 `libentry.so` 的 `DT_NEEDED`，**在应用启动时即被加载**；运行期 `dlopen("libxray.so")` 只是取已加载句柄。⇒ **内核真实加载成本在冷启动，不在点击按钮时**；1.28 s 冷启动中该部分未拆分（【未采集】细分）。
+2. **Native 侧 `OH_LOG_INFO` 未出现在 `hilog -x` 中**（只看到 ArkTS 的 `XVPN_POC` 行，M5 时亦然）。⇒ 阶段归因（dlopen/dlsym/call）**不能依赖 native 日志**；本次改为把 `elapsed_ms` 拼进返回值才拿到耗时。**后续 PoC 需阶段归因时，应把状态写进返回值或改用可达的日志通道。**
+
+### 8. 结论边界
+
+- 本次证据来自 **x86_64 模拟器**：证明「**Xray 内核可被 OHOS 应用加载并响应 `CGoInvoke`**」。
+- **仍未验证**：arm64 真机加载、真实节点出站、tun 数据面（属 `J-01` 范围）。
+- 故 `P-02` 记为**核心证据成立、真机部分待验**；**不能**据此宣布「可以代理上网」。

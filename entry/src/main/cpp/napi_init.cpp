@@ -8,6 +8,8 @@ extern "C" int prebuilt_add(int a, int b);
 
 // M5: implemented in cgo_bridge.cpp (dlopen libcgoping.so + dlsym CGoPing).
 extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info);
+// M6: implemented in cgo_bridge.cpp (dlopen libxray.so + dlsym CGoInvoke).
+extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -42,6 +44,7 @@ napi_value Init(napi_env env, napi_value exports)
         {"hello", nullptr, Hello, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"prebuiltAdd", nullptr, PrebuiltAdd, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m5CGoPing", nullptr, M5CGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m6CGoInvoke", nullptr, M6CGoInvoke, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

@@ -17,6 +17,7 @@ struct Index {
   @State m3Result: string = '(M3 not run)';
   @State m4Result: string = '(M4 not run)';
   @State m5Result: string = '(M5 not run)';
+  @State m6Result: string = '(M6 not run)';
 
   // 启动即探测：无需点击即可区分「API 不存在 / 调用悬挂 / 调用被拒」
   aboutToAppear(): void {
@@ -110,6 +111,21 @@ struct Index {
     }
   }
 
+  // M6 / P-02：加载真正的 Xray 内核 libxray.so，并用一个「故意非法」的调用证明内核可响应。
+  // 判据：返回合法 JSON（哪怕 success=false）即说明 内核可被加载 + Go runtime 初始化 + 处理器被执行。
+  private runM6(): void {
+    hilog.info(DOMAIN, TAG, 'M6 clicked');
+    try {
+      const ret: string = nativeEntry.m6CGoInvoke();
+      this.m6Result = ret;
+      hilog.info(DOMAIN, TAG, 'M6 result=%{public}s', ret);
+    } catch (e) {
+      const err = e as BusinessError;
+      this.m6Result = `M6 failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'M6 failed code=%{public}d msg=%{public}s', err.code, err.message);
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('xray-harmony PoC skeleton').fontSize(20).fontWeight(FontWeight.Bold)
@@ -125,6 +141,9 @@ struct Index {
 
       Button('M5: call Go CGoPing()').onClick(() => this.runM5()).width('90%')
       Text(this.m5Result).fontSize(14)
+
+      Button('M6: load libxray + CGoInvoke').onClick(() => this.runM6()).width('90%')
+      Text(this.m6Result).fontSize(14)
     }
     .width('100%')
     .padding(16)

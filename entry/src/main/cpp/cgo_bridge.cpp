@@ -18,6 +18,7 @@
 // (one NAPI module per .so — no second napi_module_register here).
 
 #include <dlfcn.h>
+#include <chrono>
 #include <string>
 
 #include "napi/native_api.h"
@@ -150,4 +151,84 @@ extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info)
 
     OH_LOG_INFO(LOG_APP, "M5 stage=done payload=%{public}s", payload.c_str());
     return MakeString(env, payload);
+}
+
+// ---------------------------------------------------------------------------
+// M6 / P-02: load the REAL Xray kernel (libxray.so) and prove it responds.
+//
+// We deliberately send an envelope with an unknown method: the expected answer is
+// a well-formed JSON with success=false. That proves (a) the .so loads, (b) the Go
+// runtime inside it initialises, (c) xray-core's JSON handler ran and produced a
+// structured error — without needing a real node or any network traffic.
+// ---------------------------------------------------------------------------
+using CGoInvokeFn = char *(*)(char *);
+using CGoFreeXFn = void (*)(char *);
+
+extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info)
+{
+    (void)info;
+    OH_LOG_INFO(LOG_APP, "M6 stage=begin");
+
+    std::string tried;
+    void *handle = nullptr;
+
+    tried += "[soname] ";
+    handle = dlopen("libxray.so", RTLD_NOW);
+    if (handle == nullptr) {
+        const char *e1 = dlerror();
+        tried += (e1 != nullptr ? e1 : "unknown");
+        tried += " | ";
+
+        std::string dir = OwnModuleDir();
+        std::string full = dir.empty() ? std::string("libxray.so") : (dir + "libxray.so");
+        tried += "[path:" + full + "] ";
+        handle = dlopen(full.c_str(), RTLD_NOW);
+        if (handle == nullptr) {
+            const char *e2 = dlerror();
+            tried += (e2 != nullptr ? e2 : "unknown");
+        }
+    }
+    if (handle == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "M6 stage=dlopen FAILED %{public}s", tried.c_str());
+        return MakeString(env, "M6 dlopen FAILED: " + tried);
+    }
+    OH_LOG_INFO(LOG_APP, "M6 stage=dlopen ok");
+
+    auto invoke = reinterpret_cast<CGoInvokeFn>(dlsym(handle, "CGoInvoke"));
+    if (invoke == nullptr) {
+        const char *e = dlerror();
+        OH_LOG_ERROR(LOG_APP, "M6 stage=dlsym CGoInvoke FAILED %{public}s", e != nullptr ? e : "unknown");
+        dlclose(handle);
+        return MakeString(env, std::string("M6 dlsym CGoInvoke FAILED: ") + (e != nullptr ? e : "unknown"));
+    }
+    auto freeFn = reinterpret_cast<CGoFreeXFn>(dlsym(handle, "CGoFree"));
+    OH_LOG_INFO(LOG_APP, "M6 stage=dlsym ok CGoFree=%{public}s", freeFn != nullptr ? "found" : "MISSING");
+
+    // Deliberately invalid method -> expect JSON with success=false.
+    const std::string request =
+        "{\"apiVersion\":1,\"method\":\"__p02_probe__\",\"payload\":{}}";
+
+    auto t0 = std::chrono::steady_clock::now();
+    OH_LOG_INFO(LOG_APP, "M6 stage=call begin");
+    char *raw = invoke(const_cast<char *>(request.c_str()));
+    auto t1 = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    OH_LOG_INFO(LOG_APP, "M6 stage=call returned elapsed_ms=%{public}lld", static_cast<long long>(ms));
+
+    if (raw == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "M6 stage=call returned NULL");
+        dlclose(handle);
+        return MakeString(env, "M6 CGoInvoke returned NULL");
+    }
+
+    std::string payload(raw);
+    if (freeFn != nullptr) {
+        freeFn(raw);
+    }
+    dlclose(handle);
+
+    OH_LOG_INFO(LOG_APP, "M6 stage=done elapsed_ms=%{public}lld payload=%{public}s",
+                static_cast<long long>(ms), payload.c_str());
+    // Prefix the elapsed time so the ArkTS side can log it without native-log plumbing.
+    return MakeString(env, "[elapsed_ms=" + std::to_string(static_cast<long long>(ms)) + "] " + payload);
 }
