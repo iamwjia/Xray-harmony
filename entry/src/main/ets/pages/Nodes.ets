@@ -14,6 +14,13 @@ import { NodeEditParams } from './NodeEdit';
 @Entry
 @Component
 struct Nodes {
+  /**
+   * 配置版本号：ConfigService 每次改变节点集合/字段都会 +1。
+   * 用它驱动 reload()——就地修改的数组赋回 @State 不会触发重渲染，
+   * 靠 onPageShow 的时序也不可靠（实测：日志已保存成功、列表仍是旧值）。
+   * 注意：`@Watch` 必须挂在 @StorageLink 上才会响应外部写入。
+   */
+  @StorageLink('cfgRev') @Watch('onRevChange') cfgRev: number = 0;
   @State nodes: XrayNode[] = [];
   @State selectedId: string = '';
   @State groups: string[] = [];
@@ -28,28 +35,29 @@ struct Nodes {
     this.reload();
   }
 
-  /**
-   * 从编辑页返回时必须重新拉取。
-   * 原因：ConfigService 是**就地修改**节点数组（splice），ArkUI 的 @State 只追踪赋值、
-   * 不追踪数组内部变更，所以不重新赋值就不会重渲染。
-   * 表现就是"保存成功、日志正确，但列表还是旧的"——实测踩过。
-   */
+  /** 从编辑页返回时兜底重取：@Watch 在某些时序下不触发，双保险且幂等 */
   onPageShow(): void {
     this.reload();
   }
 
+  private currentSelectedId(): string {
+    const cur: XrayNode | null = this.cfg.getSelectedNode();
+    return cur === null ? '' : cur.id;
+  }
+
+  /** 配置变更回调：重新取数据（必须复制，否则引用相同不触发重渲染） */
+  onRevChange(): void {
+    this.reload();
+  }
+
   private reload(): void {
-    // 必须**复制**：ConfigService 返回的是它持有的同一个数组引用，
-    // 直接赋回 @State 时 ArkUI 判定"引用没变"而跳过重渲染，
-    // 表现就是日志已显示保存成功、列表却还是旧数据（实测踩过）。
     this.nodes = this.cfg.getNodes().slice();
+    this.selectedId = this.currentSelectedId();
     this.groups = this.cfg.getGroups();
     if (this.groupFilter.length > 0 && this.groups.indexOf(this.groupFilter) < 0) {
       // 分组被删空（用户把该组最后一个节点改了组/删了）→ 自动回到"全部"，避免列表空白无解释
       this.groupFilter = '';
     }
-    const cur: XrayNode | null = this.cfg.getSelectedNode();
-    this.selectedId = cur === null ? '' : cur.id;
   }
 
   /** 分组筛选后的可见列表；筛选状态只影响展示，不改变存储顺序 */
@@ -159,7 +167,7 @@ struct Nodes {
             router.back();
           })
         Text('节点列表').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
-        Text(`${this.nodes.length} 个`).fontSize(12).fontColor('#999999')
+        Text(`${this.visibleNodes().length} 个`).fontSize(12).fontColor('#999999')
       }
       .width('100%')
 
@@ -252,7 +260,7 @@ struct Nodes {
             .borderRadius(8)
             .onClick(() => this.pick(item.id))
           }
-        }, (item: XrayNode) => `${item.id}-${item.group}-${item.name}`)
+        }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${this.cfgRev}`)
       }
       .layoutWeight(1)
       .width('100%')

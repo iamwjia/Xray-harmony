@@ -18,6 +18,16 @@ import { SettingsStore, SettingsSnapshot } from './SettingsStore';
  *      静默降级到默认配置，最容易造成"用户节点全没了"的事故。
  */
 export class ConfigService {
+  /**
+   * 配置版本号：任何**会改变节点集合/字段**的操作都必须 bump 一次。
+   *
+   * 为什么需要它：ConfigService 就地修改数组（splice），ArkUI 的 @State 不追踪数组
+   * 内部变更，把同一个数组引用赋回 @State 也不会触发重渲染。页面靠 @StorageLink
+   * 订阅这个计数器，计数一变就重新渲染并重新读取真实数据——不依赖 onPageShow 之类的
+   * 生命周期时序（那条路实测不可靠）。
+   */
+  static readonly REV_KEY: string = 'cfgRev';
+
   private static instance: ConfigService | null = null;
   private config: AppConfig;
 
@@ -32,8 +42,7 @@ export class ConfigService {
   /** v1 明文凭据待迁移到 Asset Store */
   private pendingCredentialMigration: boolean = false;
   /** 迁移失败原因（空串 = 无失败）；失败时必须阻断依赖明文凭据的连接 */
-  private migrationError: string = '';
-  /** 正在执行的迁移（in-flight 复用，避免两个入口同时跑导致"假失败"） */
+  private migrationError: string = '';  /** 正在执行的迁移（in-flight 复用，避免两个入口同时跑导致"假失败"） */
   private migrationInFlight: Promise<boolean> | null = null;
 
   private constructor() {
@@ -122,6 +131,12 @@ export class ConfigService {
     return ConfigService.instance;
   }
 
+  /** 通知所有订阅方：配置变了。写盘成功后调用，失败回滚的路径不调用 */
+  private bumpRev(): void {
+    const cur: number | undefined = AppStorage.get<number>(ConfigService.REV_KEY);
+    AppStorage.setOrCreate<number>(ConfigService.REV_KEY, (cur === undefined ? 0 : cur) + 1);
+  }
+
   getConfig(): AppConfig {
     return this.config;
   }
@@ -172,6 +187,7 @@ export class ConfigService {
       if (cfg.nodes[i].id === id) {
         cfg.selectedNodeId = id;
         Logger.info(`selectNode -> ${id}`);
+        this.bumpRev();
         return true;
       }
     }
@@ -199,6 +215,7 @@ export class ConfigService {
       cfg.selectedNodeId = node.id;
     }
     Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
+    this.bumpRev();
     return true;
   }
   /**
@@ -251,6 +268,7 @@ export class ConfigService {
       Logger.warn(`removeNode: node removed but secret cleanup failed for ${alias}`);
     }
     Logger.info(`removeNode ok: ${removed.protocol}@${removed.address}:${removed.port} total=${cfg.nodes.length}`);
+    this.bumpRev();
     return true;
   }
 
@@ -297,6 +315,7 @@ export class ConfigService {
       return false;
     }
     Logger.info(`updateNode ok: ${updated.protocol}@${updated.address}:${updated.port}`);
+    this.bumpRev();
     return true;
   }
 
@@ -336,6 +355,7 @@ export class ConfigService {
       return false;
     }
     Logger.info(`moveNode ok: ${id} ${idx} -> ${to}`);
+    this.bumpRev();
     return true;
   }
 
