@@ -3,7 +3,7 @@ import { ConnectionView, ConnState, ConnectionViewModel } from '../viewmodel/Con
 import { ConfigService } from '../service/ConfigService';
 import { KernelService, KernelError } from '../service/KernelService';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
-import { XrayNode } from '../model/AppConfig';
+import { XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 
 /**
@@ -65,9 +65,10 @@ struct Index {
     this.refreshAll();
 
     const sel: XrayNode | null = this.cfg.getSelectedNode();
+    const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal()
-      : KernelConfigBuilder.buildWithNode(sel);
+      : KernelConfigBuilder.buildWithNode(sel, KernelConfigBuilder.DEFAULT_SOCKS_PORT, mode);
     this.kernel.start(cfgJson, 8000)
       .then(() => {
         this.vm.onKernelConnected();

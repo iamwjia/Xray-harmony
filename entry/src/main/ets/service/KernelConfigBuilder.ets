@@ -13,7 +13,7 @@
  *     因此采用「字符串构造 + 逐值转义」而非对象字面量。
  */
 
-import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
+import { XrayNode, TransportKind, SecurityKind, RoutingMode } from '../model/AppConfig';
 
 export class KernelConfigBuilder {
   static readonly DEFAULT_SOCKS_PORT: number = 18080;
@@ -28,15 +28,36 @@ export class KernelConfigBuilder {
   }
 
   /** 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底 */
-  static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT): string {
+  static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
+    routingMode: RoutingMode = RoutingMode.RULE): string {
     const inbound: string = '{"tag":"socks-in","listen":"127.0.0.1","port":' +
       socksPort.toString() + ',"protocol":"socks","settings":{"auth":"noauth","udp":false}}';
     const proxy: string = KernelConfigBuilder.buildOutbound(node);
     const direct: string = '{"tag":"direct","protocol":"freedom"}';
+    const routing: string = KernelConfigBuilder.buildRouting(routingMode);
     return '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],"outbounds":[' +
-      proxy + ',' + direct + ']}';
+      proxy + ',' + direct + ']' + routing + '}';
   }
 
+  /**
+   * 分流配置。
+   * 说明：不依赖 geoip.dat / geosite.dat（当前应用未内置资源文件），
+   * 只用内置可判定的内网网段，避免"资源缺失 → 内核启动失败"。
+   * TODO: 内置 geo 资源后，规则模式补 geosite:cn / geoip:cn。
+   */
+  private static buildRouting(mode: RoutingMode): string {
+    if (mode === RoutingMode.DIRECT) {
+      return ',"routing":{"rules":[{"type":"field","network":"tcp,udp","outboundTag":"direct"}]}';
+    }
+    if (mode === RoutingMode.GLOBAL) {
+      return '';
+    }
+    // RULE：内网/回环直连，其余走代理
+    return ',"routing":{"domainStrategy":"IPIfNonMatch","rules":[' +
+      '{"type":"field","ip":["127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16",' +
+      '"169.254.0.0/16","::1/128","fc00::/7","fe80::/10"],"outboundTag":"direct"}' +
+      ']}';
+  }
   private static buildOutbound(node: XrayNode): string {
     const proto: string = (node.protocol || 'vless').toLowerCase();
     const stream: string = KernelConfigBuilder.buildStreamSettings(node);

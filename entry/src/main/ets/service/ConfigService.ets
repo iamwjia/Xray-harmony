@@ -1,6 +1,7 @@
-import { AppConfig, ConfigCodec, createDefaultConfig, XrayNode } from '../model/AppConfig';
+import { AppConfig, AppSettings, ConfigCodec, createDefaultConfig, XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 import { NodeStore } from './NodeStore';
+import { SettingsStore, SettingsSnapshot } from './SettingsStore';
 
 /**
  * service/ConfigService.ets — 配置读写服务（应用服务层）
@@ -49,6 +50,44 @@ export class ConfigService {
         this.config.selectedNodeId = persisted[0].id;
       }
     }
+    // 载入设置（分流模式/日志级别）：解析失败时保留默认值，不写盘覆盖
+    const settings: SettingsSnapshot | null = SettingsStore.load();
+    if (settings === null) {
+      Logger.error('settingsStore: persisted settings unreadable; keeping defaults, not overwriting');
+    } else {
+      if (settings.routingMode.length > 0) {
+        this.config.settings.routingMode = ConfigService.routingModeOf(settings.routingMode);
+      }
+      if (settings.logLevel.length > 0) {
+        this.config.settings.logLevel = settings.logLevel;
+      }
+      this.config.settings.onboardingDone = settings.onboardingDone;
+    }
+  }
+
+  /** 字符串 → 枚举（解码与外部输入的统一入口，未知值回落 RULE） */
+  private static routingModeOf(v: string): RoutingMode {
+    if (v === 'global') {
+      return RoutingMode.GLOBAL;
+    }
+    if (v === 'direct') {
+      return RoutingMode.DIRECT;
+    }
+    return RoutingMode.RULE;
+  }
+
+  /** 设置落盘：与节点分开存，减少写放大 */
+  private persistSettings(): boolean {
+    if (!this.canPersist()) {
+      Logger.error('settings save blocked: config load failed and overwrite not confirmed');
+      return false;
+    }
+    const s: AppSettings = this.config.settings;
+    return SettingsStore.save(s.routingMode as string, s.logLevel, s.onboardingDone);
+  }
+
+  getRoutingMode(): RoutingMode {
+    return this.config.settings.routingMode;
   }
 
   static getInstance(): ConfigService {
@@ -137,9 +176,16 @@ export class ConfigService {
     Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
     return true;
   }
+  /** 设置分流模式（全局 / 规则 / 直连） */
+  setRoutingMode(mode: RoutingMode): void {
+    this.config.settings.routingMode = mode;
+    Logger.info(`routingMode -> ${mode}`);
+    this.persistSettings();
+  }
   setLogLevel(level: string): void {
     this.config.settings.logLevel = level;
     Logger.info(`logLevel -> ${level}`);
+    this.persistSettings();
   }
 
   getLogLevel(): string {
