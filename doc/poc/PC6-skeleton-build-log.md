@@ -478,7 +478,118 @@ git status entry/src/main/libs        # 期望：无变化（可复现）
 
 ---
 
-*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出；§10 为双 ABI 追加（x86_64 仅供模拟器）；§10.7 为"预编译库入库 + 可重建"补记。*
+---
+
+## 11. 运行态实测（模拟器 · 2026-10-18）
+
+> 设备：`hdc list targets` → `127.0.0.1:5555`；`param get const.ohos.apiversion` → `26`。
+> M1/M2/M3 由 team-leader 在模拟器上亲自执行；M4 的探针与根因日志由本次在**同一台模拟器**上复现采集（`hdc install/aa start/hilog -x`）。
+
+### 11.1 M1 安装态（**未签名包在模拟器上可装**，与 PC0 假设不同）
+
+```
+[Info]App install path:D:\projects\xray-harmony\entry\build\default\outputs\default\entry-default-unsigned.hap
+msg:install bundle successfully.
+AppMod finish
+start ability successfully.
+```
+
+| 项 | 实测 |
+|---|---|
+| 安装命令 | `hdc install -r entry-default-unsigned.hap`（2,916,719 B，**unsigned**） |
+| 结果 | ✅ `install bundle successfully.` |
+| 启动 | ✅ `aa start -b com.example.xraypoc -a EntryAbility` → `start ability successfully.` |
+| 进程 | ✅ `ps` 可见 `com.example.xraypoc` |
+
+> **重要修正（回写要求）**：`PC0 §2/§5.4` 假设"未签名包 install 会失败、必须先配签名"。**实测：在 `127.0.0.1:5555` 模拟器上，未签名 HAP 可以直接安装并启动**。原因推测是该模拟器镜像未强制签名校验（**【待真机验证】**真机是否同样宽松——真机通常必须签名）。因 PC0 已冻结，此处仅作 superseded 标注，不回改 PC0。
+
+### 11.2 M2 NAPI（x86_64 通过）
+
+```
+I A00001/XVPN_POC: M2 hello=hello from native
+```
+
+### 11.3 M3 预编译 so（x86_64 通过，**返回 3**）
+
+```
+I A00001/XVPN_POC: M3 prebuiltAdd result=3
+```
+
+界面实测文本：`prebuilt_add(1,2)=3` ⇒ 预编译库**不仅加载成功，且函数真的被执行**（`libentry.so` 的 `DT_NEEDED` 里有 `libprebuilt.so`，见 §10.5）。
+
+### 11.4 M4 现象（观察记录，不下结论）
+
+| 观察项 | 实测 |
+|---|---|
+| `startVpnExtensionAbility` 返回 | **既未 resolve 也未 reject（悬挂）** |
+| 界面文本 | 仍为 `(M4 not run)` |
+| `XVPN_EXT onCreate` | **无记录** |
+| 扩展进程 | **无**（`ps` 只有主进程） |
+| `vpn-tun` 接口 | **无**（`ifconfig` 只有 `lo/eth0/wifi_eth/wlan0`） |
+| 授权弹窗 / 状态栏钥匙图标 | 均未出现 |
+
+### 11.5 M4 根因诊断（本次新增探针 + 系统日志，**结论可定**）
+
+为区分"没进 onClick"与"API 悬挂"，在 `Index.ets` 加了启动即执行的探针（`aboutToAppear` → `probeM4()`，**完全不经过按钮点击**），并用 `surfaced` 日志记录三段：
+
+```
+I A00001/XVPN_POC: M4PROBE typeof=function
+I A00001/XVPN_POC: M4PROBE invoking startVpnExtensionAbility
+I A00001/XVPN_POC: M4PROBE pending-after-6s (no resolve/reject within 6s)
+```
+
+系统侧同一时刻的日志（`hilog -x` 原文，两次复现一致）：
+
+```
+I C015b0/NetworkVpnManager: GetAppNameByUid bundleResourceInfo.label XrayPoc
+I C01342/ServiceExt: [AMC651]name:com.huawei.hmos.vpndialog VpnServiceExtAbility, userId:-1
+W C01123/BMSCommon: bundle not exist -n com.huawei.hmos.vpndialog -u 100 -i 0 -f 0
+W C01336/AMS: [SAU91]failed: com.huawei.hmos.vpndialog
+I C01121/BMSQuery: ExplicitQueryAbility no match -n com.huawei.hmos.vpndialog -a VpnServiceExtAbility
+```
+
+**判定链**：
+1. `typeof startVpnExtensionAbility === 'function'` ⇒ **API 存在**（不是"模块缺失"）；
+2. 探针在 `aboutToAppear` 里直接调用 ⇒ **与按钮点击无关**（排除"没进 onClick"）；
+3. 系统日志显示请求已进入 `NetworkVpnManager`，随后系统去拉起**授权对话框应用 `com.huawei.hmos.vpndialog`** 的 `VpnServiceExtAbility`；
+4. 该 bundle 在**模拟器镜像中不存在**（`bundle not exist` → `failed: com.huawei.hmos.vpndialog`）；
+5. 系统拉起失败后**没有回调我方 Promise** ⇒ 表现为"悬挂"。
+
+⇒ **结论：`VpnExtensionAbility` 的 API 存在且被正确调用，是模拟器镜像缺少系统组件 `com.huawei.hmos.vpndialog`（VPN 授权对话框）导致流程中断，且系统未回传错误。属「环境不足 / 无法判定」，不是"平台不支持 VpnExtensionAbility"。**
+
+### 11.6 三条必须记住的结论
+
+> 1. **M2/M3 在 x86_64 模拟器上通过**，证明「NAPI 调用链 + prebuilt so 加载并执行」在 HarmonyOS 上成立；但**仅限 x86_64**，**不得外推到 arm64**（真机须按 `PC6-runtime-checklist.md` §3 重验）。
+> 2. **M4 的"无回调"是模拟器现象**（根因：镜像缺 `com.huawei.hmos.vpndialog`），归为「环境不足 / 无法判定」；**严禁写成"平台不支持 VpnExtensionAbility"**。
+> 3. **未签名包在模拟器上可装可启动**（`install bundle successfully`），与 PC0 的假设不同；真机是否同样宽松【待真机验证】。
+
+### 11.7 由此产生的两条执行侧影响
+
+| # | 影响 | 处置建议 |
+|---|---|---|
+| 1 | 模拟器上**无法验证 M4**（缺系统组件），"点按钮没反应"不再需要重复排查 | M4 一律等真机；模拟器只跑 M1/M2/M3 |
+| 2 | API 悬挂（promise 不 settle）时，UI 会永远停在"(M4 not run)"，用户无法区分"没生效"与"在等授权" | 产品侧需给 `startVpnExtensionAbility` 加**超时兜底**（如 5~10s 未 settle 则提示"未能启动 VPN（可能缺少系统组件或未授权）"）；这条可直接进设计文档的错误处理小节 |
+
+### 11.8 复现命令（任何人都能重跑）
+
+```powershell
+$hdc = 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe'
+$hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-default-unsigned.hap'
+& $hdc install -r $hap
+& $hdc shell aa force-stop com.example.xraypoc
+& $hdc shell hilog -r
+& $hdc shell aa start -b com.example.xraypoc -a EntryAbility
+Start-Sleep -Seconds 9
+& $hdc shell hilog -x | Select-String 'XVPN_'          # 探针三段
+& $hdc shell hilog -x | Select-String 'vpndialog'      # 根因（bundle not exist）
+```
+
+> 注：`hilog -x` 是**非阻塞导出后退出**；直接 `hdc hilog` 会持续流式输出、不会自然结束（本次踩过，命令会挂住）。
+
+---
+
+*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出；§10 为双 ABI 追加（x86_64 仅供模拟器）；§10.7 为"预编译库入库 + 可重建"补记；§11 为模拟器运行态实测与 M4 根因诊断。*
+
 
 
 
