@@ -355,5 +355,132 @@ $args=@('--target=aarch64-linux-ohos',"--sysroot=$sdk\sysroot",'-shared','-fPIC'
 
 ---
 
-*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出。*
+## 10. 双 ABI（arm64-v8a + x86_64）· 2026-10-18 追加
+
+### 10.1 为什么现在需要 x86_64
+
+用户在 **x86_64 模拟器**上装包失败，原文：
+
+```
+Install Failed
+code: 9568347
+error: install parse native so failed.
+In the module named entry, the Abi type supported by the device does not match
+the Abi type configured in the C++ project.
+```
+
+原因：此前 `abiFilters` 只有 `arm64-v8a`，而模拟器是 `x86_64` ⇒ **HAP 里没有该设备可用的 so**（这是"包内缺对应 ABI"，不是平台不支持，见 `PC0 §4.2` 判定规则）。
+**决定**：同时产出两个 ABI——`arm64-v8a` 保留给真机主线，`x86_64` 仅供模拟器验 NAPI/so 链路。
+
+### 10.2 改动（仅两处，未动 UI 与业务代码）
+
+| 文件 | 改动 |
+|---|---|
+| `entry/build-profile.json5` | `externalNativeOptions.abiFilters`：`["arm64-v8a"]` → `["arm64-v8a", "x86_64"]` |
+| `entry/src/main/libs/` | 新增 `x86_64/libprebuilt.so`（**重新交叉编译**，不是把 arm64 改名） |
+
+**注意**：`libprebuilt.so` 是我们自己的 C 代码（`cpp/prebuilt/prebuilt.c`），**必须每个 ABI 各编一份**，否则 M3 在模拟器上仍会失败——因为 `libentry.so` 的 `DT_NEEDED` 里有 `libprebuilt.so`。
+
+**两 ABI 预编译库的构建命令（可复现）**
+
+```powershell
+$sdk='C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\native'
+$clang="$sdk\llvm\bin\clang.exe"
+$src='D:\projects\xray-harmony\entry\src\main\cpp\prebuilt\prebuilt.c'
+foreach($t in @(@('arm64-v8a','aarch64-linux-ohos'), @('x86_64','x86_64-linux-ohos'))){
+  $abi=$t[0]; $triple=$t[1]
+  $out="D:\projects\xray-harmony\entry\src\main\libs\$abi"
+  New-Item -ItemType Directory -Force -Path $out | Out-Null
+  $a=@("--target=$triple","--sysroot=$sdk\sysroot",'-shared','-fPIC','-O2',
+       '-Wl,-soname,libprebuilt.so','-o',"$out\libprebuilt.so",$src)
+  & $clang @a
+}
+```
+
+**预编译库自检（实测输出）**
+
+| ABI | `Machine` | 大小 | `SONAME` | `NEEDED` |
+|---|---|---|---|---|
+| `arm64-v8a` | `AArch64` | 11,696 B | `libprebuilt.so` | `libc.so` |
+| `x86_64` | `Advanced Micro Devices X86-64` | 9,840 B | `libprebuilt.so` | `libc.so` |
+
+### 10.3 构建（清 `build/`、`.cxx/`、`.hvigor/` 后冷构建）
+
+```
+> hvigor Finished :entry:default@BuildNativeWithCmake... after 2 s 101 ms
+> hvigor Finished :entry:default@BuildNativeWithNinja... after 700 ms
+> hvigor BUILD SUCCESSFUL in 4 s 953 ms
+
+34 tasks in total: 34 executed, 0 up-to-date
+```
+
+产物：`entry\build\default\outputs\default\entry-default-unsigned.hap`，**2,916,719 B**（单 ABI 时为 1,346,634 B，体积约翻倍，符合"两份 so + 两份 `libc++_shared.so`"的预期）。
+
+### 10.4 HAP 内 ABI 目录（实测，两个目录三件套齐全）
+
+| 条目 | 大小 |
+|---|---|
+| `libs/arm64-v8a/libc++_shared.so` | 1,262,504 B |
+| `libs/arm64-v8a/libentry.so` | 50,712 B |
+| `libs/arm64-v8a/libprebuilt.so` | 4,120 B |
+| `libs/x86_64/libc++_shared.so` | 1,294,904 B |
+| `libs/x86_64/libentry.so` | 51,312 B |
+| `libs/x86_64/libprebuilt.so` | 3,960 B |
+
+### 10.5 两侧 `libentry.so` 的 ELF 头与依赖（实测）
+
+```
+=== arm64-v8a ===
+  Class:   ELF64
+  Machine: AArch64
+  (NEEDED) libace_napi.z.so / libprebuilt.so / libc++_shared.so / libc.so
+  (SONAME) libentry.so
+
+=== x86_64 ===
+  Class:   ELF64
+  Machine: Advanced Micro Devices X86-64
+  (NEEDED) libace_napi.z.so / libprebuilt.so / libc++_shared.so / libc.so
+  (SONAME) libentry.so
+```
+
+**`Machine` 不同即证明"两份是分别编出来的"，不是改名冒充。**
+
+### 10.6 结论边界（必须一起读）
+
+> 1. `x86_64` **仅为在模拟器上验证 NAPI / so 加载链路存在**；
+> 2. **不得用 x86_64 的任何结果推断 arm64 真机行为**（ABI 不同、运行环境不同）；
+> 3. **M4（`VpnExtensionAbility` / tun）结论仍只认真机**——模拟器即使能拉起，也只是"代码路径通"，不构成平台能力结论；
+> 4. 上一版"当前只构建 `arm64-v8a`"的表述（`PC0 §9.5`）**已由本节取代**；因 E3 期间 PC0 被要求冻结，此处仅作 superseded 标注，不回改 PC0；
+> 5. 装包失败码 `9568347` 的归属是 **"包内缺对应 ABI"（构建配置问题）**，不是平台缺陷——与 `PC0 §4.2` 判定规则一致。
+
+### 10.7 入库与可重建（2026-10-18 补记）
+
+> **入库的两个 `.so` 由 `entry/src/main/cpp/prebuilt/prebuilt.c` + `scripts/build-prebuilt.ps1` 生成，可随时重建校验。**
+
+具体安排：
+
+| 项 | 内容 |
+|---|---|
+| 入库范围 | `entry/src/main/libs/arm64-v8a/libprebuilt.so`（11,696 B）、`entry/src/main/libs/x86_64/libprebuilt.so`（9,840 B）。**只有这两个**；`libentry.so` / `libc++_shared.so` 仍属构建产物，不入库 |
+| `.gitignore` 处理 | 保留原有 `*.so`（防构建产物入库），追加白名单 `!entry/src/main/libs/**/*.so` |
+| 为什么入库而不是"构建前现编" | ① 源码就在仓库，可重建可比对，不是不可审计的黑盒；② 体积可忽略；③ **避免每次新克隆都命中 `ninja: libprebuilt.so missing`**（就是我们刚踩的坑）——仓库目标是"clone 下来就能 build" |
+| 重建脚本 | `scripts/build-prebuilt.ps1`（一命令出两 ABI，打印各自 `Machine`/`SONAME`/大小）。用途是**可审计**，不是构建前置步骤 |
+| 验证结果 | 暂存两 `.so` 后重跑脚本，`git status entry/src/main/libs` **无未暂存修改** ⇒ 重建产物与原入库二进制**逐字节一致**（可复现） |
+
+**自检命令（任何人可复核）**
+
+```powershell
+git ls-files entry/src/main/libs      # 期望：列出两个 libprebuilt.so
+git check-ignore -v entry/src/main/libs/x86_64/libprebuilt.so   # 期望：显示 ! 白名单规则（即未被忽略）
+powershell -ExecutionPolicy Bypass -File .\scripts\build-prebuilt.ps1
+git status entry/src/main/libs        # 期望：无变化（可复现）
+```
+
+---
+
+*本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出；§10 为双 ABI 追加（x86_64 仅供模拟器）；§10.7 为"预编译库入库 + 可重建"补记。*
+
+
+
+
 
