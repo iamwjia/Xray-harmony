@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { XrayNode } from '../model/AppConfig';
 import { ConfigService } from '../service/ConfigService';
+import { ShareLinkParser } from '../service/ShareLinkParser';
 import { Logger } from '../platform/Logger';
 
 /**
@@ -14,6 +15,8 @@ import { Logger } from '../platform/Logger';
 struct Nodes {
   @State nodes: XrayNode[] = [];
   @State selectedId: string = '';
+  @State linkInput: string = '';
+  @State importMsg: string = '';
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -35,6 +38,29 @@ struct Nodes {
     }
   }
 
+  /** 导入分享链接：解析成功后加入列表并选中 */
+  private doImport(): void {
+    const link: string = this.linkInput.trim();
+    if (!link) {
+      this.importMsg = '请先粘贴分享链接';
+      return;
+    }
+    try {
+      const node = ShareLinkParser.parse(link);
+      const added: boolean = this.cfg.addNode(node);
+      this.cfg.selectNode(node.id);
+      this.reload();
+      this.importMsg = added
+        ? `已导入：${node.name}（${node.protocol}）`
+        : `节点已存在，已切换选中：${node.name}`;
+      this.linkInput = '';
+      Logger.info(`import ok: ${node.protocol} @ ${node.address}:${node.port}`);
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.importMsg = `导入失败：${msg}`;
+      Logger.warn(`import failed: ${msg}`);
+    }
+  }
   build() {
     Column({ space: 12 }) {
       Row({ space: 8 }) {
@@ -47,7 +73,21 @@ struct Nodes {
       }
       .width('100%')
 
-      Text('当前为本地假数据（占位），后续接订阅导入 / 手动添加').fontSize(11).fontColor('#999999')
+      Text('粘贴分享链接导入（支持 vless / vmess / trojan / ss）').fontSize(11).fontColor('#999999')
+
+      Row({ space: 8 }) {
+        TextInput({ placeholder: 'vless://... 或 vmess://...', text: this.linkInput })
+          .fontSize(12)
+          .layoutWeight(1)
+          .onChange((v: string) => { this.linkInput = v; })
+        Button('导入').fontSize(12)
+          .onClick(() => this.doImport())
+      }
+      .width('100%')
+
+      if (this.importMsg) {
+        Text(this.importMsg).fontSize(11).fontColor('#1976D2').width('100%')
+      }
 
       List({ space: 8 }) {
         ForEach(this.nodes, (item: XrayNode) => {

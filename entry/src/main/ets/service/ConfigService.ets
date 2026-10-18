@@ -104,6 +104,27 @@ export class ConfigService {
     return false;
   }
 
+  /**
+   * 添加节点（分享链接导入后调用）。按 protocol + address + port 去重。
+   * 若当前无选中节点，则自动选中所添加的节点。
+   */
+  addNode(node: XrayNode): boolean {
+    const cfg = this.config;
+    for (let i = 0; i < cfg.nodes.length; i++) {
+      const n = cfg.nodes[i];
+      if (n.protocol === node.protocol && n.address === node.address && n.port === node.port) {
+        Logger.warn(`addNode duplicated: ${node.protocol}@${node.address}:${node.port}`);
+        cfg.selectedNodeId = n.id;
+        return false;
+      }
+    }
+    cfg.nodes.push(node);
+    if (!cfg.selectedNodeId) {
+      cfg.selectedNodeId = node.id;
+    }
+    Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
+    return true;
+  }
   setLogLevel(level: string): void {
     this.config.settings.logLevel = level;
     Logger.info(`logLevel -> ${level}`);

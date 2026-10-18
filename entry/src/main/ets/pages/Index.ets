@@ -64,7 +64,10 @@ struct Index {
     this.busyHint = '';
     this.refreshAll();
 
-    const cfgJson: string = KernelConfigBuilder.buildMinimal();
+    const sel: XrayNode | null = this.cfg.getSelectedNode();
+    const cfgJson: string = sel === null
+      ? KernelConfigBuilder.buildMinimal()
+      : KernelConfigBuilder.buildWithNode(sel);
     this.kernel.start(cfgJson, 8000)
       .then(() => {
         this.vm.onKernelConnected();
