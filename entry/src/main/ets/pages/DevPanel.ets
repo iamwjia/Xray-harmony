@@ -49,7 +49,7 @@ struct DevPanel {
     }
     const want: Want = {
       deviceId: '',
-      bundleName: 'com.example.xraypoc',
+      bundleName: 'com.tunnelix.app',
       abilityName: 'MyVpnExtAbility',
     };
     hilog.info(DOMAIN, TAG, 'M4PROBE invoking startVpnExtensionAbility');
@@ -93,7 +93,7 @@ struct DevPanel {
     hilog.info(DOMAIN, TAG, 'M4 clicked');
     const want: Want = {
       deviceId: '',
-      bundleName: 'com.example.xraypoc',
+      bundleName: 'com.tunnelix.app',
       abilityName: 'MyVpnExtAbility',
     };
     vpnExtension.startVpnExtensionAbility(want)

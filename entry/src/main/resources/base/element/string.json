@@ -2,7 +2,7 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "xray-harmony PoC entry module"
+      "value": "Tunnelix entry module"
     },
     {
       "name": "EntryAbility_desc",
@@ -10,7 +10,7 @@
     },
     {
       "name": "EntryAbility_label",
-      "value": "XrayPoc"
+      "value": "Tunnelix"
     },
     {
       "name": "VpnExtAbility_desc",
@@ -18,7 +18,7 @@
     },
     {
       "name": "VpnExtAbility_label",
-      "value": "XrayPoc VPN"
+      "value": "Tunnelix VPN"
     }
   ]
 }

@@ -54,7 +54,7 @@ struct Settings {
 
       Column({ space: 4 }) {
         Text('关于').fontSize(14).fontWeight(FontWeight.Medium)
-        Text('xray-harmony · 骨架版本').fontSize(12).fontColor('#666666')
+        Text('Tunnelix · 骨架版本').fontSize(12).fontColor('#666666')
         Text('内核：libXray v26.7.28（libxray.so）').fontSize(12).fontColor('#666666')
         Text('说明：当前未接入真实连接链路，所有网络行为在下一阶段接入。').fontSize(11).fontColor('#999999')
       }
