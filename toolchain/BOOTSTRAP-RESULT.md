@@ -430,3 +430,76 @@ I A00001/XVPN_POC: M7 result=[version_ms=0][state_ms=0][ports_ms=1]
 
 ⇒ **「包内 A/B 双内核版本」方案不成立**：两个版本都进链接图 = 两份都随启动加载（38 MB × 2 常驻映射），用确定的内存开销换很小的回滚灵活性，不划算。
 **结论（Leader 2026-10-18 裁决）：改为「单一内核版本 + 应用商店版本回滚」**，`D-18` 的 A/B 双版本作废；内核安全更新时效 = 商店发版时效。
+
+---
+
+## 体积与 ABI 策略（E10）
+
+> 目标：把「模拟器包」与「真机包」分开，别让真机包背 x86_64 专用的 38 MB 内核。
+> 结论：**仅 arm64 的发布包 = 38,656,796 B（≈36.9 MiB），双 ABI 包 = 79,485,000 B（≈75.8 MiB），分包省下 40,828,204 B（51.4%）**。
+
+### 1. arm64 版 `libxray.so`（新增，六项验证全绿）
+
+```
+Arch   : arm64  (GOARCH=arm64, ABI=arm64-v8a, triple=aarch64-linux-ohos)
+Validation (llvm-readelf):
+  [PASS] ELF type / machine         Type=DYN (Shared object file) Machine=AArch64
+  [PASS] PT_TLS present             TLS segment found
+  [PASS] R_AARCH64_TLSDESC count    1
+  [PASS] exported == 2              CGoInvoke,CGoFree
+  [PASS] NEEDED only libc.so        libc.so
+  [PASS] SONAME                     libxray.so
+OK  arm64 -> entry\src\main\libs\arm64-v8a\libxray.so  (69,068,464 bytes)
+```
+
+编译耗时 19 s（依赖已在 module cache）。新增 `toolchain/build-libxray.ps1 -Arch arm64|x86_64`，一条命令完成「编译 + version-script + SONAME + 六项验证」。
+
+顺带补齐 **arm64 版 `libcgoping.so`**（2,633,368 B），让真机包功能与模拟器包一致。
+
+### 2. ABI 分包（默认真机，按需模拟器）
+
+- `entry/build-profile.json5` 的 `abiFilters` **默认只有 `arm64-v8a`**（真机/发布）；
+- 新增 `scripts/build-hap.ps1 -Abi arm64|x86_64|both`：构建前改写 `abiFilters`，构建后**无论成败都恢复 arm64 默认值**，避免"忘了改回来"把 38 MB 带进发布包；
+- 脚本在构建前会 **touch `CMakeLists.txt`** 强制重新 configure —— 见 §4 的坑。
+
+### 3. 真实体积对照表（解包 `libs/` 统计，非估算）
+
+| 配置 | HAP 总大小 | arm64 `libxray.so` | x86_64 `libxray.so` | `libs/` 合计 |
+|---|---|---|---|---|
+| **双 ABI**（arm64 + x86_64） | **79,485,000 B**（≈75.8 MiB） | 35,740,808 B | 38,069,288 B | 79,221,944 B |
+| **仅 arm64（发布用）** | **38,656,796 B**（≈36.9 MiB） | 35,740,808 B | — | 38,394,368 B |
+
+其余 so（arm64 单 ABI 包内）：`libc++_shared.so` 1,262,504 / `libcgoping.so` 1,309,832 / `libentry.so` 77,104 / `libprebuilt.so` 4,120。
+
+- **省下 40,828,204 B（51.4%）**；x86_64 内核（38.07 MB）对真机完全没有价值。
+- 值得注意：**arm64 版的 `libxray.so` 比 x86_64 版小 2.33 MB**（35.74 vs 38.07 MB），ARM64 指令编码更紧凑。
+- **发版用哪个**：`hap-arm64-only.hap`（`-Abi arm64`，默认配置）。双 ABI 包只用于模拟器调试。
+
+### 4. 一个必须记录的坑：CMake 的 `EXISTS()` 在 configure 期求值
+
+首次做「both」构建时，HAP 里 **arm64 目录没有 `libxray.so`**（只有 x86_64 有），`libentry.so` 的 `DT_NEEDED` 也没有 `libxray.so` —— 因为该 ABI 的 CMake configure 发生在「arm64 内核还没编出来」之前，`if(EXISTS ...)` 结果被缓存了。
+⇒ **新增某个 ABI 的预构建 so 后，必须强制重新 configure**（touch `CMakeLists.txt` 或清理 `entry/build`）；`build-hap.ps1` 已自动 touch，避免复发。
+
+### 5. 验收细节（按任务要求）
+
+- **把仅 arm64 的包装到 x86_64 模拟器 → 失败，且是预期**（不是缺陷）：
+  ```
+  error: failed to install bundle. code:9568347
+  error: install parse native so failed. In the module named entry,
+  the Abi type supported by the device does not match the Abi type configured in the C++ project.
+  ```
+- **双 ABI 包回归通过**（装回模拟器后 M7 仍成功）：
+  ```
+  M7 result=[version_ms=0][state_ms=0][ports_ms=2]
+    version={"success":true,"data":{"version":"26.7.28"},"error":""}
+    state={"success":true,"data":{"running":false},"error":""}
+    ports={"success":true,"data":{"ports":[34373]},"error":""}
+  ```
+- M2/M3/M5/M6/M7 按钮与逻辑均未改动。
+
+### 6. 关于「体积能不能更小」的准确判断（防止误读）
+
+**ABI 分包解决的是「翻倍」问题，不是「38 MB」本身。**
+- arm64 真机同样必须携带 `libxray.so`（35.74 MB strip 后），这是 Xray 全量内核的**固有体重**（同类客户端 `libv2ray.so` 同量级），不是我们写胖了；
+- 想再小只能裁协议/传输，那要改 `xray-core` 的 import 列表 ⇒ **MPL-2.0 §3.1 公开被改文件 + 永久分叉维护 + 牺牲节点兼容性**，代价远大于收益，**本次不做**；
+- 「36.9 MiB 是否可接受」取决于应用市场的包体上限，属产品决策，不是技术问题。
