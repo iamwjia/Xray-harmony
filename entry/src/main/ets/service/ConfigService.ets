@@ -1,5 +1,6 @@
 import { AppConfig, ConfigCodec, createDefaultConfig, XrayNode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
+import { NodeStore } from './NodeStore';
 
 /**
  * service/ConfigService.ets — 配置读写服务（应用服务层）
@@ -37,6 +38,16 @@ export class ConfigService {
       Logger.error('config decode failed at startup: using defaults; persistence disabled until user confirms');
     } else {
       this.config = decoded;
+    }
+    // 载入已保存的节点：解析失败时**保留原数据**，只记日志（不覆盖、不清空）
+    const persisted: XrayNode[] | null = NodeStore.load();
+    if (persisted === null) {
+      Logger.error('nodeStore: persisted nodes unreadable; keeping in-memory defaults, persistence blocked until user confirms');
+    } else if (persisted.length > 0) {
+      this.config.nodes = persisted;
+      if (!this.config.selectedNodeId) {
+        this.config.selectedNodeId = persisted[0].id;
+      }
     }
   }
 
@@ -119,6 +130,7 @@ export class ConfigService {
       }
     }
     cfg.nodes.push(node);
+    NodeStore.save(cfg.nodes);
     if (!cfg.selectedNodeId) {
       cfg.selectedNodeId = node.id;
     }

@@ -103,21 +103,28 @@ export class ShareLinkParser {
       throw new ShareLinkParseError('链接为空');
     }
     if (raw.startsWith('vless://')) {
-      return ShareLinkParser.parseVless(raw);
+      return ShareLinkParser.finalize(ShareLinkParser.parseVless(raw));
     }
     if (raw.startsWith('vmess://')) {
-      return ShareLinkParser.parseVmess(raw);
+      return ShareLinkParser.finalize(ShareLinkParser.parseVmess(raw));
     }
     if (raw.startsWith('trojan://')) {
-      return ShareLinkParser.parseTrojan(raw);
+      return ShareLinkParser.finalize(ShareLinkParser.parseTrojan(raw));
     }
     if (raw.startsWith('ss://')) {
-      return ShareLinkParser.parseShadowsocks(raw);
+      return ShareLinkParser.finalize(ShareLinkParser.parseShadowsocks(raw));
     }
     const proto = raw.indexOf('://') >= 0 ? raw.substring(0, raw.indexOf('://')) : raw.substring(0, 12);
     throw new ShareLinkParseError('不支持的协议：' + proto);
   }
 
+  /** 补齐稳定 id：protocol@address:port（解析器不依赖 id，但选择/去重需要） */
+  private static finalize(n: XrayNode): XrayNode {
+    if (!n.id) {
+      n.id = n.protocol + '@' + n.address + ':' + n.port.toString();
+    }
+    return n;
+  }
   /** vless://uuid@host:port?params#name */
   private static parseVless(raw: string): XrayNode {
     const body = raw.substring('vless://'.length);

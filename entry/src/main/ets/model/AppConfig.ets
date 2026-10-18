@@ -244,10 +244,8 @@ export class ConfigCodec {
 /** 默认配置（首启 / 安全模式共用） */
 export function createDefaultConfig(): AppConfig {
   const cfg = new AppConfig();
-  cfg.nodes.push(new XrayNode('n1', '示例节点 A（占位）', '203.0.113.10', 443));
-  cfg.nodes.push(new XrayNode('n2', '示例节点 B（占位）', '203.0.113.11', 443));
-  cfg.nodes.push(new XrayNode('n3', '示例节点 C（占位）', '203.0.113.12', 443));
-  cfg.selectedNodeId = 'n1';
+  // nodes stay empty by default: nodes must be imported by the user
+  cfg.selectedNodeId = '';
   const r = new RoutingRule();
   r.id = 'r1';
   r.matchType = 'domain';
