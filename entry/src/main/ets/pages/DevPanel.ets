@@ -124,7 +124,7 @@ struct DevPanel {
     hilog.info(DOMAIN, TAG, 'M6 clicked');
     try {
       const ret: string = nativeEntry.m6CGoInvoke();
-      this.m6Result = ret;
+      this.m6Result = this.maskSensitive(ret);
       hilog.info(DOMAIN, TAG, 'M6 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
@@ -137,7 +137,7 @@ struct DevPanel {
     hilog.info(DOMAIN, TAG, 'M7 clicked');
     try {
       const ret: string = nativeEntry.m7CGoVersion();
-      this.m7Result = ret;
+      this.m7Result = this.maskSensitive(ret);
       hilog.info(DOMAIN, TAG, 'M7 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
@@ -147,13 +147,26 @@ struct DevPanel {
   }
 
   /**
-   * 面板展示用的脱敏：把 UUID 形态的串替换成占位，并截断。
-   * 探针返回的是内核原文，面板直接显示等于把配置片段摊在屏幕上。
+   * 面板展示用的脱敏。
+   *
+   * 只遮 UUID 是不够的（审计 R-b 指出）：trojan 的密码、ss 的 method:password、
+   * 配置里形如 `"password":"…"` 的值都不是 UUID 形态，会原样上屏。所以按"字段名 + 值"
+   * 与"独立凭据形态"两类分别遮，再截断。
    */
   private maskSensitive(raw: string): string {
-    const masked: string = raw.replace(
+    let masked: string = raw;
+    // ① UUID 形态
+    masked = masked.replace(
       /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g,
       '****-****-****');
+    // ② 常见凭据字段：password / passwd / pwd / id / uuid / token / secret
+    masked = masked.replace(
+      /("?(?:password|passwd|pwd|token|secret|uuid)"?\s*[:=]\s*)"[^"]*"/gi,
+      '$1"****"');
+    // ③ ss 的 method:password 形态（method 是公开的，密码不是）
+    masked = masked.replace(
+      /(aes-\d+-gcm|chacha20-ietf-poly1305|xchacha20-poly1305)(:)[^\s",}]+/gi,
+      '$1$2****');
     return masked.length <= 300 ? masked : `${masked.substring(0, 300)}…(truncated)`;
   }
 

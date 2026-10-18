@@ -15,7 +15,8 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, TAG, 'credential migration at startup: ok=%{public}s', ok ? 'true' : 'false');
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
-      hilog.error(DOMAIN, TAG, 'credential migration at startup failed: %{public}s', msg);
+      // 异常文本可能来自第三方，用 private 打：现在文案是我们自己的，但这不变量保不住
+      hilog.error(DOMAIN, TAG, 'credential migration at startup failed: %{private}s', msg);
     });
   }
 

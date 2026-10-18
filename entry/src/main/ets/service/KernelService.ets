@@ -241,7 +241,7 @@ export class KernelService {
       await this.stop(KernelService.DISCONNECT_TIMEOUT_MS);
     } catch (e) {
       const msg: string = e instanceof Error ? e.message : String(e);
-      Logger.error(`bestEffortStop failed (kernel may be wedged): ${msg}`);
+      Logger.sensitiveError(`bestEffortStop failed (kernel may be wedged): ${msg}`);
     }
   }
 

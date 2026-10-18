@@ -33,6 +33,8 @@ export class ConfigService {
   private pendingCredentialMigration: boolean = false;
   /** 迁移失败原因（空串 = 无失败）；失败时必须阻断依赖明文凭据的连接 */
   private migrationError: string = '';
+  /** 正在执行的迁移（in-flight 复用，避免两个入口同时跑导致"假失败"） */
+  private migrationInFlight: Promise<boolean> | null = null;
 
   private constructor() {
     this.config = createDefaultConfig();
@@ -204,8 +206,11 @@ export class ConfigService {
    *
    * 顺序：改内存 → 落盘 → 成功后才删密钥。
    * 落盘失败必须**回滚内存**，否则会出现"界面删了、重启又回来"的假删除。
-   * 密钥删除失败只记日志：残留的 secret 不可寻址（别名已不在节点表里），
-   * 危害远小于"节点表与内存不一致"。
+   *
+   * 关于密钥清理失败：只记警告、不回滚。注意措辞——残留 secret **仍然可寻址**
+   * （别名由 aliasForNode(id) 可重算，id 又是确定性的 protocol@host:port），
+   * 只是没有任何代码会主动去取它。所以这是"危害小"，**不是"已销毁"**。
+   * 删除节点 ≠ 擦除磁盘上的凭据，这一点不能被注释里的错误理由掩盖。
    */
   async removeNode(id: string): Promise<boolean> {
     const cfg = this.config;
@@ -265,8 +270,25 @@ export class ConfigService {
    * 顺序是刻意的：**先写入安全存储，全部成功后才写 v2 节点表**。
    * 任一步失败就保留明文原数据并返回 false —— 宁可继续用明文跑，
    * 也不能出现"凭据进了安全存储、节点表却写坏"的半成品状态。
+   *
+   * 迁移有**两个入口**（`EntryAbility.onCreate` 与连接前），所以必须做 in-flight 复用：
+   * SecretStore 的覆盖写是 remove→add（非原子），若连接路径在启动迁移的窗口里读，
+   * 会读到"暂时不存在"而报"凭据不可用"——那是假失败，用户会以为凭据丢了。
    */
   async ensureSecureMigration(): Promise<boolean> {
+    if (this.migrationInFlight !== null) {
+      Logger.info('credential migration already in flight, joining existing run');
+      return this.migrationInFlight;
+    }
+    this.migrationInFlight = this.runMigration();
+    try {
+      return await this.migrationInFlight;
+    } finally {
+      this.migrationInFlight = null;
+    }
+  }
+
+  private async runMigration(): Promise<boolean> {
     if (!this.pendingCredentialMigration) {
       return true;
     }
