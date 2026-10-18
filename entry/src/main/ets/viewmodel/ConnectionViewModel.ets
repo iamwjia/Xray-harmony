@@ -99,19 +99,19 @@ export class ConnectionViewModel {
     const v = new ConnectionView();
     if (this.state === ConnState.DISCONNECTED) {
       v.label = '未连接';
-      v.hint = '点击开关开始连接（当前为骨架占位，尚未接内核）';
+      v.hint = '点击开关启动内核（当前仅本地 SOCKS，未接节点）';
       v.colorHex = '#888888';
       v.busy = false;
       v.canToggle = true;
     } else if (this.state === ConnState.CONNECTING) {
       v.label = '连接中…';
-      v.hint = '正在准备内核与配置';
+      v.hint = '正在启动内核并确认状态（最多等待 8 秒）';
       v.colorHex = '#FFA726';
       v.busy = true;
       v.canToggle = true;
     } else if (this.state === ConnState.CONNECTED) {
       v.label = '已连接';
-      v.hint = '隧道已建立（占位状态，真实链路待接入）';
+      v.hint = '内核已启动（本地 SOCKS 监听中，尚未接入节点）';
       v.colorHex = '#2E7D32';
       v.busy = false;
       v.canToggle = true;
