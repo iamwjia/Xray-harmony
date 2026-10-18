@@ -590,6 +590,37 @@ Start-Sleep -Seconds 9
 
 *本记录的所有命令与输出均来自本机实际执行（2026-10-18）。三处报错均可复现：删掉对应修正即可重现。9.3 节为追加改动后的复验输出；§10 为双 ABI 追加（x86_64 仅供模拟器）；§10.7 为"预编译库入库 + 可重建"补记；§11 为模拟器运行态实测与 M4 根因诊断。*
 
+---
+
+## 12. 文档回写清单（E8 · 2026-10-18）
+
+> 本节记录**本次实测结论落到哪些文档的哪些位置**，供复核与追溯。原则：**只改事实与措辞，不重做结论**；每处均标「实测回写 2026-10-18 + 依据」，旧说法保留并标 `superseded`。
+
+| # | 目标文档 | 落位 | 写了什么 | 依据（本记录） |
+|---|---|---|---|---|
+| 1 | `doc/requirements.md` | §4.2 FR 总表 + §4.5 末尾 | 新增 **FR-40**：`startVpnExtensionAbility` 超时兜底（5~10s 未 settle ⇒ 终态提示 + 重试；禁止无限等待），P0 | §11.4 / §11.5（`M4PROBE pending-after-6s`） |
+| 2 | `doc/requirements.md` | §6 平台约束表 | 新增 **T-16**（内核 `.so` 只能随包分发）、**T-17**（启动 API 可能不 settle）+ 「开发期未签名可装」说明 | §11.1、§11.5；`toolchain/BOOTSTRAP-RESULT.md` 规则 B |
+| 3 | `doc/requirements.md` | §12.3 结论演进表 | 新增两条：`runtime.GOOS` 不可判 fork（恒 `linux`）；未签名 HAP 在模拟器可装 | `BOOTSTRAP-RESULT.md` 规则 A；§11.1 |
+| 4 | `doc/requirements.md` | §12.5 修订记录（新增） | 本节改动汇总 | — |
+| 5 | `doc/design.md` | §2.9（新增） | 预构建 `.so` 三条启动级硬规则：**S-1 SONAME 必设** / **S-2 私有目录不可 `dlopen`** / **S-3 hvigor 只打包链接图内 `.so`**（含报错原文） | §6.1、§10；`BOOTSTRAP-RESULT.md` 规则 B |
+| 6 | `doc/design.md` | §2.10（新增） | **`D-18` 修订**：内核随 App 发布、禁止运行时热更新、回滚改包内 **A/B 双版本**；原 `D-18` 标 `superseded` | §11.5、`BOOTSTRAP-RESULT.md` 规则 B-2 |
+| 7 | `doc/design.md` | §2.3 工具链 | **T-A**：`*-clang` 是 171 字节 sh 脚本 → Windows 必须 `clang.exe` + `-target/--sysroot/-D__MUSL__`；**T-B**：`runtime.GOOS` 恒 `linux` → 只用 `//go:build openharmony` 探针 | `BOOTSTRAP-RESULT.md` §1、规则 A |
+| 8 | `doc/design.md` | §7 降级矩阵 | 新增 **E22**：VPN 扩展启动无响应（Promise 悬挂）→ 终态提示 + 重试 + fail-closed | §11.4 / §11.5 |
+| 9 | `doc/design.md` | §10.1 追溯矩阵 + 附录 A + 附录 D（新增） | FR-40 落点行；`D-18` 行加 `superseded` 注；附录 D 修订记录 | — |
+| 10 | `doc/risks-and-roadmap.md` | §9.1 `P-03` | 状态改「**x86_64 模拟器局部证实**」+ 证据 + **不记「通过」的边界** | §11.2 / §11.3；`BOOTSTRAP-RESULT.md` §M5 |
+| 11 | `doc/risks-and-roadmap.md` | §7.4 | 新增 **`R-16`**：预构建 `.so` 未设 SONAME / 放错位置 ⇒ 启动即崩（已实测发生） | §6.1、§10 |
+| 12 | `doc/risks-and-roadmap.md` | 附录 A.1 `VD-02` 行 + 附录 C 变更记录 | 补实测状态；新增 v1.3 记录 | 同上 |
+| 13 | `doc/poc/PC0-skeleton-on-emulator.md` | §2.5 判读提醒 | 补 **`hilog` 是流式、看历史缓冲用 `hilog -x`** | §11.5 采集命令 |
+| 14 | `doc/poc/PC0-skeleton-on-emulator.md` | §2 M4 段 | **M4 根因**：镜像缺 `com.huawei.hmos.vpndialog`（系统日志链全文）→ **环境缺失，非平台不支持**；新增 **「模拟器只跑 M1/M2/M3、M4 等真机」** 纪律 | §11.4 / §11.5 |
+| 15 | `doc/poc/PC0-skeleton-on-emulator.md` | §5 开头 | 未签名包可装（模拟器）——原「必先签名」假设标 `superseded`；真机【待真机验证】 | §11.1 |
+| 16 | `doc/poc/PC6-runtime-checklist.md` | §1 签名状态 / §3 日志 / §4 M4 / §7 修订记录 | 签名行标 `superseded`；补 `hilog -x` 说明；M4 段补根因 + 执行纪律 | §11.1、§11.4、§11.5 |
+| 17 | `doc/README.md`（索引，非 E8 清单内，顺手同步） | 文档地图 | `FR-01…39` → `FR-01…40`（因新增 FR-40，索引编号域同步，否则索引与正文不一致） | 同 #1 |
+
+**未改动（按约束）**：任何代码；`toolchain/`、`_toolchain/` 下的脚本与产物。
+
+**冲突处理**：本次未出现"文档与实测冲突且无法判定改哪边"的情形——所有改动方向均由实测唯一确定（报错原文 + 系统日志链）。若后续真机实测推翻模拟器结论（例如真机也报 `16000061`），**以真机为准回写**并在上表追加一行。
+
+
 
 
 

@@ -227,6 +227,15 @@ UI 层        M1  M2  M3  M4  M5
 | `GOOS=linux` | IE-TLS 被 musl 拒绝 dlopen | 竞品实证 |
 | **`GOOS=openharmony` + `-ftls-model=global-dynamic`** | 唯一可行；**不能加 `-tags netgo`** | 现役 `star4277/ohos-go v1.26.5-beta1` |
 
+### 工具链两条实测补充（**实测回写 2026-10-18**）
+
+| # | 事实 | 影响 | 依据 |
+|---|---|---|---|
+| **T-A** | NDK 的 `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` 是 **171 字节的 `#!/bin/sh` 脚本**（内容仅 `exec $SOURCE/clang -target <triple> --sysroot=... -D__MUSL__ "$@"`） | **Windows 上无法把它直接当 `CC` 用**（无法执行 sh）；必须改用 `clang.exe` 并**显式传等价四个参数**：`-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`。误判表现：编译报"找不到编译器/无法执行"，进而被当成"fork 不兼容" | `toolchain/BOOTSTRAP-RESULT.md` §1「文件名存在但无 .exe」段；`toolchain/build-cgoping.ps1` 头部注释 |
+| **T-B** | **判断是否真在用 OHOS fork，不能看 `runtime.GOOS`**：fork 对 `runtime.GOOS` **恒上报 `linux`**（`src/internal/goos/gengoos.go` 的 openharmony 分支显式写 `const GOOS = \`linux\``） | 唯一可靠判据是 **`//go:build openharmony` 编译标签探针**（探针返回值含 `buildtag`）；否则会把"构建正确"误判为"用错了工具链"，白折腾一轮 | 同上「规则 A」；`toolchain/smoke/tag_openharmony.go` |
+
+> 这两条的价值在于**归因**：T-A 让你在 Windows 上不把"脚本不可执行"当"工具链不兼容"；T-B 让你不在 `goos=linux` 上做无谓的返工。
+
 ### 选后风险（写入风险表主表，非脚注）
 - **供应链依赖**：现役 fork 为**个人维护、非官方、beta**。风险：停更即锁死 Xray 版本、无法跟进 Go 安全补丁。
 - **缓解（措施而非"记录风险"）**：①内部持有 fork（固定 commit）；②记录**全量编译参数**（`-ftls-model`/`-tags`/`-buildmode`/`-ldflags`）与 **fork 补丁清单**；③固化 `.so` 产物并用 `readelf` 校验 `PT_TLS` 与 `R_AARCH64_TLSDESC` 重定位；④每次升级 Go 前先跑 `P-02`；⑤官方 fork 若长期封顶 go1.24.5（编不动 libXray 主线），则评估自维护成本。
@@ -324,6 +333,32 @@ R1 结论：内核**无「整体重载配置」能力**（全部 proto 无 reloa
 | `mark`/`interface` 在 HarmonyOS 是否可用（出站防环路） | **`VD-24`，未验证；方案成立的一票** |
 | 内存/启动开销 | 无一手数据，由 `P-02/P-24` 回填 |
 | `platform.policy` 缓冲区调优空间 | 源码支持，具体取值待实测 |
+
+## 2.9 预构建 `.so` 的三条「启动即失败」硬规则（**实测回写 2026-10-18**）
+
+> 来源：`toolchain/BOOTSTRAP-RESULT.md`「规则 B」与 `doc/poc/PC6-skeleton-build-log.md` §6.1/§10。共同特征：**失败发生在启动/加载瞬间，且报错信息不指向真因**（分别是"缺库"与"无错误信息"），极易被误判为工具链或 ABI 问题。
+> 三条均为**实现级红线**，不是"最佳实践"。
+
+| # | 规则 | 违反后的**实测**现象（原文） | 正确做法 |
+|---|---|---|---|
+| **S-1** | 预构建 `.so` **必须设 SONAME** | `DT_NEEDED` 被写入**构建期绝对路径**，安装后启动即失败：<br>`W MMG: key:default/entry First: failed Error loading shared library D:/projects/xray-harmony/entry/src/main/cpp/../libs/x86_64/libcgoping.so: (needed by /data/storage/el1/bundle/libs/x86_64/libentry.so)` | 链接时加 `-Wl,-soname,<name>`；用 `llvm-readelf -d x.so` 核对 `SONAME` 存在、`NEEDED` 只含 `libc.so` 等系统库 |
+| **S-2** | **应用私有目录的 `.so` 不可 `dlopen`**（如 `files/native/`）；唯一可行位置是随包的 `libs/<abi>/`（运行时路径 `/data/storage/el1/bundle/libs/<abi>/`） | `M5 dlopen FAILED: [arg:/data/storage/el2/base/haps/entry/files/native/libcgoping.so]`<br>`Error loading shared library ...: No error information`（`No error information` 是"无执行权限/被沙箱拒绝"的典型表现，**不是**"库不存在"） | `.so` 一律随包放入 `libs/<abi>/`；**禁止**"下载到私有目录再 `dlopen`"（见 §2.10 `D-18` 修订） |
+| **S-3** | **`hvigor` 只打包"参与 CMake 链接图"的 `.so`** | 未链接的预构建库即使放在 `libs/<abi>/` 也**不会进 HAP**（实测 HAP 内仅 `libc++_shared.so` / `libentry.so` / `libprebuilt.so`） | 必须 `add_library(<name> SHARED IMPORTED)` + `IMPORTED_LOCATION .../libs/${OHOS_ARCH}/<name>.so` + `target_link_libraries(<module> PUBLIC <name>)`；**进包 ≠ 必须链接调用**——运行时仍可用 `dlopen`+`dlsym` 调用，S-3 只影响"是否进包" |
+
+> 与既有章节的关系：S-1/S-3 与 `R2 §2.2`（预构建库约束）一致，本节补充的是**实测复现的报错原文**与"不指向真因"的归因方法；S-2 是**新增约束**，直接导致 `D-18` 修订（见下）。
+
+## 2.10 `D-18`（修订）：内核版本随 App 发布，不做运行时热更新 —— **架构约束导致的版本策略变更**
+
+> **性质**：**不是降级，是沙箱约束下的策略重定**。原 `D-18` 假定「内核 `.so` 可与 App 版本解耦、运行时替换」，该假定被实测否定。
+> **原文保留**：原 `D-18`（"内核与 App 版本解耦 + 可复现构建"）**superseded**，仅"可复现构建"部分继续有效（见附录 A `D-18` 行注）。
+
+- **被否方案**：运行时下载内核 `.so` 到应用私有目录（`/data/storage/el2/base/haps/entry/files/...`）再 `dlopen`。
+- **否定证据（实测原文）**：`Error loading shared library /data/storage/el2/base/haps/entry/files/native/libcgoping.so: No error information`（沙箱拒绝；同一 `.so` 放随包 `libs/<abi>/` 下可正常加载）。
+- **改后策略**：内核 `.so` **只能随包分发**（`libs/<abi>/`），**版本与 App 版本绑定**；回滚改为**包内预置 A/B 双版本**（`libxray_a.so` / `libxray_b.so`，启动按配置或灰度标记选择），代价为包体增大约两份内核体积。
+- **需同步承认的后果**：内核安全更新的时效 = **应用商店发版时效**，不存在独立内核更新通道；因此 `R-01`（Go fork 停更）的缓解手段只剩「固化 `.so` + 自持 fork」，**没有后路**。
+- **关联约束**：预构建 `.so` **必须设 SONAME**，否则 `DT_NEEDED` 写入构建期绝对路径，安装后启动即报 `Error loading shared library D:/.../libs/<abi>/libxray.so`（见 §2.9 S-1）。
+- **不是"暂不支持"**：这是平台沙箱约束，**不会随版本演进消失**；不能写成"后续支持热更新"。
+
 # 3. 进程与生命周期模型
 
 
@@ -849,6 +884,9 @@ VPN 路由**只能**通过 `create(VpnConfig).routes` 一次性下发，**没有
 | E19 | UI 复活后状态不一致 | 主进程被回收后重启 | 短暂显示「正在同步状态」，随后以真实状态渲染 | D-31 对账（禁止沿用本地缓存） | 以内核状态为准 |
 | E20 | 改「接管网段」类设置 | 系统层字段变更（`routes`/`addresses`/`mtu`/`isIPv6Accepted`/应用名单） | 二次确认：「将断开连接并重建」 | 重建 VPN | 取消则改动不生效 |
 | E21 | 改「分流规则」类设置 | 内核层字段变更 | 提示「本次改动无需断开」 | 热更规则 / 快速重启内核（D-33） | 失败回滚旧规则并提示 |
+| **E22** | **VPN 扩展启动无响应（`startVpnExtensionAbility` Promise 悬挂）** —— 实测：既不 resolve 也不 reject | 系统去拉起授权对话框失败（实测：模拟器镜像缺 `com.huawei.hmos.vpndialog`，系统日志 `bundle not exist` → `failed` → **我方 Promise 不回调**） | 「**未能启动 VPN（可能缺少系统组件或未授权）**」+「重试」；**不得停留在未初始化态** | **5~10s 超时兜底**（`FR-40`），超时后落 `fail-closed`：不进入 Connecting、不显示"正在连接" | 引导用户检查系统 VPN 授权 / 重启应用；**模拟器上的该现象属"环境缺失"，不得外推为"平台不支持"** |
+
+> **E22 的定性纪律（实测回写 2026-10-18）**：这条错误路径的**真因在系统侧**（组件缺失 → 拒绝拉起 → 不回错误），我方唯一能做的是**给用户一个终态与可执行动作**，而不是继续等待。证据见 `poc/PC6-skeleton-build-log.md` §11.4/§11.5。
 
 > 原则：**用户可见行为必须是「一个明确状态 + 一个可执行动作」**，不允许出现「未知错误」这类无动作提示；所有 E 项都要有对应的可验收文案与状态指示。
 
@@ -916,7 +954,7 @@ VPN 路由**只能**通过 `create(VpnConfig).routes` 一次性下发，**没有
 # 10. 需求追溯矩阵
 
 
-> 依据：`requirements.md`（FR-01…FR-39、NFR-01…13 见其 §5）
+> 依据：`requirements.md`（FR-01…FR-40、NFR-01…13 见其 §5）
 > 规则：本表是 design → requirements 的**唯一回写基线**；`D-xx` 编号见 `design-decision-register.md`。凡 FR 无落点者必须在 §10.4 显式列「未覆盖 + 原因 + 建议」，不得静默略过。
 
 ## 10.1 P0 需求 → 设计落点（MVP 必须全覆盖）
@@ -951,6 +989,7 @@ VPN 路由**只能**通过 `create(VpnConfig).routes` 一次性下发，**没有
 | FR-31 | 协议/传输支持集合 | §2.3（协议族经 Xray-core）+ §9.2 能力声明随版本记录 | ✅ |
 | FR-35 | 本地入站端口安全 | §5.1 回环绑定 + §8.3 调试接口隔离；D-17 | ✅ |
 | FR-39 | 接管面配置变更必须断连并提前告知 | §4.7 字段分区（系统层 vs 内核层）+ §5.1.0 路由建连时一次性下发 + §7 E20（二次确认「将断开连接并重建」） | ✅ |
+| FR-40 | `startVpnExtensionAbility` 超时兜底 | §7 降级矩阵 **E22**（5~10s 未 settle ⇒ 终态提示 + 重试；落 `fail-closed`，不进入 Connecting） | ✅ **实测回写 2026-10-18** |
 
 > 序号级回写说明（Z1 核对）：`FR-12`（§3.7 + §7 E2/E3 + VD-13）、`FR-18`（§7 E6 + §3.8 L3）、`FR-39`（§4.7 + §5.1.0 + §7 E20）三类落点为**章节 + 事件编号**，未绑定单一 `D-xx`；`FR-17` 已回写 `D-06`。是否为其补出独立决策项由 solution-architect 决定，本表只登记落点、不新造编号。
 
@@ -1027,7 +1066,7 @@ VPN 路由**只能**通过 `create(VpnConfig).routes` 一次性下发，**没有
 | D-15 | cgo 边界与 goroutine recover + 资源所有权 | FR-24 | NFR-03、NFR-13 |
 | D-16 | 安全存储分层（ASSET/RDB/HUKS/prefs） | FR-01~FR-04（凭据） | NFR-06 |
 | D-17 | 调试接口隔离 | FR-35 | NFR-06 |
-| D-18 | 内核与 App 版本解耦 + 可复现构建 | — | NFR-12 |
+| D-18 | ~~内核与 App 版本解耦~~ + 可复现构建（**"解耦/运行时热更新"部分 superseded，见 §2.10 修订**） | — | NFR-12 |
 | D-19 | 分发三路径 + 审核不通过路径 | FR-29 | NFR-09 |
 | D-20 | 可观测性：日志五级/脱敏/诊断导出 | FR-22、FR-23、FR-24 | NFR-06、NFR-07、NFR-13 |
 | D-21 | OHOS Go 工具链（锚 GA、fork 自持有） | FR-31 | NFR-12 |
@@ -1133,3 +1172,11 @@ VPN 路由**只能**通过 `create(VpnConfig).routes` 一次性下发，**没有
 | 许可证：Hey GPL-3.0、libXray MIT、Xray-core MPL-2.0 | R1 §1.3 + R3 |
 
 **证据强度标注**：`blockedApplications` 按包名生效 = **单实现 + 待真机确认**；IPv6 三字段写法 = **单一来源 + 待交叉验证**；两者均不得当作通用规则引用。
+
+---
+
+# 附录 D：修订记录（实测回写）
+
+| 日期 | 改了什么 | 依据（实测，可复核） |
+|---|---|---|
+| 2026-10-18 | ① 新增 **§2.9**「预构建 `.so` 的三条启动级硬规则（S-1 SONAME / S-2 私有目录不可 `dlopen` / S-3 hvigor 只打包链接图内 `.so`）」；② 新增 **§2.10 `D-18` 修订**（内核随 App 发布、禁止运行时热更新、回滚改包内 A/B 双版本；原 `D-18` 标 **superseded**，附录 A 对应行同步加注）；③ §2.3 工具链补 **T-A / T-B** 两条（`*-clang` 是 171 字节 sh 脚本 → Windows 必须用 `clang.exe` + 显式四参数；`runtime.GOOS` 恒 `linux` → 只能用 `//go:build openharmony` 探针判别）；④ §7 降级矩阵新增 **E22**（VPN 启动无响应/Promise 悬挂 → 终态提示 + 重试 + fail-closed）；⑤ §10.1 新增 **FR-40** 落点行，§10 依据行改 `FR-01…FR-40` | ① SONAME/绝对路径报错、私有目录 `dlopen` 报 `No error information`、hvigor 打包范围：`toolchain/BOOTSTRAP-RESULT.md`「规则 B」+ `doc/poc/PC6-skeleton-build-log.md` §6.1/§10；② 同上（否定证据原文）；③ `BOOTSTRAP-RESULT.md` §1 与「规则 A」、`toolchain/build-cgoping.ps1`、`toolchain/smoke/tag_openharmony.go`；④ `PC6-skeleton-build-log.md` §11.4/§11.5（`M4PROBE pending-after-6s`；根因镜像缺 `com.huawei.hmos.vpndialog`） |

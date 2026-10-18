@@ -244,6 +244,16 @@ hdc hilog
 4. 首页放一个按钮，调 `vpnExtension.startVpnExtensionAbility(want)`；
 5. 采集日志：`hdc hilog | Select-String -Pattern "Vpn|vpn|XVPN"`。
 
+> **实测回写 2026-10-18 —— M4 在模拟器上的根因已定，本节的"观察"已可收口为结论**：
+> - **现象**：`startVpnExtensionAbility` 的 Promise **既不 resolve 也不 reject**（6s 探针仍 `pending-after-6s`），界面永远停在 `(M4 not run)`。
+> - **根因**：系统请求已进入 `NetworkVpnManager`，随后去拉起**授权对话框应用** `com.huawei.hmos.vpndialog` 的 `VpnServiceExtAbility`，而该 bundle **在模拟器镜像中不存在**：
+>   `ServiceExt: [AMC651]name:com.huawei.hmos.vpndialog VpnServiceExtAbility` → `BMSCommon: bundle not exist` → `AMS: failed: com.huawei.hmos.vpndialog` → `BMSQuery: ExplicitQueryAbility no match` → **我方 Promise 不回调**。
+> - **定性**：**环境缺失（镜像缺系统组件），不是"平台不支持 `VpnExtensionAbility`"**；属「无法判定」，标【待真机验证】。
+> - 依据：`PC6-skeleton-build-log.md` §11.4/§11.5（同一台模拟器上复现并采集的 `hdc install/aa start/hilog -x` 原文）。
+
+> ⛔ **执行纪律（实测回写 2026-10-18）：模拟器上只跑 M1 / M2 / M3；M4 一律等真机。**
+> 理由：模拟器镜像缺 `com.huawei.hmos.vpndialog`，M4 在模拟器上**必然**卡在"无回调"，重试与重装都不会变好；继续在模拟器上排查 M4 是**纯浪费**，且容易把"环境缺失"误写成"平台不支持"。
+
 **看到什么算过（记录，不判定）**
 逐项填写下表，**这张表就是 M4 的交付物**：
 
@@ -295,6 +305,11 @@ Set-Location 'D:\projects\xray-harmony'
 **两条判读提醒**
 - PowerShell 里即使出现 `Exit Code: 1`，只要输出里有 `BUILD SUCCESSFUL` 就算成功——hvigor 把 WARN 写 stderr，PowerShell 会当成 `NativeCommandError`。
 - 空 `signingConfigs` 只产生 `Will skip sign 'hos_hap'` 的 WARN，产出 `*-unsigned.hap`，属预期中间态（签名见 §5）。
+
+**日志判读提醒（实测回写 2026-10-18）**
+- `hdc hilog` 是**流式**的：它只输出**从此刻起**新产生的日志，**不打印历史缓冲**。
+- 想看**已经发生**的事（如崩溃前、启动前那几行），用 **`hdc shell hilog -x`**（导出当前缓冲）。
+- 典型误判：先跑操作、再开 `hdc hilog` → 看不到刚发生的关键行，误判为"没打日志/没执行"；正确做法是**先 `hilog -x` 取缓冲**，或**先开 `hdc hilog` 再操作**。
 
 ### 2.6 字段层级陷阱：**加错层级不会报错，只会静默失效**
 
@@ -387,6 +402,13 @@ tar -tf .\entry\build\default\outputs\default\entry-default-signed.hap | Select-
 ---
 
 ## 5. 签名与安装（模拟器）
+
+> **实测回写 2026-10-18（本条修正本节的前提假设，原文保留）**：本文早前假定"未签名包 `hdc install` 必失败、必须先配签名"——**该假设在模拟器上不成立**：
+> - 实测：在 `127.0.0.1:5555` 的**模拟器（开发者模式，API 26）**上，**未签名 HAP 可直接安装并启动**（`install bundle successfully`）；
+> - 推测原因：该模拟器镜像**未强制签名校验**；
+> - **真机是否同样宽松【待真机验证】**（真机通常强制签名）；
+> - 因此：**签名是"真机/上架链路"的必需项，不是模拟器链路的前置项**。本节下方的手动签名步骤在真机上仍然必需，不要因为模拟器能装就跳过。
+> - 依据：`PC6-skeleton-build-log.md` §11.1。
 
 ### 5.1 最短路径（推荐给"只想半天跑起来"的人）
 
@@ -541,6 +563,18 @@ libprebuilt.so:
 |---|---|---|
 | `type:"vpn"` 必须手改 SDK `toolchains/modulecheck/module.json` | **已修正（仅适用旧 SDK）** | SDK 26.0.0.105 构建期直接通过，**不要改 SDK 目录** |
 | `compatibleSdkVersion` 可写 `"5.0.0(12)"` 这类带 API 的格式 | **已修正** | hvigor 6.26.8 只接受纯版本号（`"26.0.0"`） |
+| 未签名 HAP 一定装不上、签名是安装硬前置 | **已修正（模拟器范围内）** | 模拟器（开发者模式 / API 26）未签名 HAP **可装可启动**（`install bundle successfully`）；**真机仍通常需签名**，【待真机验证】。见 §5 开头注 |
+| M4「点按钮没反应」需要继续排查 | **已定性（模拟器）** | 根因：镜像**缺 `com.huawei.hmos.vpndialog`**（系统日志 `bundle not exist` → `failed` → 我方 Promise 不回调）⇒ **环境缺失，非平台不支持**；模拟器上不再排查 M4，一律等真机。见 §2 M4 段 |
+
+---
+
+## 10. 修订记录
+
+| 日期 | 改了什么 | 依据（实测） |
+|---|---|---|
+| 2026-10-18 | ① §2 M4 段：补**根因结论**（镜像缺 `com.huawei.hmos.vpndialog`）+ 系统日志链 + **「模拟器只跑 M1/M2/M3，M4 等真机」执行纪律**；② §2.5 判读提醒：补 **`hdc hilog` 是流式的、看历史缓冲用 `hdc shell hilog -x`**；③ §5 开头：未签名包可装（模拟器）——原「必先签名」假设标 `superseded`；④ §9.6 表格补三行「旧结论 → 新结论」 | `poc/PC6-skeleton-build-log.md` §11.1（安装成功）/§11.4（M4 现象）/§11.5（根因诊断与 `hilog -x` 采集） |
+
+> 注：本文其余内容仍以 R2（`research/harmony-platform-constraints.md`）为准；本节只回写**模拟器实测**得到的事实，不改变任何平台能力结论。
 
 ---
 
