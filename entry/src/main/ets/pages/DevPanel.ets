@@ -5,6 +5,7 @@ import { Want } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
+import { KernelService } from '../service/KernelService';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -28,6 +29,9 @@ struct DevPanel {
   @State m6Result: string = '(M6 not run)';
   @State m7Result: string = '(M7 not run)';
   @State m8Result: string = '(M8 not run)';
+
+  // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
+  private kernelDebug: KernelService = KernelService.getInstance();
 
   aboutToAppear(): void {
     if (AUTO_PROBE_M4) {
@@ -198,6 +202,14 @@ struct DevPanel {
               this.m8Result = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
             })
           Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(11).width('100%')
+
+          // 调试项：让下一次「连接」注入非法配置，用于验证失败路径（ERROR 且不卡 CONNECTING）
+          Button('调试：下次连接注入非法配置 → 看 ERROR').width('100%')
+            .backgroundColor('#8D6E63')
+            .onClick(() => {
+              this.kernelDebug.debugInjectInvalidConfig();
+              this.m8Result = '已置位 invalidConfig；返回首页点「连接」应显示错误原因（不卡连接中）';
+            })
         }
         .width('100%')
         .padding({ bottom: 24 })

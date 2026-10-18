@@ -1,20 +1,10 @@
 import { router } from '@kit.ArkUI';
 import { ConnectionView, ConnState, ConnectionViewModel } from '../viewmodel/ConnectionViewModel';
 import { ConfigService } from '../service/ConfigService';
+import { KernelService, KernelError } from '../service/KernelService';
+import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
 import { XrayNode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
-
-/**
- * 骨架期模拟开关。
- *
- * TODO(必须删除)：`KernelService` 接入完成（能真实驱动 runXrayFromJson + 用户态健康探测）后，
- *   删除本常量与下方 onToggle() 里的 simulateTimer 分支，改由 KernelService 回调
- *   onKernelConnected / onKernelError。
- *
- * 为什么保留：让骨架能演示状态流转。但它"看起来像真的连上了"，
- * 所以 UI 必须显示 `(模拟)` 标识——避免两周后有人拿它演示、对方误以为已能连接。
- */
-const IS_SKELETON_MOCK: boolean = true;
 
 /**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
@@ -22,7 +12,8 @@ const IS_SKELETON_MOCK: boolean = true;
  * 结构约束：
  *   - 展示信息全部来自 ConnectionViewModel.deriveView()，页面不自己判断状态；
  *   - 页面只调用 requestConnect / requestDisconnect，不直接置位状态（FR-13）；
- *   - 骨架实现：连接为占位（无内核、无 tun），真实链路见 toolchain/APP-SKELETON.md。
+ *   - **连接由 KernelService 真实驱动**：start 成功 + getXrayState.running:true 才进 CONNECTED；
+ *     失败/超时一律进 ERROR 并给出可读原因（超时兜底见 KernelService，FR-40）。
  */
 @Entry
 @Component
@@ -31,23 +22,17 @@ struct Index {
   @State nodeName: string = '（未选择）';
   @State stateTag: string = 'DISCONNECTED';
   @State configWarning: string = '';
+  @State busyHint: string = '';
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
-  private simulateTimer: number = -1;
+  private kernel: KernelService = KernelService.getInstance();
 
   aboutToAppear(): void {
     this.refreshAll();
   }
 
-  aboutToDisappear(): void {
-    if (this.simulateTimer >= 0) {
-      clearTimeout(this.simulateTimer);
-      this.simulateTimer = -1;
-    }
-  }
-
-  /** 回到前台时重新拉取（等价于 FR-13 的"先拉真实状态再渲染"的最小版） */
+  /** 回到前台时重新拉取真实状态（FR-13：先拉真实状态再渲染） */
   onPageShow(): void {
     this.refreshAll();
   }
@@ -66,30 +51,63 @@ struct Index {
     return st === ConnState.DISCONNECTED || st === ConnState.ERROR;
   }
 
+  private toReadable(err: Object): string {
+    const ke = err as KernelError;
+    if (ke !== null && ke !== undefined && ke.message !== undefined && ke.message.length > 0) {
+      return ke.message;
+    }
+    return '连接失败（原因未知，详见日志）';
+  }
+
+  private doConnect(): void {
+    this.vm.requestConnect();
+    this.busyHint = '';
+    this.refreshAll();
+
+    const cfgJson: string = KernelConfigBuilder.buildMinimal();
+    this.kernel.start(cfgJson, 8000)
+      .then(() => {
+        this.vm.onKernelConnected();
+        this.busyHint = '';
+        this.refreshAll();
+      })
+      .catch((err: Object) => {
+        const msg: string = this.toReadable(err);
+        this.busyHint = '';
+        this.vm.onKernelError(msg);
+        this.refreshAll();
+      });
+  }
+
+  private doDisconnect(): void {
+    this.busyHint = '正在停止内核…';
+    this.kernel.stop(5000)
+      .then(() => {
+        this.vm.requestDisconnect();
+        this.busyHint = '';
+        this.refreshAll();
+      })
+      .catch((err: Object) => {
+        const msg: string = this.toReadable(err);
+        this.busyHint = '';
+        this.vm.onKernelError(msg);
+        this.refreshAll();
+      });
+  }
+
   private onToggle(): void {
     if (this.isIdleOrError()) {
-      this.vm.requestConnect();
-      this.refreshAll();
-      // TODO(必须删除)：骨架期模拟服务回调；KernelService 接入后改为由其回调
-      // onKernelConnected / onKernelError（并配合用户态健康探测，见 design §3.7）。
-      if (IS_SKELETON_MOCK) {
-        this.simulateTimer = setTimeout(() => {
-          if (this.vm.getState() === ConnState.CONNECTING) {
-            this.vm.onKernelConnected();
-            this.refreshAll();
-          }
-        }, 800);
-      }
+      this.busyHint = '正在启动内核…';
+      this.doConnect();
     } else {
-      this.vm.requestDisconnect();
-      this.refreshAll();
+      this.doDisconnect();
     }
   }
 
   build() {
     Column({ space: 16 }) {
       Text('xray-harmony').fontSize(24).fontWeight(FontWeight.Bold)
-      Text('骨架版本 · 未接入真实链路').fontSize(12).fontColor('#999999')
+      Text('内核直连驱动（socks + freedom，未接节点）').fontSize(12).fontColor('#999999')
 
       // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
       if (this.configWarning.length > 0) {
@@ -105,12 +123,11 @@ struct Index {
       Column({ space: 8 }) {
         Row({ space: 6 }) {
           Text(this.view.label).fontSize(22).fontColor(this.view.colorHex)
-          // 模拟标识：避免"看起来像真连上了"
-          if (IS_SKELETON_MOCK) {
-            Text('(模拟)').fontSize(12).fontColor('#FF7043')
-          }
         }
         Text(this.view.hint).fontSize(13).fontColor('#666666').textAlign(TextAlign.Center)
+        if (this.busyHint.length > 0) {
+          Text(this.busyHint).fontSize(11).fontColor('#1976D2')
+        }
         Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
         Button(this.isIdleOrError() ? '连接' : (this.view.busy ? '取消' : '断开'))
           .enabled(this.view.canToggle)
