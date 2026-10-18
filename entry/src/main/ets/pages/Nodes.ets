@@ -38,6 +38,38 @@ struct Nodes {
     }
   }
 
+  /** 删除前二次确认：删除不可恢复，不做"点了就没了" */
+  private confirmDelete(item: XrayNode): void {
+    AlertDialog.show({
+      title: '删除节点',
+      message: `将删除「${item.name}」及其保存的凭据，该操作不可恢复。`,
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: '#C62828',
+        action: () => {
+          this.doDelete(item.id);
+        }
+      }
+    });
+  }
+
+  private doDelete(id: string): void {
+    this.cfg.removeNode(id).then((ok: boolean) => {
+      this.reload();
+      this.importMsg = ok ? '已删除节点（凭据一并清除）' : '删除失败，详见日志';
+    }).catch((e: Object) => {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.importMsg = `删除失败：${msg}`;
+      Logger.error(`removeNode failed: ${msg}`);
+    });
+  }
+
   /** 导入分享链接：解析成功后写入安全存储 + 节点表，并选中 */
   private doImport(): void {
     const link: string = this.linkInput.trim();
@@ -111,6 +143,13 @@ struct Nodes {
               Text(item.id === this.selectedId ? '已选中' : '选择')
                 .fontSize(12)
                 .fontColor(item.id === this.selectedId ? '#2E7D32' : '#1976D2')
+                .onClick(() => this.pick(item.id))
+
+              Text('删除')
+                .fontSize(12)
+                .fontColor('#C62828')
+                .padding({ left: 10 })
+                .onClick(() => this.confirmDelete(item))
             }
             .width('100%')
             .padding(12)

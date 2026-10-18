@@ -199,6 +199,56 @@ export class ConfigService {
     Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
     return true;
   }
+  /**
+   * 删除节点（不可恢复）。
+   *
+   * 顺序：改内存 → 落盘 → 成功后才删密钥。
+   * 落盘失败必须**回滚内存**，否则会出现"界面删了、重启又回来"的假删除。
+   * 密钥删除失败只记日志：残留的 secret 不可寻址（别名已不在节点表里），
+   * 危害远小于"节点表与内存不一致"。
+   */
+  async removeNode(id: string): Promise<boolean> {
+    const cfg = this.config;
+    let idx: number = -1;
+    for (let i = 0; i < cfg.nodes.length; i++) {
+      if (cfg.nodes[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      Logger.warn(`removeNode: unknown id ${id}`);
+      return false;
+    }
+    if (!this.canPersist()) {
+      Logger.error('removeNode blocked: persistence disabled');
+      return false;
+    }
+
+    const removed: XrayNode = cfg.nodes[idx];
+    const prevSelected: string = cfg.selectedNodeId;
+    cfg.nodes.splice(idx, 1);
+    if (cfg.selectedNodeId === id) {
+      cfg.selectedNodeId = cfg.nodes.length > 0 ? cfg.nodes[0].id : '';
+    }
+    if (!NodeStore.save(cfg.nodes)) {
+      // 回滚：内存必须与磁盘一致
+      cfg.nodes.splice(idx, 0, removed);
+      cfg.selectedNodeId = prevSelected;
+      Logger.error(`removeNode failed to persist, rolled back: ${id}`);
+      return false;
+    }
+
+    const alias: string = removed.credentialRef.startsWith('node:')
+      ? removed.credentialRef
+      : SecretStore.aliasForNode(removed.id);
+    if (!await SecretStore.remove(alias)) {
+      Logger.warn(`removeNode: node removed but secret cleanup failed for ${alias}`);
+    }
+    Logger.info(`removeNode ok: ${removed.protocol}@${removed.address}:${removed.port} total=${cfg.nodes.length}`);
+    return true;
+  }
+
   /** 是否存在待迁移的明文凭据（UI 可据此提示） */
   hasPendingCredentialMigration(): boolean {
     return this.pendingCredentialMigration;
