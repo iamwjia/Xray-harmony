@@ -328,7 +328,7 @@ static napi_value LoadCore(napi_env env, napi_callback_info info) {
 
 ## 8. 记录模板（每条必填，作为 R-01 缓解措施的留痕）
 
-复制下表到实验记录文件（建议 `<repo>/doc/xray-harmony/poc/records/PC2-<日期>.md`），**每换一次工具链或 flags 就新增一行**。
+复制下表到实验记录文件（建议 `<repo>/doc/poc/records/PC2-<日期>.md`），**每换一次工具链或 flags 就新增一行**。
 
 ```markdown
 # PC2 实验记录 <日期>

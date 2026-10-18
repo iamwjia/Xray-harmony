@@ -2,7 +2,7 @@
 
 > 项目：xray-harmony — HarmonyOS NEXT 平台上的 Xray 客户端
 > 文档版本：v1.0（2026-10-17）｜作者：requirements-architect（产品需求工程专家）
-> 上游输入：`doc/xray-harmony/research/xray-core-baseline.md`（下称 **R1**）· `doc/xray-harmony/research/harmony-platform-constraints.md`（下称 **R2**）· `doc/xray-harmony/research/harmony-permission-checklist.md`（下称 **PC**）· `doc/xray-harmony/research/client-benchmark.md`（下称 **R3**，差异化机会一节二次回填）
+> 上游输入：`doc/research/xray-core-baseline.md`（下称 **R1**）· `doc/research/harmony-platform-constraints.md`（下称 **R2**）· `doc/research/harmony-permission-checklist.md`（下称 **PC**）· `doc/research/client-benchmark.md`（下称 **R3**，差异化机会一节二次回填）
 > 下游消费者：`design.md`（D1，技术方案）、`risks-and-roadmap.md`（K1，风险与计划）、`README.md`（Z1，终稿与索引）
 > 撰写规则：每条功能需求有唯一编号、优先级、形态依赖、Given-When-Then 验收、依据引用；**不得虚构平台能力**，平台侧断言一律以 R2 为准；无法定论处统一用【待验证】标注并进「待回填清单」。
 

@@ -515,7 +515,7 @@ HarmonyOS VPN TUN fd
 | S13 | v2rayNG issues: #5457 / #930 / #1346 / #268 / #2729 / #149 / #2044 / #782 / #4520 / #4672 / #6089 / #4641 / #403 / #5057 / #1499 / #5519 / #31 | GitHub issue |
 | S14 | `https://github.com/MatsuriDayo/NekoBoxForAndroid` README | 仓库 README |
 | S15 | `https://github.com/arror/x4h` | 仓库页面 |
-| S16 | `team-workspace/handoff/r1-to-r3-handoff.md` + `doc/xray-harmony/research/xray-core-baseline.md` | R1 交接（Xray-core 侧边界、libXray 构建目标与稳定性承诺、传输代际、控制面能力边界） |
+| S16 | `team-workspace/handoff/r1-to-r3-handoff.md` + `doc/research/xray-core-baseline.md` | R1 交接（Xray-core 侧边界、libXray 构建目标与稳定性承诺、传输代际、控制面能力边界） |
 
 ---
 
