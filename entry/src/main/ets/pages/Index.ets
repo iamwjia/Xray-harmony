@@ -106,7 +106,7 @@ struct Index {
 
   build() {
     Column({ space: 16 }) {
-      Text('xray-harmony').fontSize(24).fontWeight(FontWeight.Bold)
+      Text('Tunnelix').fontSize(24).fontWeight(FontWeight.Bold)
       Text('内核直连驱动（socks + freedom，未接节点）').fontSize(12).fontColor('#999999')
 
       // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
