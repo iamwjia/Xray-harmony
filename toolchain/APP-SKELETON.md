@@ -86,3 +86,36 @@ entry/src/main/ets/
 | 无分应用/DNS/路由 UI | 属后续迭代，模型已预留 `rules/settings` |
 | 无国际化/无障碍 | V1 范围 |
 | M4 探针保留但默认不自动执行 | 真机上每次启动都会弹 VPN 授权，会被当成 bug |
+
+---
+
+## 7. 评审后增补（2026-10-18，两条护栏）
+
+### 7.1 配置加载失败：**不覆盖、可见、需确认**
+
+| 约束 | 实现 |
+|---|---|
+| 解码失败**不得覆盖原数据** | `ConfigService.loadFailed=true`，原始文本保留在 `rawTextOnLoadFailure`（只读，仅供诊断/恢复），**不自动写回** |
+| 保存必须显式确认 | `canPersist()` 在 `loadFailed=true` 时返回 `false`；需先调 `confirmOverwrite()`（UI 侧确认后）才允许写盘 |
+| 失败必须**UI 可见** | 首页顶部横幅：`配置读取异常，已使用默认值（原数据未被覆盖）` |
+
+**为什么**：静默降级到默认配置 + 随后一次自动保存 = 用户节点全没。这是这类应用最容易发生、也最难事后解释的事故。
+
+**已运行验证**（模拟器）：DevPanel 里新增调试项「模拟配置读取失败」→ 置位后返回首页，横幅如预期出现，日志有 `debug: forced config load failure`。
+
+### 7.2 骨架期模拟回调：**显式开关 + UI 标识 + 待删标记**
+
+- 常量 `IS_SKELETON_MOCK = true`（`pages/Index.ets` 顶部），`onToggle()` 里的模拟分支被它包住；
+- 状态文案旁固定显示 **`(模拟)`**（`已连接 (模拟)`），避免被误当真实能力；
+- 代码内 `// TODO(必须删除)`：删除条件 = `KernelService` 接入完成（能真实驱动 `runXrayFromJson` + 用户态健康探测）。
+
+**已运行验证**：点「连接」后界面为 `已连接` + `(模拟)`。
+
+**为什么加标识**：这种 mock 最危险的时刻不是写它的时候，而是**两周后有人拿它演示、对方以为已经能连了**。标识成本一行，避免误解。
+
+### 7.3 增补后的下一步顺序（不变）
+
+1. `KernelService`（包 `m8Invoke`）→ **删掉 `IS_SKELETON_MOCK` 与 `setTimeout`**；
+2. `KernelConfigBuilder`（L-A → L-B 纯函数）；
+3. 持久化（ASSET/RDB）→ **接上后 `confirmOverwrite()` 必须接到 UI 确认弹窗**，不能默认 true；
+4. 凭据引用填实；5. 两维状态接线。

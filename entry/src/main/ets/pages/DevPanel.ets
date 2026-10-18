@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { Want } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import nativeEntry from 'libentry.so';
+import { ConfigService } from '../service/ConfigService';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -187,6 +188,16 @@ struct DevPanel {
 
           Button('M8: SOCKS via kernel + IP compare').onClick(() => this.runM8()).width('100%')
           Text(this.m8Result).fontSize(12).width('100%')
+
+          Divider()
+          // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
+          Button('调试：模拟配置读取失败 → 看首页横幅').width('100%')
+            .backgroundColor('#8D6E63')
+            .onClick(() => {
+              ConfigService.getInstance().debugForceLoadFailure();
+              this.m8Result = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
+            })
+          Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(11).width('100%')
         }
         .width('100%')
         .padding({ bottom: 24 })

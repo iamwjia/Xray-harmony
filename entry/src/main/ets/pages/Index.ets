@@ -5,6 +5,18 @@ import { XrayNode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 
 /**
+ * 骨架期模拟开关。
+ *
+ * TODO(必须删除)：`KernelService` 接入完成（能真实驱动 runXrayFromJson + 用户态健康探测）后，
+ *   删除本常量与下方 onToggle() 里的 simulateTimer 分支，改由 KernelService 回调
+ *   onKernelConnected / onKernelError。
+ *
+ * 为什么保留：让骨架能演示状态流转。但它"看起来像真的连上了"，
+ * 所以 UI 必须显示 `(模拟)` 标识——避免两周后有人拿它演示、对方误以为已能连接。
+ */
+const IS_SKELETON_MOCK: boolean = true;
+
+/**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
  *
  * 结构约束：
@@ -18,6 +30,7 @@ struct Index {
   @State view: ConnectionView = new ConnectionView();
   @State nodeName: string = '（未选择）';
   @State stateTag: string = 'DISCONNECTED';
+  @State configWarning: string = '';
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
@@ -44,6 +57,8 @@ struct Index {
     this.stateTag = this.vm.getState().toString();
     const n: XrayNode | null = this.cfg.getSelectedNode();
     this.nodeName = n === null ? '（未选择）' : n.name;
+    // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
+    this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
   }
 
   private isIdleOrError(): boolean {
@@ -55,13 +70,16 @@ struct Index {
     if (this.isIdleOrError()) {
       this.vm.requestConnect();
       this.refreshAll();
-      // 占位：真实实现里由 KernelService 回调 onKernelConnected / onKernelError。
-      this.simulateTimer = setTimeout(() => {
-        if (this.vm.getState() === ConnState.CONNECTING) {
-          this.vm.onKernelConnected();
-          this.refreshAll();
-        }
-      }, 800);
+      // TODO(必须删除)：骨架期模拟服务回调；KernelService 接入后改为由其回调
+      // onKernelConnected / onKernelError（并配合用户态健康探测，见 design §3.7）。
+      if (IS_SKELETON_MOCK) {
+        this.simulateTimer = setTimeout(() => {
+          if (this.vm.getState() === ConnState.CONNECTING) {
+            this.vm.onKernelConnected();
+            this.refreshAll();
+          }
+        }, 800);
+      }
     } else {
       this.vm.requestDisconnect();
       this.refreshAll();
@@ -73,8 +91,25 @@ struct Index {
       Text('xray-harmony').fontSize(24).fontWeight(FontWeight.Bold)
       Text('骨架版本 · 未接入真实链路').fontSize(12).fontColor('#999999')
 
+      // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
+      if (this.configWarning.length > 0) {
+        Text(this.configWarning)
+          .fontSize(12)
+          .fontColor('#8D6E63')
+          .width('100%')
+          .padding(10)
+          .backgroundColor('#FFF3E0')
+          .borderRadius(8)
+      }
+
       Column({ space: 8 }) {
-        Text(this.view.label).fontSize(22).fontColor(this.view.colorHex)
+        Row({ space: 6 }) {
+          Text(this.view.label).fontSize(22).fontColor(this.view.colorHex)
+          // 模拟标识：避免"看起来像真连上了"
+          if (IS_SKELETON_MOCK) {
+            Text('(模拟)').fontSize(12).fontColor('#FF7043')
+          }
+        }
         Text(this.view.hint).fontSize(13).fontColor('#666666').textAlign(TextAlign.Center)
         Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
         Button(this.isIdleOrError() ? '连接' : (this.view.busy ? '取消' : '断开'))
