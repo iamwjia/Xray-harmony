@@ -1,0 +1,37 @@
+# ────────────────────────────────────────────────
+# 第三方参考源码：禁止入库
+# 原因：① 体积 153MB；② 含 GPL-3.0 代码（Hey、v2rayNG），
+#       一旦入库会让本仓库被 GPL 传染，破坏 Xray-core(MPL-2.0)/libXray(MIT) 的干净依赖链。
+# 需要复现调研时按文档内记录的仓库 + tag 重新克隆即可。
+# ────────────────────────────────────────────────
+_research_src/
+
+# 构建产物与工具链
+build/
+.hvigor/
+oh_modules/
+node_modules/
+*.hap
+*.har
+*.hsp
+*.so
+*.a
+*.o
+
+# 临时文件与缓存
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+__pycache__/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.iml
+
+# 本地环境
+.env
+.env.local
+*.local.json
