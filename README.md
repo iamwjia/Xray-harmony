@@ -149,10 +149,8 @@ doc/
 
 | 项 | 值 |
 |---|---|
-| 会话模型 | `deepseek-v4.1-flash` |
-| 可用模型 | `deepseek-v4.1-flash`、`DeepSeek-v4-pro-api` |
+| 模型 | `deepseek-v4.1-flash` |
 | 协作框架 | JiuwenSwarm（Leader + 专家成员，任务 DAG 驱动） |
-| 实际使用情况 | 全部成员**均使用会话默认模型**（deepseek-v4.1-flash）；DeepSeek-v4-pro-api 为环境已配置的备选，**当前未使用** |
 
 ### 9.3 人机分工
 
