@@ -162,7 +162,7 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | FR-03 ✅ | 节点列表 CRUD 与排序 | 共用 | P0 | MVP | R1 §3.2 |
 | FR-04 ◐ | 手动新建/编辑节点与参数校验 | 共用 | P0 | MVP | R1 §3.2 |
 | FR-05 ✅ | 配置生成与合法性校验 | 共用 | P0 | MVP | R1 §3.2、§3.1 |
-| FR-06 ✅ | 分流模式三态（全局/规则/直连） | A | P0 | MVP | R1 §3.1 routing；NFR-11 F-4 |
+| FR-06 ◐ | 分流模式三态（全局/规则/直连） | A | P0 | MVP | R1 §3.1 routing；NFR-11 F-4 |
 | FR-07 ◐ | 自定义路由规则编辑 | A | P1 | V1 | R1 §3.1、§4.2 |
 | FR-08 | DNS 策略（默认隧道内解析） | A | P0 | MVP | R1 §3.1 dns；R2 §3.1 |
 | FR-09 ◐ | 节点切换（快速重启内核） | A | P0 | MVP | R1 §4.2 |
@@ -196,11 +196,14 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | FR-37 | 规则命中可解释（连接到命中规则的可视映射） | A | P1 | V1 | R3 §8.3 |
 | FR-38 | 高级字段三层能力（白名单可编辑 / 生成结果只读 / JSON 仅导入转换） | 共用 | P1 | V1 | R3 §8.2；leader 裁决 |
 | FR-39 | 接管面配置变更必须断连并提前告知 | A | P0 | MVP | R3 §9 K12；leader 裁决 |
-| FR-40 ✅ | `startVpnExtensionAbility` 超时兜底（5~10s 未 settle 即提示 + 重试，禁止无限等待） | A | P0 | MVP | **实测回写 2026-10-18**：Promise 可永久悬挂（`poc/PC6-skeleton-build-log.md` §11.5） |
+| FR-40 ◐ | `startVpnExtensionAbility` 超时兜底（5~10s 未 settle 即提示 + 重试，禁止无限等待） | A | P0 | MVP | **实测回写 2026-10-18**：Promise 可永久悬挂（`poc/PC6-skeleton-build-log.md` §11.5） |
 | FR-41 | 节点测速与延迟测试（结果可判定、失败可归因） | 共用 | P1 | V1 | PC9 §6（来源：R3 §7.1 #1346 用户痛点） |
 | FR-42 | 多配置（profile）切换与删除 | 共用 | P2 | V1 | PC9 §6 |
 | FR-43 | UDP 转发开关（状态与内核配置一致） | A | P1 | V1 | PC9 §6（当前 `udp:false` 硬编码） |
 | FR-44 ◐ | 设置持久化完整性（写失败必须可见 + 内存值回滚） | 共用 | P0 | MVP | PC9 §6；同源原则见 `ConfigService` 数据安全约束 |
+| FR-45 | geo 资源更新（联网手动 + 离线导入；**不做后台自动下载**） | 共用 | P1 | V1 | PC11 §3（实现已有，需求未覆盖） |
+| FR-46 | 节点分组与筛选 | 共用 | P1 | V1 | PC11 §3（实现已有，需求未覆盖） |
+| FR-47 | 日志分级与脱敏（public/private 边界可验收） | 共用 | P0 | MVP | PC11 §3；NFR-06/NFR-07 |
 
 ### 4.2.1 实现状态（2026-10-18）
 
@@ -212,9 +215,9 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | FR-01 | ✅ | `ShareLinkParser.ets:45-64` + `Nodes.ets:42-63`；实测 `import ok: vless @ a.example.org:443` | 导入→入库→可选中闭环；"失败四分类"仍是解析器直出（子项未达） |
 | FR-03 | ✅ | 删除 `ConfigService.ets:232-273`（含落盘失败回滚）、编辑 `:283-320`、排序 `:327-360`、分组 `:363-373`、`NodeStore.ets:23`（schema=3）；`5778e61` 修列表刷新；实测：改协议 vless→vmess 即时显示、改名 NodeAZ、moveNode 1→0、分组筛选生效 | 增/删/改/排序/分组五类全有；"订阅恢复不覆盖用户删除"随订阅（FR-02）待补 |
 | FR-05 | ✅ | `KernelConfigBuilder.ets:26-83`（逐值 `esc()` `:147`）+ `_toolchain/verify-routing-json.js` 三模式 JSON 断言全 PASS | 生成与结构断言成立；"规则数超限阻止启动"随 FR-07 待补 |
-| FR-06 | ✅ | `KernelConfigBuilder.ets:64-83`（RULE：`geosite:cn`+`geoip:cn`，无资源则降级仅内网）+ `GeoAssets.ets:85-235`；实测 `start bytes=802 → confirmed running=true` | 验收点为"三模式可下发且配置合法"；**分流结果正确性（国内直连/国外代理）未做真机出口验证** |
+| FR-06 | ◐ | `KernelConfigBuilder.ets:64-83`（RULE：`geosite:cn`+`geoip:cn`，无资源则降级仅内网）+ `GeoAssets.ets:85-235`；实测 `start bytes=802 → confirmed running=true` | **规则生成与内核接受已验；实际分流效果未验（无可用出口节点，发不出一个 CONNECT）**。验收点在"国内域名真直连 / 其余真代理"，本轮不具备验证条件 |
 | FR-35 | ✅ | `SocksGuard.ets:41-79`（CSPRNG 随机端口 20000-40000 + 128bit 口令）+ `KernelConfigBuilder.ets:26-33`（`auth:"password"`）+ `Index.ets:24-29` 每次连接轮换；实测 `socks endpoint rotated: 127.0.0.1:28117 (auth=password)` | 回环 + 随机端口 + 默认鉴权三件齐全；无"关闭鉴权的风险提示"开关（当前无开关可关） |
-| FR-40 | ✅ | `KernelService.ets:71-74/166-176`（8s/5s 硬超时）+ `Index.ets:78-124`（失败即 ERROR、`bestEffortStop()` 收尾、按钮给「重试」）；实测失败路径不卡 CONNECTING | 覆盖**内核启动**超时闭环；`startVpnExtensionAbility` 那条 Promise 尚未接入（随 FR-10） |
+| FR-40 | ◐ | `KernelService.ets:71-74/166-176`（8s/5s 硬超时）+ `Index.ets:78-124`（失败即 ERROR、`bestEffortStop()` 收尾、按钮给「重试」）；实测失败路径不卡 CONNECTING | **内核启动超时已实测；VPN 扩展启动（`startVpnExtensionAbility`）超时未实现**——该 Promise 实测可永久悬挂（`PC6 §11.5`），接入 VPN 扩展时必须单独包裹，故本条不能算 ✅ |
 | FR-04 | ◐ | `NodeEdit.ets:38-191`（12 字段 + `validate()` + `updateNode`） | 编辑可用；**无"手动新建空节点"入口**、REALITY 组合校验未实现 |
 | FR-07 | ◐ | `KernelConfigBuilder.ets:71-82` 固定生成 geo 规则；`AppConfig.ets:81-89` 规则模型仍无 UI、`rules` 不入内核 | geo 侧有实质进展，自定义规则编辑仍缺 |
 | FR-09 | ◐ | `KernelService.start/stop` + `Index.ets:127-141` | 仍是"先断开再连接"两步；无一键切换/切换中提示/失败回退 |
@@ -643,6 +646,46 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
   When 加载
   Then 拒绝加载该数据、不覆盖原数据，并提示"数据来自更高版本"
 
+### 4.14 由实现反推出的需求（FR-45 ~ FR-47，来源 PC11 §3）
+
+> 来源：`poc/PC11-impl-vs-doc.md` §3「实现有、需求没有」。这三条能力已在代码中落地，但需求文档未覆盖，导致追溯链断裂；故补齐编号（**不改动 FR-01~FR-44**）。
+
+**FR-45 geo 资源更新（联网手动 + 离线导入）** ｜ 共用 ｜ P1 ｜ 依赖 FR-06 ｜ 阻塞：无
+- **产品约束（写进验收，不是实现细节）：应用不得在用户未显式操作时联网下载 geo 资源**——即**不做后台自动下载、不做定时轮询**。
+- Given 用户进入设置页并点击"更新规则资源"
+  When 开始下载
+  Then ① 下载前必须告知预计体积；② 进度可见；③ 失败时**保留旧资源并使用旧资源继续工作**（不得出现"geoip 新、geosite 旧"的半更新状态）；④ 成功后规则模式下 `geosite:cn`/`geoip:cn` 生效
+- Given 用户无法访问更新源
+  When 选择"从文件导入"
+  Then 支持导入一个 zip 或两个 `.dat`；导入前校验文件大小合理性（防半截文件），校验失败**不替换**现有资源并给出可读原因
+- Given 资源不可用（未内置/解包失败/被删除）
+  When 以规则模式连接
+  Then 自动降级为"仅内网直连"，且在设置页可见显示"资源未就绪（已降级）"；**不得**让内核因缺少 `geosite:cn` 而启动失败
+- **负向验收**：把应用置于前台/后台闲置 24 小时且用户未点击任何更新入口，抓包确认**无任何 geo 资源下载请求**
+
+**FR-46 节点分组与筛选** ｜ 共用 ｜ P1 ｜ 依赖 FR-03 ｜ 阻塞：无
+- Given 节点数量 ≥2
+  When 用户在节点编辑页填写/清空"分组"
+  Then 保存后节点列表可按分组筛选；分组名为空即"未分组"
+- Given 某分组下最后一个节点被删除或移出该分组
+  When 刷新列表
+  Then 该分组名**不再出现在筛选行**（不留空组），且当前筛选若指向该空组则自动回到"全部"
+- Given 分组名超长或含首尾空白
+  When 保存
+  Then 首尾空白被裁剪；超长按实现上限截断或拒绝并提示（上限值需在 UI 可见）
+
+**FR-47 日志分级与脱敏（public/private 边界）** ｜ 共用 ｜ P0 ｜ 依赖 无 ｜ 阻塞：无
+- Given 应用产生任何日志（含内核原始错误、第三方响应、设备信息）
+  When 日志写入系统日志或导出
+  Then ① 可能含凭据/服务器地址/令牌的文本**必须以 private 形式输出**（hilog `%{private}s`），不得以 public 输出；② 节点凭据、订阅 URL、UUID、密码、私钥**在任何日志中不得以明文出现**
+- Given 日志内容为应用自身可控的固定文案（如"内核已启动"）
+  When 输出
+  Then 允许使用 public，但**不得把变量值拼进 public 日志**
+- **验收方法（可机检）**：对一次完整会话（导入→连接→断开→报错）的日志做正则扫描：`[0-9a-f]{8}-[0-9a-f]{4}-` （UUID）、`ss://`/`vless://`/`vmess://`、`password|passwd`、节点域名；**命中任意一条即不通过**
+- Given 用户需要排查问题
+  When 查看日志
+  Then 至少能看到分级（DEBUG/INFO/WARN/ERROR）与"敏感字段已隐藏"的标示（日志页/导出属 FR-23 范围，本条只约束"分级与脱敏边界"）
+
 ---
 
 ## 5. 非功能需求（NFR）
@@ -747,7 +790,9 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 
 ### 5.8 兼容性（NFR-10）
 
-- `compatibleSdkVersion = 12`（HarmonyOS NEXT 5.0.0 起）；`targetSdkVersion` 跟随最新 Release。
+- ~~`compatibleSdkVersion = 12`（HarmonyOS NEXT 5.0.0 起）~~ **superseded（2026-10-18，PC11 后裁决）**：最低版本改为 **API 26（HarmonyOS NEXT）**，`targetSdkVersion`/`compileSdkVersion` 同为 26。
+  - **原因（架构约束导致的策略变更，非欠账）**：产品决策为 **NEXT-only**（不做 HarmonyOS 4 及更早），且实际构建基线即 `26.0.0`（`build-profile.json5`）；继续要求 API 12 会与实际构建配置长期矛盾。
+  - **后果（必须一并接受）**：API 12~25 设备不再在支持范围内 → 分应用上限的"64（API 12~22）"档在本产品中**不再适用**，只需实现/验证 **256（API 23+）** 一档；`BEARER_VPN`（12+）、`generateVpnId`（20+）等特性的版本判断可简化为"满足 26 即全部可用"，但仍需保留 `canIUse` 兜底以防运行时能力缺失。
 - 能力差异必须按 **API 档位**处理并可见：分应用上限 **64（API 12~22）/ 256（API 23+）**；`BEARER_VPN` 事件通道 **API 12+**；`createVpnObserver`/`onAuthorizationResult` **API 26.0.0 起，最低兼容版本不得依赖它**；多 VPN（`generateVpnId`）**API 20+** 且不作为需求前提。
 - 宣传约束：MVP 支持期对外只提 64，不以 256 作卖点（避免宣传与 API 12 设备能力不符）。
 
@@ -967,4 +1012,5 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | 2026-10-18 | ① §4.2 新增 **FR-40**（`startVpnExtensionAbility` 超时兜底，P0），§4.5 末尾补其验收条文；② §6 新增 **T-16 / T-17** 两条平台约束（内核 `.so` 只能随包分发；启动 API 可能不 settle）并补"开发期签名事实"说明；③ §12.3 结论演进表新增两条（`runtime.GOOS` 不可判 fork；未签名包在模拟器可装） | ① 启动 API 的 Promise 永久悬挂：`poc/PC6-skeleton-build-log.md` §11.4/§11.5（`M4PROBE pending-after-6s`，根因镜像缺 `com.huawei.hmos.vpndialog`）；② 私有目录 `.so` 不可 `dlopen`：`toolchain/BOOTSTRAP-RESULT.md`「规则 B」；③ `runtime.GOOS` 恒 `linux`：同上「规则 A」+ `toolchain/smoke/tag_openharmony.go`；④ 未签名可装：`poc/PC6-skeleton-build-log.md` §11.1（`install bundle successfully`） |
 | 2026-10-18 追加 FR-41~FR-44（来源：PC9 §6） | ① §4.2 FR 表末尾新增 **FR-41 节点测速与延迟测试（P1/共用）**、**FR-42 多配置 profile 切换与删除（P2/共用）**、**FR-43 UDP 转发开关（P1/A）**、**FR-44 设置持久化完整性（P0/共用）**；② 新增 **§4.13** 承载四条的可验收标准、依赖与阻塞关系；③ **未改动 FR-01~FR-40 任何文字与编号** | `poc/PC9-feature-gap.md` §6「待补 FR」（源自实现差距分析：无测速、无 profile、`udp:false` 硬编码、设置写失败无 UI 消费） |
 | 2026-10-18：加入实现状态标记（依据 PC11）；标记只表示"当前有执行证据"，不代表已验收 | ① §4.2 FR 表主键单元加 `✅`（6 条）/`◐`（9 条）后缀，未实现者不加标记；② 新增 §4.2.1「实现状态（2026-10-18）」小节（图例 + 只列 ✅/◐ 的状态表 + 证据列）；③ 未改任何 FR 的正文、优先级、期次 | `poc/PC11-impl-vs-doc.md`：FR-01/03/05/06/35/40 有执行证据，FR-04/07/09/13/16/22/23/31/44 为部分；三条红线（FR-13/14/15）因"`running:true` ≠ 隧道可用"不标 ✅ |
+| 2026-10-18（PC11 裁决后修正） | ① 新增 **FR-45 geo 资源更新 / FR-46 节点分组与筛选 / FR-47 日志分级与脱敏**（§4.2 表 + §4.14 条文）；② **FR-40 由 ✅ 降为 ◐**（原文指向 VPN 启动 API 超时，实际只做了内核启动超时）、**FR-06 由 ✅ 降为 ◐**（仅证规则生成与内核接受，未验分流效果）；③ **NFR-10 原"要求 API 12"标 superseded**，改为最低 API 26 并写明 NEXT-only 决策与后果 | ① 实现已存在、需求未覆盖（PC11 §3）；② 降级理由见 §4.2.1 对应行；③ `build-profile.json5` 实际 `compatibleSdkVersion=26.0.0` + 产品决策"只做 NEXT" |
 
