@@ -254,6 +254,104 @@ export class ConfigService {
     return true;
   }
 
+  /**
+   * 保存节点编辑结果。
+   *
+   * 关键点：`updated.credentialRef` 传进来的是**别名**（不是明文）。
+   * 只有用户在表单里真的改了凭据（`newCredential` 非空）时才写安全存储，
+   * 否则保持原别名不动——否则会出现"节点表显示新 ID、实际连接用旧 ID"的错位。
+   * 先写安全存储再改节点表：写失败就不改，宁可这次编辑白做。
+   */
+  async updateNode(updated: XrayNode, newCredential: string): Promise<boolean> {
+    const cfg = this.config;
+    let idx: number = -1;
+    for (let i = 0; i < cfg.nodes.length; i++) {
+      if (cfg.nodes[i].id === updated.id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      Logger.warn(`updateNode: unknown id ${updated.id}`);
+      return false;
+    }
+    if (!this.canPersist()) {
+      Logger.error('updateNode blocked: persistence disabled');
+      return false;
+    }
+
+    const alias: string = SecretStore.aliasForNode(updated.id);
+    if (newCredential.length > 0) {
+      if (!await SecretStore.put(alias, newCredential)) {
+        Logger.error(`updateNode: secret store put failed for ${updated.id}`);
+        return false;
+      }
+    }
+    updated.credentialRef = alias;
+
+    const prev: XrayNode = cfg.nodes[idx];
+    cfg.nodes.splice(idx, 1, updated);
+    if (!NodeStore.save(cfg.nodes)) {
+      cfg.nodes.splice(idx, 1, prev);
+      Logger.error(`updateNode failed to persist, rolled back: ${updated.id}`);
+      return false;
+    }
+    Logger.info(`updateNode ok: ${updated.protocol}@${updated.address}:${updated.port}`);
+    return true;
+  }
+
+  /**
+   * 上/下移一位（排序）。
+   * 用 delta 而不是"目标索引"：拖动排序需要精确索引，而这里只有上下按钮；
+   * 传入目标索引反而容易在并发点击时算出越界值。
+   */
+  moveNode(id: string, delta: number): boolean {
+    const cfg = this.config;
+    let idx: number = -1;
+    for (let i = 0; i < cfg.nodes.length; i++) {
+      if (cfg.nodes[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      Logger.warn(`moveNode: unknown id ${id}`);
+      return false;
+    }
+    const to: number = idx + delta;
+    if (to < 0 || to >= cfg.nodes.length) {
+      return false; // 到边界：静默忽略，不是错误
+    }
+    if (!this.canPersist()) {
+      Logger.error('moveNode blocked: persistence disabled');
+      return false;
+    }
+    const moved: XrayNode = cfg.nodes[idx];
+    cfg.nodes.splice(idx, 1);
+    cfg.nodes.splice(to, 0, moved);
+    if (!NodeStore.save(cfg.nodes)) {
+      cfg.nodes.splice(to, 1);
+      cfg.nodes.splice(idx, 0, moved);
+      Logger.error('moveNode failed to persist, rolled back');
+      return false;
+    }
+    Logger.info(`moveNode ok: ${id} ${idx} -> ${to}`);
+    return true;
+  }
+
+  /** 现有分组名（去重、稳定顺序），供筛选与表单下拉使用 */
+  getGroups(): string[] {
+    const out: string[] = [];
+    const nodes: XrayNode[] = this.config.nodes;
+    for (let i = 0; i < nodes.length; i++) {
+      const g: string = nodes[i].group.trim();
+      if (g.length > 0 && out.indexOf(g) < 0) {
+        out.push(g);
+      }
+    }
+    return out;
+  }
+
   /** 是否存在待迁移的明文凭据（UI 可据此提示） */
   hasPendingCredentialMigration(): boolean {
     return this.pendingCredentialMigration;

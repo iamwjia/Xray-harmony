@@ -58,6 +58,12 @@ export class XrayNode {
   credentialRef: string = '';
   /** 备注 */
   remark: string = '';
+  /**
+   * 分组标签（v3 新增）。空串 = 未分组。
+   * 只用单个字符串而不是数组：分组是"归类"，不是"多标签"，
+   * 多标签会让"某节点属于哪组"变成不可判定，筛选逻辑也会复杂一个量级。
+   */
+  group: string = '';
 
   constructor(id: string = '', name: string = '', address: string = '', port: number = 443) {
     this.id = id;

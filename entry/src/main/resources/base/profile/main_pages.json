@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/Nodes",
     "pages/Settings",
-    "pages/DevPanel"
+    "pages/DevPanel",
+    "pages/NodeEdit"
   ]
 }

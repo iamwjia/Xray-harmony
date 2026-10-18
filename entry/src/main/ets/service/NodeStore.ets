@@ -16,10 +16,11 @@ import { Logger } from '../platform/Logger';
 
 const KEY: string = 'tunnelix_nodes_v1';
 /**
- * schema 2：`credentialRef` 语义从「明文凭据」改为「Asset Store 别名（`node:<id>`）」。
- * v1 数据仍可读，由 ConfigService 做一次性迁移（不静默丢弃）。
+ * schema 3：新增 `group` 分组字段（**追加型变更**，v1/v2 数据可直接读，
+ * 缺失字段按"未分组"处理，不需要迁移动作）。
+ * schema 2：`credentialRef` 语义从「明文凭据」改为「Asset Store 别名（`node:<hash>`）」。
  */
-const SCHEMA: number = 2;
+const SCHEMA: number = 3;
 /** v1：credentialRef 是明文凭据 */
 const SCHEMA_PLAINTEXT: number = 1;
 
@@ -50,6 +51,8 @@ interface StoredNode {
   flow: string;
   credentialRef: string;
   remark: string;
+  /** v3 新增；读旧数据时可能不存在 */
+  group?: string;
 }
 
 interface StoredPayload {
@@ -148,7 +151,8 @@ export class NodeStore {
       grpcService: n.grpcService,
       flow: n.flow,
       credentialRef: n.credentialRef, // TODO: 改为 HUKS/ASSET 引用
-      remark: n.remark
+      remark: n.remark,
+      group: n.group
     };
     return s;
   }
@@ -165,6 +169,8 @@ export class NodeStore {
     n.flow = s.flow;
     n.credentialRef = s.credentialRef; // TODO: 安全存储引用
     n.remark = s.remark;
+    // v1/v2 没有 group 字段：缺失即"未分组"，不需要迁移动作
+    n.group = s.group === undefined ? '' : s.group;
     return n;
   }
 
