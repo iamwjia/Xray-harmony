@@ -276,3 +276,17 @@ const IsOpenharmony = 1
 | `entry/src/main/cpp/cgo_bridge.cpp` | NAPI 绑定：dlopen + dlsym + 调用 + `CGoFree` |
 | `entry/src/main/cpp/napi_init.cpp` / `CMakeLists.txt` | 注册 `m5CGoPing`、挂载 `cgoping` 参与打包 |
 | `entry/src/main/ets/pages/Index.ets` | 第 4 个按钮 `M5: call Go CGoPing()` |
+
+---
+
+## 结论边界（必读，防止把结论说过头）
+
+- M5 的证据来自 **x86_64 模拟器（API 26）**，据此可确认：**Go runtime 能在 OHOS 应用进程内初始化并完成 cgo 调用**（含 C→Go→C 双向）。
+- **arm64 真机仍未验证**：`P-03` 只算**局部证实**。真机需重跑同一链路（arm64 `libcgoping.so` + 同一点击动作），并额外关注 fork 的 TLSDESC/信号处理在真实 ABI 下的表现。
+- 因此本结论**不能**外推为「Xray-core 在 OHOS 真机可用」——那需要 `P-02`（编 libXray）+ 真机加载调用才能定论。
+
+## 附：三条工具层注意事项
+
+1. **不能用 `runtime.GOOS` 判断是否用了 OHOS fork**（fork 对 openharmony 目标恒为 `linux`）——只能用 `//go:build openharmony` 编译标签探针。
+2. **NDK 的 `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` 是 171 字节的 `#!/bin/sh` 脚本**，Windows 不能执行；必须改用 `clang.exe` + `-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`。
+3. **`hdc hilog` 是流式的**（会一直跟着设备日志刷），要看已产生的缓冲用 `hdc shell hilog -x`（或先 `hilog -r` 清空再复现）。
