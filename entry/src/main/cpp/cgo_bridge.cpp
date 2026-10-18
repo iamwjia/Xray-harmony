@@ -232,3 +232,81 @@ extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info)
     // Prefix the elapsed time so the ArkTS side can log it without native-log plumbing.
     return MakeString(env, "[elapsed_ms=" + std::to_string(static_cast<long long>(ms)) + "] " + payload);
 }
+
+// ---------------------------------------------------------------------------
+// M7 / P-02 (final): call a REAL libXray method that forces xray-core to answer.
+//
+// "xrayVersion" returns xray.XrayVersion(); a non-error answer means xray-core was
+// actually initialised inside this process (not just the JSON dispatcher reached).
+// "getXrayState" additionally reports whether an instance is currently running.
+// ---------------------------------------------------------------------------
+extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info)
+{
+    (void)info;
+    OH_LOG_INFO(LOG_APP, "M7 stage=begin");
+
+    void *handle = dlopen("libxray.so", RTLD_NOW);
+    if (handle == nullptr) {
+        std::string dir = OwnModuleDir();
+        std::string full = dir.empty() ? std::string("libxray.so") : (dir + "libxray.so");
+        handle = dlopen(full.c_str(), RTLD_NOW);
+    }
+    if (handle == nullptr) {
+        const char *e = dlerror();
+        OH_LOG_ERROR(LOG_APP, "M7 stage=dlopen FAILED %{public}s", e != nullptr ? e : "unknown");
+        return MakeString(env, std::string("M7 dlopen FAILED: ") + (e != nullptr ? e : "unknown"));
+    }
+
+    auto invoke = reinterpret_cast<CGoInvokeFn>(dlsym(handle, "CGoInvoke"));
+    auto freeFn = reinterpret_cast<CGoFreeXFn>(dlsym(handle, "CGoFree"));
+    if (invoke == nullptr) {
+        const char *e = dlerror();
+        dlclose(handle);
+        return MakeString(env, std::string("M7 dlsym CGoInvoke FAILED: ") + (e != nullptr ? e : "unknown"));
+    }
+
+    const std::string reqVersion =
+        "{\"apiVersion\":1,\"method\":\"xrayVersion\",\"payload\":{}}";
+    const std::string reqState =
+        "{\"apiVersion\":1,\"method\":\"getXrayState\",\"payload\":{}}";
+    // A method that does real work (binds a socket to find a free port) — used to show
+    // that the calls are not all trivially 0 ms and that xray-core code actually runs.
+    const std::string reqPorts =
+        "{\"apiVersion\":1,\"method\":\"getFreePorts\",\"payload\":{\"count\":1}}";
+
+    auto call = [&](const std::string &req, long long *elapsedMs) -> std::string {
+        auto t0 = std::chrono::steady_clock::now();
+        char *raw = invoke(const_cast<char *>(req.c_str()));
+        auto t1 = std::chrono::steady_clock::now();
+        *elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+        if (raw == nullptr) {
+            return std::string("<NULL>");
+        }
+        std::string out(raw);
+        if (freeFn != nullptr) {
+            freeFn(raw);
+        }
+        return out;
+    };
+
+    long long msVersion = -1;
+    long long msState = -1;
+    long long msPorts = -1;
+    std::string versionResp = call(reqVersion, &msVersion);
+    std::string stateResp = call(reqState, &msState);
+    std::string portsResp = call(reqPorts, &msPorts);
+
+    if (freeFn != nullptr) {
+        dlclose(handle);
+    } else {
+        dlclose(handle);
+    }
+
+    std::string combined = "[version_ms=" + std::to_string(msVersion) +
+                           "][state_ms=" + std::to_string(msState) +
+                           "][ports_ms=" + std::to_string(msPorts) + "] " +
+                           "version=" + versionResp + " state=" + stateResp +
+                           " ports=" + portsResp;
+    OH_LOG_INFO(LOG_APP, "M7 stage=done %{public}s", combined.c_str());
+    return MakeString(env, combined);
+}

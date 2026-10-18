@@ -10,6 +10,8 @@ extern "C" int prebuilt_add(int a, int b);
 extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info);
 // M6: implemented in cgo_bridge.cpp (dlopen libxray.so + dlsym CGoInvoke).
 extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info);
+// M7: real libXray methods (xrayVersion / getXrayState) — proves xray-core is initialised.
+extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -45,6 +47,7 @@ napi_value Init(napi_env env, napi_value exports)
         {"prebuiltAdd", nullptr, PrebuiltAdd, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m5CGoPing", nullptr, M5CGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m6CGoInvoke", nullptr, M6CGoInvoke, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m7CGoVersion", nullptr, M7CGoVersion, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

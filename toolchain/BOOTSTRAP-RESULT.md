@@ -381,3 +381,52 @@ I A00001/XVPN_POC: M6 result=[elapsed_ms=0] {"success":false,"data":null,"error"
 - 本次证据来自 **x86_64 模拟器**：证明「**Xray 内核可被 OHOS 应用加载并响应 `CGoInvoke`**」。
 - **仍未验证**：arm64 真机加载、真实节点出站、tun 数据面（属 `J-01` 范围）。
 - 故 `P-02` 记为**核心证据成立、真机部分待验**；**不能**据此宣布「可以代理上网」。
+
+### 9. M7（补测）：调用真实方法，证明 xray-core 已初始化并可服务
+
+M6 的 `unknown method` 只证明**分发层**被执行（且 `elapsed_ms=0` 说明未进入内核逻辑）。因此补测三个**真实存在**的方法：
+
+请求：`{"apiVersion":1,"method":"xrayVersion"}` / `"getXrayState"` / `"getFreePorts","payload":{"count":1}`
+
+实跑结果（hilog 原文）：
+
+```
+I A00001/XVPN_POC: M7 clicked
+I A00001/XVPN_POC: M7 result=[version_ms=0][state_ms=0][ports_ms=1]
+  version={"success":true,"data":{"version":"26.7.28"},"error":""}
+  state={"success":true,"data":{"running":false},"error":""}
+  ports={"success":true,"data":{"ports":[41861]},"error":""}
+```
+
+判定（按 Leader 给的判据表）：
+
+| 结果 | 含义 | 本次 |
+|---|---|---|
+| `success:true` 且有真实数据 | **xray-core 真的被初始化并可服务** | ✅ **版本 `26.7.28` + 空闲端口 `41861`** |
+| `getFreePorts` 返回端口 | 内核侧**实际执行了 socket 绑定**（不是常量返回） | ✅ 耗时 1 ms |
+| `getXrayState` | `running:false` = 尚未启动实例（预期，本步不启动内核） | ✅ |
+
+**⇒ P-02 完整成立**：`.so` 加载 → Go runtime 初始化 → libXray 逻辑执行 → xray-core 被调用并返回真实数据。
+
+**关于 `version_ms=0` / `state_ms=0` 的说明（不是计时错误）**：这三个方法里前两个是**常量/标志位读取**（`XrayVersion()` 返回编译期版本号、`GetXrayState()` 读一个 bool），耗时低于 1 ms 计时精度；只有 `getFreePorts` 做真实 socket 绑定，测到 **1 ms**。真正的「内核实例化」发生在 `runXray` / `runXrayFromJson`，本步**刻意不调用**（无节点、无配置，属 `J-01` 范围）。
+
+### 10. 体积事实（产品化门槛，非优化项）
+
+| 项 | 值 |
+|---|---|
+| `libxray.so`（未 strip） | **71,317,112 B**（≈68 MiB） |
+| `libxray.so`（HAP 内，hvigor strip 后） | **38,069,288 B**（≈36.3 MiB） |
+| HAP 总大小 | **42,421,112 B**（≈40.5 MiB） |
+
+- 单是内核就占了 HAP 的 **~90%**；对移动应用是硬门槛。
+- 可能的裁剪方向（**尚未验证，不写结论**）：①只 import 需要的协议/传输（不用 `main/distro/all` 的全量注册）；②`-ldflags="-s -w"` 进一步去符号/调试信息；③裁掉未使用的 DNS/geodata 相关包。**任何裁剪都必须重跑本节的验证，否则产物不再代表 Xray 的真实能力。**
+
+### 11. 由「链接图才能进包」推导出的版本策略后果（Leader 裁决）
+
+实测链条：
+1. hvigor **只打包参与 CMake 链接图的 `.so`**（未链接时即使放在 `libs/<abi>/` 也不进 HAP）；
+2. 一旦进链接图，它就成为 `libentry.so` 的 `DT_NEEDED` ⇒ **启动时即被加载**，无法懒加载；
+3. 应用私有目录的 `.so` 不可 `dlopen`（见 M5 规则 B-2）。
+
+⇒ **「包内 A/B 双内核版本」方案不成立**：两个版本都进链接图 = 两份都随启动加载（38 MB × 2 常驻映射），用确定的内存开销换很小的回滚灵活性，不划算。
+**结论（Leader 2026-10-18 裁决）：改为「单一内核版本 + 应用商店版本回滚」**，`D-18` 的 A/B 双版本作废；内核安全更新时效 = 商店发版时效。

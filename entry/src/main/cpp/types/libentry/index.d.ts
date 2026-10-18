@@ -5,3 +5,5 @@ export const prebuiltAdd: (a: number, b: number) => number;
 export const m5CGoPing: (soPath?: string) => string;
 // M6 / P-02: dlopen libxray.so and call CGoInvoke with a deliberately invalid method.
 export const m6CGoInvoke: () => string;
+// M7 / P-02: call real libXray methods (xrayVersion / getXrayState).
+export const m7CGoVersion: () => string;

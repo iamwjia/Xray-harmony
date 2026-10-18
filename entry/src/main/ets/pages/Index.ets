@@ -18,6 +18,7 @@ struct Index {
   @State m4Result: string = '(M4 not run)';
   @State m5Result: string = '(M5 not run)';
   @State m6Result: string = '(M6 not run)';
+  @State m7Result: string = '(M7 not run)';
 
   // 启动即探测：无需点击即可区分「API 不存在 / 调用悬挂 / 调用被拒」
   aboutToAppear(): void {
@@ -126,6 +127,21 @@ struct Index {
     }
   }
 
+  // M7 / P-02 收口：调用 libXray 的真实方法（xrayVersion / getXrayState）。
+  // 只有拿到 success:true 才能说「xray-core 已初始化并可服务」；unknown method 只证明分发层通。
+  private runM7(): void {
+    hilog.info(DOMAIN, TAG, 'M7 clicked');
+    try {
+      const ret: string = nativeEntry.m7CGoVersion();
+      this.m7Result = ret;
+      hilog.info(DOMAIN, TAG, 'M7 result=%{public}s', ret);
+    } catch (e) {
+      const err = e as BusinessError;
+      this.m7Result = `M7 failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'M7 failed code=%{public}d msg=%{public}s', err.code, err.message);
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('xray-harmony PoC skeleton').fontSize(20).fontWeight(FontWeight.Bold)
@@ -144,6 +160,9 @@ struct Index {
 
       Button('M6: load libxray + CGoInvoke').onClick(() => this.runM6()).width('90%')
       Text(this.m6Result).fontSize(14)
+
+      Button('M7: libxray xrayVersion').onClick(() => this.runM7()).width('90%')
+      Text(this.m7Result).fontSize(14)
     }
     .width('100%')
     .padding(16)
