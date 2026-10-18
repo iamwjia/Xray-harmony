@@ -207,7 +207,7 @@ export class KernelService {
 
     // 超时归因：区分「内核没响应」与「内核在但没进 running」
     if (lastProbeError.length > 0) {
-      Logger.error(`kernel probe failed during start: ${lastProbeError}`);
+      Logger.sensitiveError(`kernel probe failed during start: ${KernelService.truncate(lastProbeError, 400)}`);
       throw new KernelError('内核未响应（启动后无法确认运行状态）', lastProbeError);
     }
     throw new KernelError(

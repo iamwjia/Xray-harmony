@@ -181,7 +181,7 @@ export class ConfigService {
    * 添加节点（分享链接导入后调用）。按 protocol + address + port 去重。
    * 若当前无选中节点，则自动选中所添加的节点。
    */
-  addNode(node: XrayNode): boolean {
+  private addNode(node: XrayNode): boolean {
     const cfg = this.config;
     for (let i = 0; i < cfg.nodes.length; i++) {
       const n = cfg.nodes[i];

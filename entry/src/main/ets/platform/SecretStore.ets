@@ -59,14 +59,16 @@ export class SecretStore {
       }
       if (hex === 'e3b0c44298fc1c14') {
         // SHA-256("") 的前 8 字节：出现它说明输入是空的，别名会全节点碰撞
-        Logger.error('secretStore: hash input was empty (alias would collide); falling back to raw id');
-        return v;
+        Logger.error('secretStore: hash input was empty (alias would collide); using prefixed raw alias');
+        return `raw:${v}`;
       }
       return hex;
     } catch (e) {
       const msg: string = e instanceof Error ? e.message : String(e);
-      Logger.error(`secretStore: hash failed, falling back to raw alias: ${msg}`);
-      return v;
+      // 兜底也要带前缀：直接返回 v 会退回旧别名 `node:<host:port>` 的形态，
+      // 而 resolveCredential 先查哈希别名、命中即返回，re-key 永远走不到 —— 这个退回是永久的。
+      Logger.error(`secretStore: hash failed, using prefixed raw alias: ${msg}`);
+      return `raw:${v}`;
     }
   }
 

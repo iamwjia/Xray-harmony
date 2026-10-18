@@ -125,7 +125,7 @@ struct DevPanel {
     try {
       const ret: string = nativeEntry.m6CGoInvoke();
       this.m6Result = ret;
-      hilog.info(DOMAIN, TAG, 'M6 result=%{public}s', ret);
+      hilog.info(DOMAIN, TAG, 'M6 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
       this.m6Result = `M6 failed: ${err.code} ${err.message}`;
@@ -138,7 +138,7 @@ struct DevPanel {
     try {
       const ret: string = nativeEntry.m7CGoVersion();
       this.m7Result = ret;
-      hilog.info(DOMAIN, TAG, 'M7 result=%{public}s', ret);
+      hilog.info(DOMAIN, TAG, 'M7 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
       this.m7Result = `M7 failed: ${err.code} ${err.message}`;
@@ -146,11 +146,23 @@ struct DevPanel {
     }
   }
 
+  /**
+   * 面板展示用的脱敏：把 UUID 形态的串替换成占位，并截断。
+   * 探针返回的是内核原文，面板直接显示等于把配置片段摊在屏幕上。
+   */
+  private maskSensitive(raw: string): string {
+    const masked: string = raw.replace(
+      /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g,
+      '****-****-****');
+    return masked.length <= 300 ? masked : `${masked.substring(0, 300)}…(truncated)`;
+  }
+
   private runM8(): void {
     hilog.info(DOMAIN, TAG, 'M8 clicked');
     try {
       const ret: string = nativeEntry.m9ProxyProbe();
-      this.m8Result = ret;
+      // UI 也不能显示内核原文：原文可能含配置片段，而配置里有节点凭据
+      this.m8Result = this.maskSensitive(ret);
       // 内核原始响应不可控（可能回显配置片段），日志走 private + 长度，避免整段落进公共日志
       hilog.info(DOMAIN, TAG, 'M8 result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
