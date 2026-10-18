@@ -196,6 +196,7 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | FR-37 | 规则命中可解释（连接到命中规则的可视映射） | A | P1 | V1 | R3 §8.3 |
 | FR-38 | 高级字段三层能力（白名单可编辑 / 生成结果只读 / JSON 仅导入转换） | 共用 | P1 | V1 | R3 §8.2；leader 裁决 |
 | FR-39 | 接管面配置变更必须断连并提前告知 | A | P0 | MVP | R3 §9 K12；leader 裁决 |
+| FR-40 | `startVpnExtensionAbility` 超时兜底（5~10s 未 settle 即提示 + 重试，禁止无限等待） | A | P0 | MVP | **实测回写 2026-10-18**：Promise 可永久悬挂（`poc/PC6-skeleton-build-log.md` §11.5） |
 
 ### 4.3 配置与节点管理（FR-01 ~ FR-05）
 
@@ -311,6 +312,14 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 - Given 多 VPN 能力（API 20+ `generateVpnId`）
   When 评估本需求
   Then **不**视为冲突问题已解决（其可用性与准入限制属【待验证】，VQ-23），本需求仍按单 VPN 槽位设计
+
+**FR-40 `startVpnExtensionAbility` 必须有时限兜底（不许无限等待）** ｜ A ｜ **P0** ｜ **实测回写 2026-10-18**
+- 依据（实测）：`startVpnExtensionAbility` 返回的 Promise 可**永久悬挂**——既不 resolve 也不 reject（模拟器实测：6s 探针仍为 `M4PROBE pending-after-6s (no resolve/reject within 6s)`；系统侧因镜像缺 `com.huawei.hmos.vpndialog` 而中断，且**未回传任何错误**）。详见 `poc/PC6-skeleton-build-log.md` §11.5。
+- Given 用户点击"连接"且已发起 `startVpnExtensionAbility`
+  When **5~10 秒**内该 Promise 仍未 settle（无 resolve / 无 reject）
+  Then 必须主动超时，给出可执行提示「**未能启动 VPN（可能缺少系统组件或未授权）**」并提供「重试」入口；**不得让 UI 停留在"未初始化 / 转圈"等无终态**
+- 禁止项：以"API 无回调"为由无限等待；把超时静默吞掉只打日志。
+- 与兜底的关系：本条是 **fail-closed 在"启动阶段"的落地**（`NFR-11`），不是可选优化；对应设计落点见 `design.md` §7 降级矩阵 **E22**。
 
 ### 4.6 三条红线与生命周期诚实性（FR-13 ~ FR-17）
 
@@ -698,6 +707,10 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | T-13 | VPN 扩展进程内禁止引用 contact/geolocation/audio/camera/telephony | R2 §3.2 | 实现红线提示（不构成 FR） | 扩展内不可用这些 Kit，日志与上报改走 hilog/IPC |
 | T-14 | VPN 路由只能一次性下发，无增量接口 | R3 K12 | 分流全部放内核规则，不依赖运行期路由变更 | 系统层无法做细粒度路由调整 |
 | T-15 | 中继架构必然开本地入站端口 | R3 K6 | 新增 FR-35（回环绑定+随机端口+可选鉴权） | 需额外实现鉴权与端口管理 |
+| T-16 | 内核 `.so` 只能随包分发（应用私有目录不可 `dlopen`，实测 `No error information`） | **实测回写 2026-10-18**；D1 `D-18` 修订 | 内核版本与 App 版本**绑定**，不做运行时热更新（`FR-31` 能力声明按 App 版本走） | 内核安全更新时效 = 应用商店发版时效，无独立更新通道 |
+| T-17 | `startVpnExtensionAbility` 的 Promise 可能**不 settle**（系统中断时不回错误） | **实测回写 2026-10-18**；`poc/PC6-skeleton-build-log.md` §11.5 | 新增 **FR-40**：5~10s 未 settle 即超时提示 + 重试 | 用户可能看到"未能启动 VPN"提示（而真因可能只是环境缺组件） |
+
+> **开发期事实（不影响产品需求，仅影响调试链路）**：**未签名 HAP 在模拟器（开发者模式，API 26）上可直接安装并启动**（`install bundle successfully`），与早期"未签名包必装不上"的假设不同；**真机是否同样宽松【待真机验证】**（真机通常强制签名）。故"签名"是**调试前置**而非产品需求，不进 FR/NFR。
 
 ---
 
@@ -856,6 +869,8 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 | 「分应用可勾选已安装应用」 | 三方**无法枚举**已安装应用，改为预置表 + 搜索 + 手输 | R2 §9.5 |
 | 「已安装应用枚举能力待查」 | 结论：**④ 不可用** | R2 §9.5（P-18） |
 | 「PC 清单：VPN 活跃期进程不被冻结」 | 长时任务类型表**无 vpn 类型**；保活须借用类型（语义匹配风险由 P-07 判定） | R2 §4.2 |
+| 「`runtime.GOOS` 可用来判断是否在用 OHOS fork」 | **不可**：fork 对 `runtime.GOOS` **恒上报 `linux`**（Go 源码 `src/internal/goos/gengoos.go` 中 openharmony 分支显式写入 `const GOOS = "linux"`）。唯一判别手段是 **`//go:build openharmony` 编译标签探针**（探针返回值含 `buildtag`） | **实测回写 2026-10-18**；`toolchain/BOOTSTRAP-RESULT.md` §M5 规则 A、`toolchain/smoke/tag_openharmony.go` |
+| 「未签名的 HAP 一定装不上（签名是安装硬前置）」 | **模拟器（开发者模式 / API 26）上未签名 HAP 可直接安装并启动**（`install bundle successfully`）；**真机是否同样宽松【待真机验证】**，真机通常强制签名 → 签名属**调试前置**，不构成产品需求 | **实测回写 2026-10-18**；`poc/PC6-skeleton-build-log.md` §11.1 |
 
 ### 12.4 与三份调研的对应关系
 
@@ -867,4 +882,12 @@ G0 = 「**P-01 技术结论 × 分发策略**」二维判定。表内不设"假�
 ---
 
 *文档结束。R3 的「差异化机会」已在 §1.1 与 §7 U-5 引用；若 R3 后续更新（v0.2 补正【未核实】单元格），本文件只在 §1.1 与 §7 U-5 两处同步，不改 FR 结论。*
+
+---
+
+### 12.5 修订记录
+
+| 日期 | 改了什么 | 依据（实测） |
+|---|---|---|
+| 2026-10-18 | ① §4.2 新增 **FR-40**（`startVpnExtensionAbility` 超时兜底，P0），§4.5 末尾补其验收条文；② §6 新增 **T-16 / T-17** 两条平台约束（内核 `.so` 只能随包分发；启动 API 可能不 settle）并补"开发期签名事实"说明；③ §12.3 结论演进表新增两条（`runtime.GOOS` 不可判 fork；未签名包在模拟器可装） | ① 启动 API 的 Promise 永久悬挂：`poc/PC6-skeleton-build-log.md` §11.4/§11.5（`M4PROBE pending-after-6s`，根因镜像缺 `com.huawei.hmos.vpndialog`）；② 私有目录 `.so` 不可 `dlopen`：`toolchain/BOOTSTRAP-RESULT.md`「规则 B」；③ `runtime.GOOS` 恒 `linux`：同上「规则 A」+ `toolchain/smoke/tag_openharmony.go`；④ 未签名可装：`poc/PC6-skeleton-build-log.md` §11.1（`install bundle successfully`） |
 

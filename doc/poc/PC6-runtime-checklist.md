@@ -19,7 +19,7 @@ $hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-defau
 | 设备 API = 26 | `& $hdc shell param get const.ohos.apiversion` | `26` | 非 26 → 记录实际值后**停止**（本工程 `compatibleSdkVersion=26.0.0`，低版本装不上） |
 | 系统版本（记录用） | `& $hdc shell param get const.ohos.fullname` | 形如 `HarmonyOS x.y.z` | 仅记录 |
 | 现有版本（如有旧包） | `& $hdc shell bm dump -n com.example.xraypoc` | 有 `versionName` 输出 = 已装 | 空 = 未装，正常 |
-| 签名状态 | 当前产物是 `*-unsigned.hap` | — | **未签名包 `hdc install` 预期失败**；先按 §2 试，失败则 **【需人工】DevEco 登录华为账号 → Signing Configs → 自动签名** 后重新构建出 `*-signed.hap` |
+| 签名状态 | 当前产物是 `*-unsigned.hap` | — | ~~**未签名包 `hdc install` 预期失败**~~ **（superseded，实测回写 2026-10-18）**：模拟器（开发者模式 / API 26）上**未签名 HAP 可直接安装并启动**（`install bundle successfully`）→ 先按本节直接 `install` 试；**真机**仍需签名（真机通常强制校验，【待真机验证】具体报错码） |
 
 > 签名失败的预期形态：`hdc install` 报签名校验类错误（`signature verification failed` / `code:9568xxx` 一类）。**【待真机验证】具体错误码与文本**——请把原文抄进 §4 记录表，不要改写成"配置问题"。
 
@@ -81,6 +81,9 @@ $hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-defau
 & $hdc hilog -T XVPN_POC
 ```
 
+> **`hdc hilog` 是流式的**（实测回写 2026-10-18）：只输出**从此刻起**的新日志，**不打印历史缓冲**。要看**已经发生**的日志（崩溃前、启动前），用 **`hdc shell hilog -x`** 导出缓冲。
+> 典型误判：先操作、再开 `hdc hilog` → 看不到刚发生的关键行，误判为"没打日志 / 没执行"。正确姿势：**先开流式 log + 再操作**，或**事后用 `hilog -x` 取缓冲**。
+
 | 现象 | 结论 | 查什么 |
 |---|---|---|
 | 无 `XVPN_BOOT` | 应用没起来 / 装的是旧包 | §1 `bm dump` 的 `versionName`；重跑 §2.6 |
@@ -93,6 +96,11 @@ $hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-defau
 ---
 
 ## 4. M4 观察表（最重要，逐项可记）
+
+> ⛔ **执行纪律（实测回写 2026-10-18）：模拟器上只跑 M1 / M2 / M3；M4 一律等真机。**
+> 依据：模拟器镜像**缺系统组件 `com.huawei.hmos.vpndialog`**（VPN 授权对话框应用），系统日志链为 `ServiceExt → BMSCommon: bundle not exist → AMS: failed → BMSQuery: no match → 拉起失败 → 我方 Promise 不回调`。故 M4 在模拟器上**必然**停在"无回调"，重试/重装/改代码都不会变好。
+> 定性：**环境缺失，不是"平台不支持 `VpnExtensionAbility`"**；模拟器结果只能记「无法判定」。
+> 依据详见 `PC6-skeleton-build-log.md` §11.4 / §11.5。
 
 > **纪律**：模拟器与真机**各记一张表，不得合并**；模拟器上的负结论**不得**写成"平台不支持"（可能是环境不足），一律标【待真机验证】。
 > **构建期已确定**：`type:"vpn"` 在 SDK 26 上构建期通过（无需 patch），本项若再次报错才需记录。
@@ -162,3 +170,11 @@ $hap = 'D:\projects\xray-harmony\entry\build\default\outputs\default\entry-defau
 ---
 
 *本清单只索引"设备到位后的下一步动作"；平台事实与判据边界见 `PC0-skeleton-on-emulator.md` §6/§9 与 `PC4-device-and-observation.md`。所有【待真机验证】项须以真机实测回填。*
+
+---
+
+## 7. 修订记录
+
+| 日期 | 改了什么 | 依据（实测） |
+|---|---|---|
+| 2026-10-18 | ① §1「签名状态」行：未签名包在**模拟器**上可直接安装（原「预期失败」标 `superseded`）；真机仍需签名【待真机验证】；② §3 补 **`hdc hilog` 是流式 / 看历史缓冲用 `hdc shell hilog -x`**；③ §4 M4 段：补**根因**（镜像缺 `com.huawei.hmos.vpndialog`，系统日志 `bundle not exist → failed → Promise 不回调`）+ **「模拟器只跑 M1/M2/M3；M4 一律等真机」执行纪律** | `PC6-skeleton-build-log.md` §11.1（`install bundle successfully`）、§11.4（`M4PROBE pending-after-6s`）、§11.5（根因日志链与 `hilog -x` 采集） |
