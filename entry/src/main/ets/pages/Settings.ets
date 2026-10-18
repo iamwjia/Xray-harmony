@@ -12,6 +12,8 @@ import { RoutingMode } from '../model/AppConfig';
 struct Settings {
   @State logLevel: string = 'INFO';
   @State routingMode: RoutingMode = RoutingMode.RULE;
+  /** 设置写盘失败提示（FR-44：不允许"看着改了其实没存"） */
+  @State persistError: string = '';
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -23,13 +25,16 @@ struct Settings {
   }
 
   private setRouting(mode: RoutingMode): void {
-    this.cfg.setRoutingMode(mode);
-    this.routingMode = mode;
+    const ok: boolean = this.cfg.setRoutingMode(mode);
+    // 写盘失败时 ConfigService 已把内存值回滚，这里必须读回真实值，否则 UI 会显示"改了但没存"
+    this.routingMode = this.cfg.getConfig().settings.routingMode;
+    this.persistError = ok ? '' : this.cfg.getPersistError();
   }
 
   private setLevel(v: string): void {
-    this.cfg.setLogLevel(v);
-    this.logLevel = v;
+    const ok: boolean = this.cfg.setLogLevel(v);
+    this.logLevel = this.cfg.getLogLevel();
+    this.persistError = ok ? '' : this.cfg.getPersistError();
   }
 
   build() {
@@ -42,6 +47,17 @@ struct Settings {
         Text('设置').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
       }
       .width('100%')
+
+      // 设置写盘失败横幅：必须可见，否则用户会以为设置已生效
+      if (this.persistError.length > 0) {
+        Text(this.persistError)
+          .fontSize(12)
+          .fontColor('#8D6E63')
+          .width('100%')
+          .padding(10)
+          .backgroundColor('#FFF3E0')
+          .borderRadius(8)
+      }
 
       Column({ space: 8 }) {
         Text('日志级别').fontSize(14).fontWeight(FontWeight.Medium)

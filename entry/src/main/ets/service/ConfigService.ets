@@ -26,6 +26,8 @@ export class ConfigService {
   private rawTextOnLoadFailure: string = '';
   /** 用户是否已确认"允许用当前内存配置覆盖原数据" */
   private overwriteConfirmed: boolean = false;
+  /** 上次设置写盘失败的原因（空串 = 没有失败），供 UI 横幅使用 */
+  private persistError: string = '';
 
   private constructor() {
     this.config = createDefaultConfig();
@@ -80,10 +82,21 @@ export class ConfigService {
   private persistSettings(): boolean {
     if (!this.canPersist()) {
       Logger.error('settings save blocked: config load failed and overwrite not confirmed');
+      this.persistError = '配置读取异常，已禁止写入（避免覆盖原数据）';
       return false;
     }
     const s: AppSettings = this.config.settings;
-    return SettingsStore.save(s.routingMode as string, s.logLevel, s.onboardingDone);
+    const ok: boolean = SettingsStore.save(s.routingMode as string, s.logLevel, s.onboardingDone);
+    this.persistError = ok ? '' : '设置保存失败，已恢复原值（详见日志）';
+    return ok;
+  }
+
+  /**
+   * 上次设置写盘失败的原因（UI 横幅用）。
+   * 空串表示没有失败。FR-44：写失败**必须可见**，不允许"看着改了其实没存"。
+   */
+  getPersistError(): string {
+    return this.persistError;
   }
 
   getRoutingMode(): RoutingMode {
@@ -176,16 +189,33 @@ export class ConfigService {
     Logger.info(`addNode ok: ${node.protocol}@${node.address}:${node.port} total=${cfg.nodes.length}`);
     return true;
   }
-  /** 设置分流模式（全局 / 规则 / 直连） */
-  setRoutingMode(mode: RoutingMode): void {
+  /**
+   * 设置分流模式（全局 / 规则 / 直连）。
+   * 返回 false 表示**未保存成功**：此时内存值已回滚，UI 必须据此提示（FR-44）。
+   */
+  setRoutingMode(mode: RoutingMode): boolean {
+    const prev: RoutingMode = this.config.settings.routingMode;
     this.config.settings.routingMode = mode;
+    if (!this.persistSettings()) {
+      this.config.settings.routingMode = prev;
+      Logger.error(`routingMode set failed, rolled back to ${prev as string}`);
+      return false;
+    }
     Logger.info(`routingMode -> ${mode}`);
-    this.persistSettings();
+    return true;
   }
-  setLogLevel(level: string): void {
+
+  /** 设置日志级别；返回 false 表示未保存成功且已回滚（FR-44） */
+  setLogLevel(level: string): boolean {
+    const prev: string = this.config.settings.logLevel;
     this.config.settings.logLevel = level;
+    if (!this.persistSettings()) {
+      this.config.settings.logLevel = prev;
+      Logger.error(`logLevel set failed, rolled back to ${prev}`);
+      return false;
+    }
     Logger.info(`logLevel -> ${level}`);
-    this.persistSettings();
+    return true;
   }
 
   getLogLevel(): string {
