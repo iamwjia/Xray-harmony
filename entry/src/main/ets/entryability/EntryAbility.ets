@@ -5,8 +5,8 @@ import { ConfigService } from '../service/ConfigService';
 import { GeoAssets } from '../service/GeoAssets';
 import nativeEntry from 'libentry.so';
 
-/** E15 Step 1：启动时从应用进程发一次 TCP+HTTP 到宿主（诊断用，默认关闭）。 */
-const E15_PROBE_ON_BOOT: boolean = false;
+/** 启动时从应用进程发一次 TCP+HTTP 到宿主（诊断用，默认关闭）。 */
+const HOST_PROBE_ON_BOOT: boolean = false;
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_BOOT';
@@ -33,14 +33,14 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, TAG, 'geo assets at startup failed: %{private}s', msg);
     });
 
-    if (E15_PROBE_ON_BOOT) {
+    if (HOST_PROBE_ON_BOOT) {
       // ICMP 通不代表 TCP 端口通；这里做真正的 connect + HTTP GET
       try {
-        const r10: string = nativeEntry.m10HostProbe('10.0.2.2', 8000, '/probe.txt');
-        hilog.info(DOMAIN, TAG, 'E15 host probe: %{public}s', r10);
+        const r10: string = nativeEntry.probeHostHttp('10.0.2.2', 8000, '/probe.txt');
+        hilog.info(DOMAIN, TAG, 'host probe: %{public}s', r10);
       } catch (e) {
         const msg: string = e instanceof Error ? e.message : String(e);
-        hilog.error(DOMAIN, TAG, 'E15 host probe threw: %{private}s', msg);
+        hilog.error(DOMAIN, TAG, 'host probe threw: %{private}s', msg);
       }
     }
   }

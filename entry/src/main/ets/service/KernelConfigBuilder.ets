@@ -20,7 +20,7 @@ export class KernelConfigBuilder {
 
   /**
    * 本地 SOCKS 入站。
-   * 传了口令就启用 password 鉴权（FR-35）：loopback 在同设备内是共享的，
+   * 传了口令就启用 password 鉴权：loopback 在同设备内是共享的，
    * 无鉴权等于给本机所有应用开了一个走用户节点的出网口。
    */
   private static buildInbound(socksPort: number, socksUser: string, socksPass: string): string {

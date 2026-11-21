@@ -4,7 +4,7 @@ import { Logger } from '../platform/Logger';
 /**
  * service/KernelService.ets — 内核驱动服务（应用服务层）
  *
- * 职责：把 native 的通用桥 `m8Invoke(method, payloadJSON)` 包成有类型的三个动作：
+ * 职责：把 native 的通用桥 `invokeKernel(method, payloadJSON)` 包成有类型的三个动作：
  *   - start(configJson)：runXrayFromJson
  *   - stop()：stopXray
  *   - probeState()：getXrayState
@@ -12,7 +12,7 @@ import { Logger } from '../platform/Logger';
  * 三条约束（本任务 E14 的核心）：
  *   1. **错误归一化**：内核返回的 `{"success":false,"error":"..."}` 必须转成人话再交给 UI，
  *      但**原始 error 必须进日志**（便于排查），不允许丢掉原文；
- *   2. **超时兜底**：启动 API 可能不 settle（FR-40），所有等待必须有上限，绝不无限挂起；
+ *   2. **超时兜底**：启动 API 可能不 settle，所有等待必须有上限，绝不无限挂起；
  *   3. **不猜状态**：连接成功与否以 `getXrayState.running` 为准，不以 `start()` 返回为准。
  */
 
@@ -62,7 +62,7 @@ export class KernelService {
   private static instance: KernelService | null = null;
 
   /**
-   * 超时上限（FR-40：启动/停止 API 可能不 settle，任何等待都必须有上限）。
+   * 超时上限（启动/停止 API 可能不 settle，任何等待都必须有上限）。
    *
    * 8000ms 的依据：内核是**同进程加载 38MB .so**，模拟器实测冷启到 running 约 1~1.5s；
    * 给 6 倍余量以覆盖低端机首次解压与 IO 抖动，同时不超过 10s（超过这个长度用户会
@@ -90,7 +90,7 @@ export class KernelService {
   private debugInvalidConfig: boolean = false;
 
   private invoke(method: string, payloadJson: string): string {
-    return stripPrefix(nativeEntry.m8Invoke(method, payloadJson));
+    return stripPrefix(nativeEntry.invokeKernel(method, payloadJson));
   }
 
   private parse(raw: string): RawInvokeResp {

@@ -6,23 +6,23 @@
 // Declared in the prebuilt shared library (libprebuilt.so, source: cpp/prebuilt/prebuilt.c)
 extern "C" int prebuilt_add(int a, int b);
 
-// M5: implemented in cgo_bridge.cpp (dlopen libcgoping.so + dlsym CGoPing).
-extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info);
-// M6: implemented in cgo_bridge.cpp (dlopen libxray.so + dlsym CGoInvoke).
-extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info);
+// implemented in cgo_bridge.cpp (dlopen libcgoping.so + dlsym CGoPing).
+extern "C" napi_value ProbeGoPing(napi_env env, napi_callback_info info);
+// implemented in cgo_bridge.cpp (dlopen libxray.so + dlsym CGoInvoke).
+extern "C" napi_value ProbeGoInvoke(napi_env env, napi_callback_info info);
 // M7: real libXray methods (xrayVersion / getXrayState) — proves xray-core is initialised.
-extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info);
-// M8: generic CGoInvoke bridge (method + payload JSON from ArkTS).
-extern "C" napi_value M8Invoke(napi_env env, napi_callback_info info);
-// M9: start SOCKS inbound + freedom outbound, request through it, compare exit IP.
-extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info);
+extern "C" napi_value ProbeKernelVersion(napi_env env, napi_callback_info info);
+// Generic CGoInvoke bridge (method + payload JSON from ArkTS).
+extern "C" napi_value InvokeKernel(napi_env env, napi_callback_info info);
+// Start SOCKS inbound + freedom outbound, request through it, compare exit IP.
+extern "C" napi_value ProbeSocksForward(napi_env env, napi_callback_info info);
 // geo: point xray-core at the directory holding geoip.dat / geosite.dat.
 // Must be called before runXrayFromJson (rules are parsed at instance creation).
 extern "C" napi_value SetAssetPath(napi_env env, napi_callback_info info);
-// M10: TCP connect + HTTP GET from inside the app process (E15 step 1 reachability).
-extern "C" napi_value M10HostProbe(napi_env env, napi_callback_info info);
-// M11: SOCKS5 with username/password -> HTTP GET (E15 step 2 end-to-end probe).
-extern "C" napi_value M11SocksProbe(napi_env env, napi_callback_info info);
+// TCP connect + HTTP GET from inside the app process (host reachability).
+extern "C" napi_value ProbeHostHttp(napi_env env, napi_callback_info info);
+// SOCKS5 with username/password -> HTTP GET (end-to-end probe).
+extern "C" napi_value ProbeSocksThroughKernel(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -56,14 +56,14 @@ napi_value Init(napi_env env, napi_value exports)
     napi_property_descriptor desc[] = {
         {"hello", nullptr, Hello, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"prebuiltAdd", nullptr, PrebuiltAdd, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m5CGoPing", nullptr, M5CGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m6CGoInvoke", nullptr, M6CGoInvoke, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m7CGoVersion", nullptr, M7CGoVersion, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m8Invoke", nullptr, M8Invoke, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m9ProxyProbe", nullptr, M9ProxyProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeGoPing", nullptr, ProbeGoPing, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeGoInvoke", nullptr, ProbeGoInvoke, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeKernelVersion", nullptr, ProbeKernelVersion, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"invokeKernel", nullptr, InvokeKernel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeSocksForward", nullptr, ProbeSocksForward, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setAssetPath", nullptr, SetAssetPath, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m10HostProbe", nullptr, M10HostProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"m11SocksProbe", nullptr, M11SocksProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeHostHttp", nullptr, ProbeHostHttp, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeSocksThroughKernel", nullptr, ProbeSocksThroughKernel, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

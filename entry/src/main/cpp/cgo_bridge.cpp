@@ -68,8 +68,8 @@ napi_value MakeString(napi_env env, const std::string &s)
 
 } // namespace
 
-// M5: dlopen libcgoping.so -> dlsym CGoPing -> call -> dlsym CGoFree -> free.
-extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info)
+// dlopen libcgoping.so -> dlsym CGoPing -> call -> dlsym CGoFree -> free.
+extern "C" napi_value ProbeGoPing(napi_env env, napi_callback_info info)
 {
     OH_LOG_INFO(LOG_APP, "M5 stage=begin");
 
@@ -174,7 +174,7 @@ extern "C" napi_value M5CGoPing(napi_env env, napi_callback_info info)
 using CGoInvokeFn = char *(*)(char *);
 using CGoFreeXFn = void (*)(char *);
 
-extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info)
+extern "C" napi_value ProbeGoInvoke(napi_env env, napi_callback_info info)
 {
     (void)info;
     OH_LOG_INFO(LOG_APP, "M6 stage=begin");
@@ -250,7 +250,7 @@ extern "C" napi_value M6CGoInvoke(napi_env env, napi_callback_info info)
 // actually initialised inside this process (not just the JSON dispatcher reached).
 // "getXrayState" additionally reports whether an instance is currently running.
 // ---------------------------------------------------------------------------
-extern "C" napi_value M7CGoVersion(napi_env env, napi_callback_info info)
+extern "C" napi_value ProbeKernelVersion(napi_env env, napi_callback_info info)
 {
     (void)info;
     OH_LOG_INFO(LOG_APP, "M7 stage=begin");
@@ -351,7 +351,7 @@ std::string GetStringArg(napi_env env, napi_value v)
 
 } // namespace
 
-extern "C" napi_value M8Invoke(napi_env env, napi_callback_info info)
+extern "C" napi_value InvokeKernel(napi_env env, napi_callback_info info)
 {
     size_t argc = 2;
     napi_value argv[2] = {nullptr, nullptr};
@@ -644,7 +644,7 @@ std::string TrimText(const std::string &s)
 
 } // namespace
 
-extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info)
+extern "C" napi_value ProbeSocksForward(napi_env env, napi_callback_info info)
 {
     (void)info;
     OH_LOG_INFO(LOG_APP, "M9 stage=begin");
@@ -734,14 +734,14 @@ extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info)
 }
 
 // ---------------------------------------------------------------------------
-// M10 / E15 step 1: can this process reach a host TCP port and complete HTTP?
+// Host reachability: can this process reach a host TCP port and complete HTTP?
 //
 // Why this exists: the emulator shell has ping/toybox but no curl/wget/nc, and an
 // ICMP reply says nothing about whether a TCP port accepts a connection.
 // "ping 10.0.2.2 works" is exactly how one ends up claiming "the emulator can
 // reach the host HTTP server" without ever having opened a socket.
 // ---------------------------------------------------------------------------
-extern "C" napi_value M10HostProbe(napi_env env, napi_callback_info info)
+extern "C" napi_value ProbeHostHttp(napi_env env, napi_callback_info info)
 {
     size_t argc = 3;
     napi_value argv[3] = {nullptr, nullptr, nullptr};
@@ -791,10 +791,10 @@ extern "C" napi_value M10HostProbe(napi_env env, napi_callback_info info)
 }
 
 // ---------------------------------------------------------------------------
-// M11 / E15 step 2: SOCKS5 **with username/password** -> HTTP GET.
+// SOCKS5 **with username/password** -> HTTP GET.
 //
 // M9's helper only speaks `noauth`, but the inbound now requires a password
-// (FR-35: loopback is shared across apps, so an unauthenticated local proxy is an
+// (loopback is shared across apps, so an unauthenticated local proxy is an
 // open relay). To prove the kernel actually forwards through the configured node,
 // the probe has to authenticate like a real client would.
 //
@@ -909,7 +909,7 @@ std::string Socks5HttpGetAuth(const std::string &socksHost, int socksPort,
 
 } // namespace
 
-extern "C" napi_value M11SocksProbe(napi_env env, napi_callback_info info)
+extern "C" napi_value ProbeSocksThroughKernel(napi_env env, napi_callback_info info)
 {
     size_t argc = 6;
     napi_value argv[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};

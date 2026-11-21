@@ -9,89 +9,90 @@ import { KernelService } from '../service/KernelService';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
-// 启动即自动探测 M4（无需点击）。默认关闭：真机上每次启动都会触发系统 VPN 授权流程，会被用户当成 bug。
-const AUTO_PROBE_M4: boolean = false;
+// 启动即自动探测 VPN 扩展（无需点击）。默认关闭：真机上每次启动都会触发系统 VPN 授权流程，会被用户当成 bug。
+const AUTO_PROBE_VPN: boolean = false;
 
 /**
  * pages/DevPanel.ets — 开发者面板（原 Index 的 PoC 探针，全部保留）
  *
- * 为什么保留：M2/M3/M5/M6/M7/M8 是目前**唯一**能直接验证「内核能否加载/驱动/转发」的手段。
+ * 为什么保留：这些探针是目前**唯一**能直接验证「内核能否加载/驱动/转发」的手段。
  * 主界面不再出现这些按钮，避免把手动探针当成产品功能。
  * 入口：首页底部「开发者面板（PoC 探针）」。
  */
 @Entry
 @Component
 struct DevPanel {
-  @State m2Result: string = '(M2 not run)';
-  @State m3Result: string = '(M3 not run)';
-  @State m4Result: string = '(M4 not run)';
-  @State m5Result: string = '(M5 not run)';
-  @State m6Result: string = '(M6 not run)';
-  @State m7Result: string = '(M7 not run)';
-  @State m8Result: string = '(M8 not run)';
-  @State m10Result: string = '(M10 not run)';
+  @State napiHelloResult: string = '(未运行)';
+  @State prebuiltAddResult: string = '(未运行)';
+  @State vpnExtResult: string = '(未运行)';
+  @State cgoPingResult: string = '(未运行)';
+  @State cgoInvokeResult: string = '(未运行)';
+  @State xrayVersionResult: string = '(未运行)';
+  @State socksProbeResult: string = '(未运行)';
+  @State hostProbeResult: string = '(未运行)';
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
   private kernelDebug: KernelService = KernelService.getInstance();
 
   aboutToAppear(): void {
-    if (AUTO_PROBE_M4) {
-      this.probeM4();
+    if (AUTO_PROBE_VPN) {
+      this.probeVpnExt();
     }
   }
 
-  private probeM4(): void {
+  private probeVpnExt(): void {
     try {
       const t: string = typeof vpnExtension.startVpnExtensionAbility;
-      hilog.info(DOMAIN, TAG, 'M4PROBE typeof=%{public}s', t);
+      hilog.info(DOMAIN, TAG, 'VPNPROBE typeof=%{public}s', t);
     } catch (e) {
       const err = e as BusinessError;
-      hilog.error(DOMAIN, TAG, 'M4PROBE typeof threw code=%{public}d msg=%{public}s', err.code, err.message);
+      hilog.error(DOMAIN, TAG, 'VPNPROBE typeof threw code=%{public}d msg=%{public}s', err.code, err.message);
     }
     const want: Want = {
       deviceId: '',
       bundleName: 'com.tunnelix.app',
       abilityName: 'MyVpnExtAbility',
     };
-    hilog.info(DOMAIN, TAG, 'M4PROBE invoking startVpnExtensionAbility');
+    hilog.info(DOMAIN, TAG, 'VPNPROBE invoking startVpnExtensionAbility');
     vpnExtension.startVpnExtensionAbility(want)
       .then(() => {
-        hilog.info(DOMAIN, TAG, 'M4PROBE resolved');
+        hilog.info(DOMAIN, TAG, 'VPNPROBE resolved');
       })
       .catch((err: BusinessError) => {
-        hilog.error(DOMAIN, TAG, 'M4PROBE rejected code=%{public}d msg=%{public}s', err.code, err.message);
+        hilog.error(DOMAIN, TAG, 'VPNPROBE rejected code=%{public}d msg=%{public}s', err.code, err.message);
       });
     setTimeout(() => {
-      hilog.info(DOMAIN, TAG, 'M4PROBE pending-after-6s (no resolve/reject within 6s)');
+      hilog.info(DOMAIN, TAG, 'VPNPROBE pending-after-6s (no resolve/reject within 6s)');
     }, 6000);
   }
 
-  private runM2(): void {
+  private runNapiHello(): void {
     try {
       const ret: string = nativeEntry.hello();
-      this.m2Result = ret;
-      hilog.info(DOMAIN, TAG, 'M2 hello=%{public}s', ret);
+      this.napiHelloResult = ret;
+      hilog.info(DOMAIN, TAG, 'napi hello=%{public}s', ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m2Result = `M2 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M2 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.napiHelloResult = `
+api failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'napi failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
-  private runM3(): void {
+  private runPrebuiltAdd(): void {
     try {
       const sum: number = nativeEntry.prebuiltAdd(1, 2);
-      this.m3Result = `prebuilt_add(1,2)=${sum}`;
-      hilog.info(DOMAIN, TAG, 'M3 prebuiltAdd result=%{public}d', sum);
+      this.prebuiltAddResult = `prebuilt_add(1,2)=${sum}`;
+      hilog.info(DOMAIN, TAG, 'prebuilt prebuiltAdd result=%{public}d', sum);
     } catch (e) {
       const err = e as BusinessError;
-      this.m3Result = `M3 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M3 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.prebuiltAddResult = `prebuilt failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'prebuilt failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
-  private runM4(): void {
-    hilog.info(DOMAIN, TAG, 'M4 clicked');
+  private runVpnExt(): void {
+    hilog.info(DOMAIN, TAG, 'vpnExt clicked');
     const want: Want = {
       deviceId: '',
       bundleName: 'com.tunnelix.app',
@@ -99,51 +100,51 @@ struct DevPanel {
     };
     vpnExtension.startVpnExtensionAbility(want)
       .then(() => {
-        this.m4Result = 'startVpnExtensionAbility: ok (check device log)';
-        hilog.info(DOMAIN, TAG, 'M4 start ok');
+        this.vpnExtResult = 'startVpnExtensionAbility: ok (check device log)';
+        hilog.info(DOMAIN, TAG, 'vpnExt start ok');
       })
       .catch((err: BusinessError) => {
-        this.m4Result = `start failed: ${err.code} ${err.message}`;
-        hilog.error(DOMAIN, TAG, 'M4 start failed code=%{public}d msg=%{public}s', err.code, err.message);
+        this.vpnExtResult = `start failed: ${err.code} ${err.message}`;
+        hilog.error(DOMAIN, TAG, 'vpnExt start failed code=%{public}d msg=%{public}s', err.code, err.message);
       });
   }
 
-  private runM5(): void {
-    hilog.info(DOMAIN, TAG, 'M5 clicked');
+  private runCGoPing(): void {
+    hilog.info(DOMAIN, TAG, 'cgoPing clicked');
     try {
-      const ret: string = nativeEntry.m5CGoPing();
-      this.m5Result = ret;
-      hilog.info(DOMAIN, TAG, 'M5 result=%{public}s', ret);
+      const ret: string = nativeEntry.probeGoPing();
+      this.cgoPingResult = ret;
+      hilog.info(DOMAIN, TAG, 'cgoPing result=%{public}s', ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m5Result = `M5 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M5 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.cgoPingResult = `cgoPing failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'cgoPing failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
-  private runM6(): void {
-    hilog.info(DOMAIN, TAG, 'M6 clicked');
+  private runCGoInvoke(): void {
+    hilog.info(DOMAIN, TAG, 'cgoInvoke clicked');
     try {
-      const ret: string = nativeEntry.m6CGoInvoke();
-      this.m6Result = this.maskSensitive(ret);
-      hilog.info(DOMAIN, TAG, 'M6 result(len=%{public}d)=%{private}s', ret.length, ret);
+      const ret: string = nativeEntry.probeGoInvoke();
+      this.cgoInvokeResult = this.maskSensitive(ret);
+      hilog.info(DOMAIN, TAG, 'cgoInvoke result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m6Result = `M6 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M6 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.cgoInvokeResult = `cgoInvoke failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'cgoInvoke failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
-  private runM7(): void {
-    hilog.info(DOMAIN, TAG, 'M7 clicked');
+  private runXrayVersion(): void {
+    hilog.info(DOMAIN, TAG, 'xrayVersion clicked');
     try {
-      const ret: string = nativeEntry.m7CGoVersion();
-      this.m7Result = this.maskSensitive(ret);
-      hilog.info(DOMAIN, TAG, 'M7 result(len=%{public}d)=%{private}s', ret.length, ret);
+      const ret: string = nativeEntry.probeKernelVersion();
+      this.xrayVersionResult = this.maskSensitive(ret);
+      hilog.info(DOMAIN, TAG, 'xrayVersion result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m7Result = `M7 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M7 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.xrayVersionResult = `xrayVersion failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'xrayVersion failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
@@ -171,18 +172,18 @@ struct DevPanel {
     return masked.length <= 300 ? masked : `${masked.substring(0, 300)}…(truncated)`;
   }
 
-  private runM8(): void {
-    hilog.info(DOMAIN, TAG, 'M8 clicked');
+  private runSocksProbe(): void {
+    hilog.info(DOMAIN, TAG, 'socksProbe clicked');
     try {
-      const ret: string = nativeEntry.m9ProxyProbe();
+      const ret: string = nativeEntry.probeSocksForward();
       // UI 也不能显示内核原文：原文可能含配置片段，而配置里有节点凭据
-      this.m8Result = this.maskSensitive(ret);
+      this.socksProbeResult = this.maskSensitive(ret);
       // 内核原始响应不可控（可能回显配置片段），日志走 private + 长度，避免整段落进公共日志
-      hilog.info(DOMAIN, TAG, 'M8 result(len=%{public}d)=%{private}s', ret.length, ret);
+      hilog.info(DOMAIN, TAG, 'socksProbe result(len=%{public}d)=%{private}s', ret.length, ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m8Result = `M8 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M8 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.socksProbeResult = `socksProbe failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'socksProbe failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
@@ -191,18 +192,18 @@ struct DevPanel {
    *
    * 为什么不能只 ping：ICMP 通只说明路由可达，不说明宿主的 8000 端口在监听、
    * 也不说明 NAT 允许该端口。这两件事必须用 TCP 握手来证明。
-   * 探针走 native（模拟器 shell 没有 curl/wget/nc），顺带还能复用 M9 里同一套 socket 代码。
+   * 探针走 native（模拟器 shell 没有 curl/wget/nc），顺带还能复用同一套 socket 代码。
    */
-  private runM10(): void {
-    hilog.info(DOMAIN, TAG, 'M10 clicked');
+  private runHostProbe(): void {
+    hilog.info(DOMAIN, TAG, 'hostProbe clicked');
     try {
-      const ret: string = nativeEntry.m10HostProbe('10.0.2.2', 8000, '/probe.txt');
-      this.m10Result = ret;
-      hilog.info(DOMAIN, TAG, 'M10 result=%{public}s', ret);
+      const ret: string = nativeEntry.probeHostHttp('10.0.2.2', 8000, '/probe.txt');
+      this.hostProbeResult = ret;
+      hilog.info(DOMAIN, TAG, 'hostProbe result=%{public}s', ret);
     } catch (e) {
       const err = e as BusinessError;
-      this.m10Result = `M10 failed: ${err.code} ${err.message}`;
-      hilog.error(DOMAIN, TAG, 'M10 failed code=%{public}d msg=%{public}s', err.code, err.message);
+      this.hostProbeResult = `hostProbe failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'hostProbe failed code=%{public}d msg=%{public}s', err.code, err.message);
     }
   }
 
@@ -219,30 +220,30 @@ struct DevPanel {
 
       Scroll() {
         Column({ space: 10 }) {
-          Button('M2: call NAPI hello()').onClick(() => this.runM2()).width('100%')
-          Text(this.m2Result).fontSize(12).width('100%')
+          Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
+          Text(this.napiHelloResult).fontSize(12).width('100%')
 
-          Button('M3: call prebuilt_add(1,2)').onClick(() => this.runM3()).width('100%')
-          Text(this.m3Result).fontSize(12).width('100%')
+          Button('prebuilt_add(1,2)').onClick(() => this.runPrebuiltAdd()).width('100%')
+          Text(this.prebuiltAddResult).fontSize(12).width('100%')
 
-          Button('M4: start VpnExtensionAbility (code only)').onClick(() => this.runM4()).width('100%')
-          Text(this.m4Result).fontSize(12).width('100%')
+          Button('启动 VpnExtensionAbility（仅代码）').onClick(() => this.runVpnExt()).width('100%')
+          Text(this.vpnExtResult).fontSize(12).width('100%')
 
-          Button('M5: call Go CGoPing()').onClick(() => this.runM5()).width('100%')
-          Text(this.m5Result).fontSize(12).width('100%')
+          Button('Go CGoPing()').onClick(() => this.runCGoPing()).width('100%')
+          Text(this.cgoPingResult).fontSize(12).width('100%')
 
-          Button('M6: load libxray + CGoInvoke').onClick(() => this.runM6()).width('100%')
-          Text(this.m6Result).fontSize(12).width('100%')
+          Button('加载 libxray + CGoInvoke').onClick(() => this.runCGoInvoke()).width('100%')
+          Text(this.cgoInvokeResult).fontSize(12).width('100%')
 
-          Button('M7: libxray xrayVersion').onClick(() => this.runM7()).width('100%')
-          Text(this.m7Result).fontSize(12).width('100%')
+          Button('libxray xrayVersion').onClick(() => this.runXrayVersion()).width('100%')
+          Text(this.xrayVersionResult).fontSize(12).width('100%')
 
-          Button('M8: SOCKS via kernel + IP compare').onClick(() => this.runM8()).width('100%')
-          Text(this.m8Result).fontSize(12).width('100%')
+          Button('经内核 SOCKS + 出口 IP 对比').onClick(() => this.runSocksProbe()).width('100%')
+          Text(this.socksProbeResult).fontSize(12).width('100%')
 
           // E15 Step 1：真测 TCP + HTTP。不用 ping 代替——ICMP 通不代表端口通。
-          Button('M10: 探测宿主 10.0.2.2:8000').onClick(() => this.runM10()).width('100%')
-          Text(this.m10Result).fontSize(12).width('100%')
+          Button('探测宿主 10.0.2.2:8000').onClick(() => this.runHostProbe()).width('100%')
+          Text(this.hostProbeResult).fontSize(12).width('100%')
 
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
@@ -250,7 +251,7 @@ struct DevPanel {
             .backgroundColor('#8D6E63')
             .onClick(() => {
               ConfigService.getInstance().debugForceLoadFailure();
-              this.m8Result = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
+              this.socksProbeResult = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
             })
           Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(11).width('100%')
 
@@ -259,7 +260,7 @@ struct DevPanel {
             .backgroundColor('#8D6E63')
             .onClick(() => {
               this.kernelDebug.debugInjectInvalidConfig();
-              this.m8Result = '已置位 invalidConfig；返回首页点「连接」应显示错误原因（不卡连接中）';
+              this.socksProbeResult = '已置位 invalidConfig；返回首页点「连接」应显示错误原因（不卡连接中）';
             })
         }
         .width('100%')

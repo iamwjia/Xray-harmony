@@ -15,7 +15,7 @@ import { common } from '@kit.AbilityKit';
 struct Settings {
   @State logLevel: string = 'INFO';
   @State routingMode: RoutingMode = RoutingMode.RULE;
-  /** 设置写盘失败提示（FR-44：不允许"看着改了其实没存"） */
+  /** 设置写盘失败提示（不允许"看着改了其实没存"） */
   @State persistError: string = '';
   /** geo 资源版本（未就绪时明确显示"不可用"，不要显示空串让人以为正常） */
   @State geoLabel: string = '';

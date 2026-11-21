@@ -28,7 +28,7 @@ export enum SecurityKind {
   REALITY = 'reality'
 }
 
-/** 分流模式（与 FR-06 对应） */
+/** 分流模式 */
 export enum RoutingMode {
   GLOBAL = 'global',
   RULE = 'rule',
@@ -104,7 +104,7 @@ export class RoutingRule {
 export class AppSettings {
   routingMode: RoutingMode = RoutingMode.RULE;
   logLevel: string = 'INFO';
-  /** 是否已看过首启说明（FR-17 用得上） */
+  /** 是否已看过首启说明 */
   onboardingDone: boolean = false;
 }
 

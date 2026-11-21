@@ -68,7 +68,7 @@ export class ConfigService {
       if (!this.config.selectedNodeId) {
         this.config.selectedNodeId = loaded.nodes[0].id;
       }
-      // v1 明文凭据需要迁移到 Asset Store（FR-35 / NFR-06）
+      // v1 明文凭据需要迁移到 Asset Store
       this.pendingCredentialMigration = !loaded.allSecretsMigrated;
       if (this.pendingCredentialMigration) {
         Logger.warn('credential migration pending: v1 plaintext credentialRef detected');
@@ -125,7 +125,7 @@ export class ConfigService {
 
   /**
    * 上次设置写盘失败的原因（UI 横幅用）。
-   * 空串表示没有失败。FR-44：写失败**必须可见**，不允许"看着改了其实没存"。
+   * 空串表示没有失败。写失败**必须可见**，不允许"看着改了其实没存"。
    */
   getPersistError(): string {
     return this.persistError;
@@ -371,7 +371,7 @@ export class ConfigService {
   }
 
   // ---------------------------------------------------------------------
-  // 自定义分流规则（FR-07）
+  // 自定义分流规则
   //
   // 顺序语义：规则按数组顺序下发给内核，**自定义规则必须排在 geo 规则之前**，
   // 否则用户加的规则永远命中不到（被 geosite:cn 先吃掉）。
@@ -579,7 +579,7 @@ export class ConfigService {
 
   /**
    * 设置分流模式（全局 / 规则 / 直连）。
-   * 返回 false 表示**未保存成功**：此时内存值已回滚，UI 必须据此提示（FR-44）。
+   * 返回 false 表示**未保存成功**：此时内存值已回滚，UI 必须据此提示。
    */
   setRoutingMode(mode: RoutingMode): boolean {
     const prev: RoutingMode = this.config.settings.routingMode;
@@ -593,7 +593,7 @@ export class ConfigService {
     return true;
   }
 
-  /** 设置日志级别；返回 false 表示未保存成功且已回滚（FR-44） */
+  /** 设置日志级别；返回 false 表示未保存成功且已回滚 */
   setLogLevel(level: string): boolean {
     const prev: string = this.config.settings.logLevel;
     this.config.settings.logLevel = level;

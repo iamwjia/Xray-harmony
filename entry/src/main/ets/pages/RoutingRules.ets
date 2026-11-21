@@ -4,7 +4,7 @@ import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
 
 /**
- * pages/RoutingRules.ets — 自定义分流规则（FR-07）
+ * pages/RoutingRules.ets — 自定义分流规则
  *
  * 交互约束：
  *   - 列表顺序 = 下发顺序 = 匹配优先级。**自定义规则排在 geo 规则之前**，

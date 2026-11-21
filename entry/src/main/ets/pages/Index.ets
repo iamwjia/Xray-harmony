@@ -13,9 +13,9 @@ import { Logger } from '../platform/Logger';
  *
  * 结构约束：
  *   - 展示信息全部来自 ConnectionViewModel.deriveView()，页面不自己判断状态；
- *   - 页面只调用 requestConnect / requestDisconnect，不直接置位状态（FR-13）；
+ *   - 页面只调用 requestConnect / requestDisconnect，不直接置位状态；
  *   - **连接由 KernelService 真实驱动**：start 成功 + getXrayState.running:true 才进 CONNECTED；
- *     失败/超时一律进 ERROR 并给出可读原因（超时兜底见 KernelService，FR-40）。
+ *     失败/超时一律进 ERROR 并给出可读原因（超时兜底见 KernelService）。
  */
 @Entry
 @Component
@@ -27,7 +27,7 @@ struct Index {
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
   @State socksInfo: string = '';
-  /** 凭据迁移失败提示（FR-35 / NFR-06） */
+  /** 凭据迁移失败提示 */
   @State migrationWarning: string = '';
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
@@ -38,7 +38,7 @@ struct Index {
     this.refreshAll();
   }
 
-  /** 回到前台时重新拉取真实状态（FR-13：先拉真实状态再渲染） */
+  /** 回到前台时重新拉取真实状态（先拉真实状态再渲染） */
   onPageShow(): void {
     this.refreshAll();
   }
@@ -98,7 +98,7 @@ struct Index {
     }
 
     const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
-    // 每次连接轮换本地 SOCKS 端口与口令（FR-35：loopback 同设备共享，不能免鉴权）
+    // 每次连接轮换本地 SOCKS 端口与口令（loopback 同设备共享，不能免鉴权）
     const ep: SocksEndpoint = SocksGuard.rotate();
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)

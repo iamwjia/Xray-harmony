@@ -4,7 +4,7 @@
  * 职责：定义 Disconnected / Connecting / Connected / Error 四态与**合法迁移表**，
  *       并把状态**单向派生**成 UI 需要的展示信息（文案 / 颜色 / 是否忙碌）。
  *
- * 边界（对应 FR-13「UI 状态不说谎」）：
+ * 边界（「UI 状态不说谎」）：
  *   - UI **不得**自行置位状态，只能调用 requestConnect / requestDisconnect；
  *   - UI **不得**自己判断"看起来连上了"，一律读 deriveView()；
  *   - 本层目前是**占位实现**：尚未接内核，因此 requestConnect 只做状态迁移，

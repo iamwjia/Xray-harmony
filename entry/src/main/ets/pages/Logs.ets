@@ -4,7 +4,7 @@ import { LogEntry, LogLevel, Logger } from '../platform/Logger';
 import { common } from '@kit.AbilityKit';
 
 /**
- * pages/Logs.ets — 运行日志查看与导出（FR-23）
+ * pages/Logs.ets — 运行日志查看与导出
  *
  * 为什么需要它：现在出问题只能"连电脑抓 hilog"，普通用户根本做不到，
  * 我们自己排查也要先让对方装 SDK。应用内能看到 + 能导出，是排查成本的分水岭。
