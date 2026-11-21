@@ -119,3 +119,57 @@ entry/src/main/ets/
 2. `KernelConfigBuilder`（L-A → L-B 纯函数）；
 3. 持久化（ASSET/RDB）→ **接上后 `confirmOverwrite()` 必须接到 UI 确认弹窗**，不能默认 true；
 4. 凭据引用填实；5. 两维状态接线。
+
+---
+
+## 8. KernelService 接线（E14）
+
+### 8.1 做了什么
+
+| 文件 | 职责 |
+|---|---|
+| `service/KernelService.ets` | 封装 `m8Invoke`：`start(configJson)` / `stop()` / `probeState()`；**错误归一化 + 超时兜底** |
+| `service/KernelConfigBuilder.ets` | L-A → L-B 的最小配置（socks 入站 + freedom 出站），纯函数 |
+| `pages/Index.ets` | 删掉 mock，改为真实驱动：`requestConnect → start() → 轮询 getXrayState → CONNECTED` |
+| `viewmodel/ConnectionViewModel.ets` | 文案更新为真实语义（不再提"占位/未接内核"） |
+
+三条硬约束的落地：
+1. **不猜状态**：`start()` 返回 `success:true` 还不够，必须 `getXrayState.running === true` 才回调 `onKernelConnected()`；
+2. **错误归一化**：`{"success":false,"error":"..."}` → 人话（如「配置无效，内核拒绝启动」），但**原始 error 原样进日志**；
+3. **超时兜底**（FR-40）：`start` 8s / `stop` 5s 上限，`waitUntil` 到点抛错 → UI 进 ERROR，**不会卡在 CONNECTING**。
+
+### 8.2 实测证据（模拟器 x86_64，hilog 原文）
+
+**连接**：
+```
+I XVPN_APP: KernelService.start bytes=208
+I XVPN_APP: KernelService.start confirmed running=true
+界面：已连接 / state=CONNECTED
+```
+**断开**：
+```
+I XVPN_APP: KernelService.stop confirmed running=false
+界面：未连接 / state=DISCONNECTED
+```
+**故意失败**（DevPanel 注入非法配置）：
+```
+I XVPN_APP: KernelService.start bytes=36          ← 确实换了非法配置
+E XVPN_APP: kernel raw error: infra/conf/serial: failed to read config file > unexpected EOF
+界面：连接异常 / 配置无效，内核拒绝启动 / state=ERROR    ← 可读原因，未卡在 CONNECTING
+```
+→ 同时验证了两条：**错误人话化** + **原始 error 保留在日志**（`infra/conf/serial: ... unexpected EOF`）。
+
+### 8.3 mock 清除
+
+`IS_SKELETON_MOCK`、`simulateTimer`、`(模拟)` 标识全部移除；全目录检索无残留。
+
+### 8.4 一个实测踩到的设计问题：`KernelService` 必须是单例
+
+最初每个页面各自 `new KernelService()`，结果：DevPanel 里"注入非法配置"的开关对首页**无效**（两个实例各有一份 flag），失败路径根本无法验证。
+→ 改为 `KernelService.getInstance()`（内核本来就是**进程级单例资源**）。
+**教训**：凡是"进程级唯一资源"的服务，从第一天就该做成单例；否则会出现"页面 A 启动了内核、页面 B 不知道"的双状态。
+
+### 8.5 遗留
+
+- `debugInjectInvalidConfig()` 为验证失败路径而留，**待真实失败场景**（如节点不可达）可复现后删除；
+- 节点接入未做（本任务明确排除），`KernelConfigBuilder` 已预留位置——换 outbound 即可。
