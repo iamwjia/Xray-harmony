@@ -262,11 +262,8 @@ export function createDefaultConfig(): AppConfig {
   const cfg = new AppConfig();
   // nodes stay empty by default: nodes must be imported by the user
   cfg.selectedNodeId = '';
-  const r = new RoutingRule();
-  r.id = 'r1';
-  r.matchType = 'domain';
-  r.pattern = 'geosite:cn';
-  r.action = 'direct';
-  cfg.rules.push(r);
+  // 默认**不带**任何自定义规则：以前这里塞过一条假的 `geosite:cn`，
+  // 现在规则会真的进内核并显示在 UI 上，假规则就成了"用户从没加过却存在"的脏数据。
+  // 内置的国内直连由 KernelConfigBuilder 的 geo 规则负责，不需要伪装成用户规则。
   return cfg;
 }

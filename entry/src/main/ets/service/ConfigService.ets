@@ -1,8 +1,9 @@
-import { AppConfig, AppSettings, ConfigCodec, createDefaultConfig, XrayNode, RoutingMode } from '../model/AppConfig';
+import { AppConfig, AppSettings, ConfigCodec, createDefaultConfig, XrayNode, RoutingMode, RoutingRule } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
 import { SecretStore } from '../platform/SecretStore';
 import { NodeStore, NodeLoadResult } from './NodeStore';
 import { SettingsStore, SettingsSnapshot } from './SettingsStore';
+import { RulesStore } from './RulesStore';
 
 /**
  * service/ConfigService.ets — 配置读写服务（应用服务层）
@@ -85,6 +86,14 @@ export class ConfigService {
         this.config.settings.logLevel = settings.logLevel;
       }
       this.config.settings.onboardingDone = settings.onboardingDone;
+    }
+
+    // 载入自定义分流规则；解析失败时保留（空的）默认值，不覆盖磁盘上的原数据
+    const rules: RoutingRule[] | null = RulesStore.load();
+    if (rules === null) {
+      Logger.error('rulesStore: persisted rules unreadable; keeping empty set, not overwriting');
+    } else if (rules.length > 0) {
+      this.config.rules = rules;
     }
   }
 
@@ -359,8 +368,90 @@ export class ConfigService {
     return true;
   }
 
-  /** 现有分组名（去重、稳定顺序），供筛选与表单下拉使用 */
-  getGroups(): string[] {
+  // ---------------------------------------------------------------------
+  // 自定义分流规则（FR-07）
+  //
+  // 顺序语义：规则按数组顺序下发给内核，**自定义规则必须排在 geo 规则之前**，
+  // 否则用户加的规则永远命中不到（被 geosite:cn 先吃掉）。
+  // 这里保持数组顺序 = 用户看到顺序 = 下发顺序，三者一致，避免"界面上在第一行、
+  // 实际却排在最后"这种不可解释的状态。
+  // ---------------------------------------------------------------------
+
+  getRules(): RoutingRule[] {
+    return this.config.rules;
+  }
+
+  /** 新增规则；pattern 为空直接拒绝（空规则匹配一切，风险最高） */
+  addRule(matchType: string, pattern: string, action: string): boolean {
+    const p: string = pattern.trim();
+    if (p.length === 0) {
+      Logger.warn('addRule rejected: empty pattern');
+      return false;
+    }
+    if (!this.canPersist()) {
+      Logger.error('addRule blocked: persistence disabled');
+      return false;
+    }
+    const r = new RoutingRule();
+    // id 用时间戳 + 计数，保证同一毫秒内连续添加也不冲突
+    r.id = `rule-${Date.now()}-${this.config.rules.length}`;
+    r.matchType = matchType;
+    r.pattern = p;
+    r.action = action;
+    r.enabled = true;
+    this.config.rules.push(r);
+    if (!RulesStore.save(this.config.rules)) {
+      this.config.rules.pop();
+      Logger.error('addRule: persist failed, rolled back');
+      return false;
+    }
+    this.bumpRev();
+    Logger.info(`addRule ok: ${matchType}:${p} -> ${action}`);
+    return true;
+  }
+
+  removeRule(id: string): boolean {
+    const list: RoutingRule[] = this.config.rules;
+    let idx: number = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      return false;
+    }
+    const removed: RoutingRule = list[idx];
+    list.splice(idx, 1);
+    if (!RulesStore.save(list)) {
+      list.splice(idx, 0, removed);
+      Logger.error('removeRule: persist failed, rolled back');
+      return false;
+    }
+    this.bumpRev();
+    return true;
+  }
+
+  /** 启用/禁用：禁用而不是删除，方便临时对比"有没有这条规则"的差异 */
+  toggleRule(id: string): boolean {
+    const list: RoutingRule[] = this.config.rules;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        list[i].enabled = !list[i].enabled;
+        if (!RulesStore.save(list)) {
+          list[i].enabled = !list[i].enabled;
+          return false;
+        }
+        this.bumpRev();
+        Logger.info(`toggleRule: ${list[i].pattern} -> enabled=${list[i].enabled}`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 现有分组名（去重、稳定顺序），供筛选与表单下拉使用 */  getGroups(): string[] {
     const out: string[] = [];
     const nodes: XrayNode[] = this.config.nodes;
     for (let i = 0; i < nodes.length; i++) {

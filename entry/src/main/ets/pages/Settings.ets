@@ -22,6 +22,8 @@ struct Settings {
   /** geo 手动更新状态 */
   @State geoBusy: boolean = false;
   @State geoMsg: string = '';
+  /** 自定义规则条数（启用中） */
+  @State ruleCount: number = 0;
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -31,6 +33,23 @@ struct Settings {
     this.routingMode = this.cfg.getConfig().settings.routingMode;
     this.logLevel = this.cfg.getLogLevel();
     this.geoLabel = GeoAssets.isReady() ? `${GeoAssets.getVersion()}（规则模式下国内直连生效）` : '未就绪（规则模式已降级为仅内网直连）';
+    this.refreshRuleCount();
+  }
+
+  /** 从规则页返回时刷新计数（同 @Watch 不生效的场景） */
+  onPageShow(): void {
+    this.refreshRuleCount();
+  }
+
+  private refreshRuleCount(): void {
+    const rules = this.cfg.getRules();
+    let n: number = 0;
+    for (let i = 0; i < rules.length; i++) {
+      if (rules[i].enabled) {
+        n++;
+      }
+    }
+    this.ruleCount = n;
   }
 
   private setRouting(mode: RoutingMode): void {
@@ -176,6 +195,23 @@ struct Settings {
         }
         Text('规则：国内域名/IP 与内网直连，其余走代理（依赖下方 geo 资源；资源不可用时降级为仅内网直连）')
           .fontSize(10).fontColor('#999999')
+        Divider()
+        Row({ space: 8 }) {
+          Column({ space: 2 }) {
+            Text('自定义规则').fontSize(13)
+            Text(`已启用 ${this.ruleCount} 条；先于内置国内直连规则匹配`)
+              .fontSize(10).fontColor('#999999')
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('管理').fontSize(12)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/RoutingRules' }).catch((e: Error) => {
+                this.persistError = `打开规则页失败：${e.message}`;
+              });
+            })
+        }
+        .width('100%')
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)

@@ -27,11 +27,11 @@ struct Nodes {
   @State groups: string[] = [];
   /** 空串 = 全部；分组筛选只影响展示 */
   @State groupFilter: string = '';
-  @State linkInput: string = '';
+  /** 导入面板：默认收起，点「+」才展开（避免常驻两个输入框） */
+  @State showImport: boolean = false;
+  @State importInput: string = '';
+  @State busy: boolean = false;
   @State importMsg: string = '';
-  /** 订阅导入（FR-02）：URL 输入与进行中状态 */
-  @State subInput: string = '';
-  @State subBusy: boolean = false;
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -97,16 +97,11 @@ struct Nodes {
    * 结果话术刻意区分三种情况，避免"只导入了一部分却像全部成功"：
    * 全失败 / 部分成功 / 全部成功。
    */
-  private doImportSubscription(): void {
-    const url: string = this.subInput.trim();
-    if (url.length === 0) {
-      this.importMsg = '请先填订阅地址';
-      return;
-    }
-    this.subBusy = true;
+  private doImportSubscription(url: string): void {
+    this.busy = true;
     this.importMsg = '正在拉取订阅…';
     SubscriptionService.importFromUrl(url, '').then((r: SubscriptionImportResult) => {
-      this.subBusy = false;
+      this.busy = false;
       this.reload();
       if (r.total === 0) {
         this.importMsg = `订阅导入失败：${r.error.length > 0 ? r.error : '里面没有可识别的节点'}`;
@@ -124,9 +119,10 @@ struct Nodes {
         msg += `（首条错误：${r.error}）`;
       }
       this.importMsg = msg;
-      this.subInput = '';
+      this.importInput = '';
+      this.showImport = false;
     }).catch((e: Object) => {
-      this.subBusy = false;
+      this.busy = false;
       const msg: string = e instanceof Error ? e.message : String(e);
       this.importMsg = `订阅导入失败：${msg}`;
     });
@@ -171,14 +167,31 @@ struct Nodes {
       Logger.error(`removeNode failed: ${msg}`);
     });
   }
-
-  /** 导入分享链接：解析成功后写入安全存储 + 节点表，并选中 */
-  private doImport(): void {
-    const link: string = this.linkInput.trim();
-    if (!link) {
-      this.importMsg = '请先粘贴分享链接';
+  /**
+   * 统一导入入口：按前缀自动判断类型，用户不需要先想"这是链接还是订阅"。
+   * 判断规则刻意只认协议头，不做模糊猜测——猜错会让用户拿着一条链接去请求网络。
+   */
+  private doSmartImport(): void {
+    const input: string = this.importInput.trim();
+    if (input.length === 0) {
+      this.importMsg = '请先粘贴链接或订阅地址';
       return;
     }
+    const lower: string = input.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      this.doImportSubscription(input);
+      return;
+    }
+    if (lower.startsWith('vless://') || lower.startsWith('vmess://') ||
+      lower.startsWith('trojan://') || lower.startsWith('ss://')) {
+      this.doImportLink(input);
+      return;
+    }
+    this.importMsg = '无法识别：应以 vless:// vmess:// trojan:// ss:// 或 http(s):// 开头';
+  }
+
+  /** 导入分享链接：解析成功后写入安全存储 + 节点表，并选中 */
+  private doImportLink(link: string): void {
     let node: XrayNode;
     try {
       node = ShareLinkParser.parse(link);
@@ -188,16 +201,20 @@ struct Nodes {
       Logger.warn(`import failed: ${msg}`);
       return;
     }
+    this.busy = true;
     // 凭据先落 Asset Store，节点表只存别名（新增数据不再有明文凭据）
     this.cfg.addNodeSecure(node).then((added: boolean) => {
+      this.busy = false;
       this.cfg.selectNode(node.id);
       this.reload();
       this.importMsg = added
         ? `已导入：${node.name}（${node.protocol}）`
         : `节点已存在，已切换选中：${node.name}`;
-      this.linkInput = '';
+      this.importInput = '';
+      this.showImport = false;
       Logger.info(`import ok: ${node.protocol} @ ${node.address}:${node.port}`);
     }).catch((e: Object) => {
+      this.busy = false;
       const msg: string = e instanceof Error ? e.message : String(e);
       this.importMsg = `导入失败：凭据写入安全存储失败（${msg}）`;
       Logger.error(`import failed at secret store: ${msg}`);
@@ -212,38 +229,52 @@ struct Nodes {
           })
         Text('节点列表').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
         Text(`${this.visibleNodes().length} 个`).fontSize(12).fontColor('#999999')
+        // 一个入口就够：点开才出现输入框，平时列表保持干净
+        Button(this.showImport ? '×' : '+')
+          .fontSize(16)
+          .width(36)
+          .height(36)
+          .onClick(() => {
+            this.showImport = !this.showImport;
+            if (!this.showImport) {
+              this.importMsg = '';
+            }
+          })
       }
       .width('100%')
 
-      Text('粘贴分享链接导入（支持 vless / vmess / trojan / ss）').fontSize(11).fontColor('#999999')
-
-      Row({ space: 8 }) {
-        TextInput({ placeholder: 'vless://... 或 vmess://...', text: this.linkInput })
-          .fontSize(12)
-          .layoutWeight(1)
-          .onChange((v: string) => { this.linkInput = v; })
-        Button('导入').fontSize(12)
-          .onClick(() => this.doImport())
+      // 导入面板：**单一输入框 + 自动识别**
+      // 以前是「分享链接」和「订阅地址」两个框，既占地方又容易填错。
+      // 现在按前缀判断：vless/vmess/trojan/ss → 单条链接；http(s) → 订阅。
+      if (this.showImport) {
+        Column({ space: 8 }) {
+          TextInput({
+            placeholder: '粘贴分享链接（vless://…）或订阅地址（https://…）',
+            text: this.importInput
+          })
+            .fontSize(12)
+            .onChange((v: string) => {
+              this.importInput = v;
+            })
+          Row({ space: 8 }) {
+            Text('vless / vmess / trojan / ss 走单条导入；http(s) 走订阅导入')
+              .fontSize(10).fontColor('#999999').layoutWeight(1)
+            Button(this.busy ? '处理中…' : '导入')
+              .fontSize(12)
+              .enabled(!this.busy)
+              .onClick(() => this.doSmartImport())
+          }
+          .width('100%')
+        }
+        .width('100%')
+        .padding(10)
+        .backgroundColor('#F5F5F5')
+        .borderRadius(8)
       }
-      .width('100%')
 
       if (this.importMsg) {
         Text(this.importMsg).fontSize(11).fontColor('#1976D2').width('100%')
       }
-
-      // 订阅导入：只在用户点击时才拉取，不做后台轮询（与 FR-45 同类约束）
-      Row({ space: 8 }) {
-        TextInput({ placeholder: '订阅地址 https://…（支持 Base64 内容）', text: this.subInput })
-          .fontSize(12)
-          .layoutWeight(1)
-          .onChange((v: string) => {
-            this.subInput = v;
-          })
-        Button(this.subBusy ? '导入中…' : '订阅导入').fontSize(12)
-          .enabled(!this.subBusy)
-          .onClick(() => this.doImportSubscription())
-      }
-      .width('100%')
 
       // 分组筛选：只在真的有分组时出现，避免空界面上多一行无用控件
       if (this.groups.length > 0) {

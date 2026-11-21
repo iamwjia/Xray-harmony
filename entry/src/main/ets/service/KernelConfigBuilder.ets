@@ -13,7 +13,7 @@
  *     因此采用「字符串构造 + 逐值转义」而非对象字面量。
  */
 
-import { XrayNode, TransportKind, SecurityKind, RoutingMode } from '../model/AppConfig';
+import { XrayNode, TransportKind, SecurityKind, RoutingMode, RoutingRule } from '../model/AppConfig';
 
 export class KernelConfigBuilder {
   static readonly DEFAULT_SOCKS_PORT: number = 18080;
@@ -41,45 +41,72 @@ export class KernelConfigBuilder {
     return cfg;
   }
 
-  /** 按节点生成配置：socks 入站 + 节点出站 + freedom 兜底 */
+  /** 按节点生成配置：socks 入站 + 节点出站 + freedom/blackhole 兜底 */
   static buildWithNode(node: XrayNode, socksPort: number = KernelConfigBuilder.DEFAULT_SOCKS_PORT,
     routingMode: RoutingMode = RoutingMode.RULE, socksUser: string = '', socksPass: string = '',
-    credential: string = '', geoReady: boolean = false): string {
+    credential: string = '', geoReady: boolean = false, rules: RoutingRule[] = []): string {
     const inbound: string = KernelConfigBuilder.buildInbound(socksPort, socksUser, socksPass);
     const proxy: string = KernelConfigBuilder.buildOutbound(node, credential);
     const direct: string = '{"tag":"direct","protocol":"freedom"}';
-    const routing: string = KernelConfigBuilder.buildRouting(routingMode, geoReady);
+    // blackhole 只有在"规则里出现 block"时才有意义，但常驻一个空出站成本几乎为零，
+    // 且能避免"用户加了一条 block 规则、配置却因缺少出站而启动失败"。
+    const block: string = '{"tag":"block","protocol":"blackhole"}';
+    const routing: string = KernelConfigBuilder.buildRouting(routingMode, geoReady, rules);
     return '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],"outbounds":[' +
-      proxy + ',' + direct + ']' + routing + '}';
+      proxy + ',' + direct + ',' + block + ']' + routing + '}';
   }
 
   /**
    * 分流配置。
    *
-   * geoReady=true 时使用内置 geoip/geosite 资源（`geosite:cn` 域名规则 + `geoip:cn` IP 规则）；
-   * geoReady=false 时**必须降级**：只保留内网/回环网段直连。
-   * 原因：内核启动时会解析 `geosite:cn`，资源缺失就是硬性配置错误（启动即失败），
-   * 而不是"规则不生效"。宁可少一条规则，不能让整个内核起不来。
+   * 顺序（这是本方法最容易被改坏的地方）：
+   *   1. **用户自定义规则**（按用户看到的顺序）
+   *   2. 内置 geo 规则（`geosite:cn` 域名直连、`geoip:cn` 与内网网段直连）
+   *
+   * 为什么自定义必须在前：xray 按顺序匹配、命中即停。若 geo 在前，
+   * 用户加的 "某域名走代理" 会被 `geosite:cn` 先命中成直连，表现就是"规则加了没用"。
+   *
+   * geoReady=false 时**必须降级**：只保留内网/回环网段直连。缺资源时内核会在解析
+   * `geosite:cn` 阶段直接启动失败，而不是"规则不生效"。
    */
-  private static buildRouting(mode: RoutingMode, geoReady: boolean): string {
+  private static buildRouting(mode: RoutingMode, geoReady: boolean, userRules: RoutingRule[]): string {
     if (mode === RoutingMode.DIRECT) {
       return ',"routing":{"rules":[{"type":"field","network":"tcp,udp","outboundTag":"direct"}]}';
     }
     if (mode === RoutingMode.GLOBAL) {
+      // 全局模式语义 = 全部走代理；此时用户规则不生效（界面上需要说明，否则会被当成 bug）
       return '';
     }
+    const parts: string[] = [];
+
+    // 1) 用户自定义规则
+    for (let i = 0; i < userRules.length; i++) {
+      const r: RoutingRule = userRules[i];
+      if (!r.enabled || r.pattern.length === 0) {
+        continue;
+      }
+      let tag: string = 'proxy';
+      if (r.action === 'direct') {
+        tag = 'direct';
+      } else if (r.action === 'block') {
+        tag = 'block';
+      }
+      const field: string = r.matchType === 'ip' ? 'ip' : 'domain';
+      parts.push('{"type":"field","' + field + '":[' + KernelConfigBuilder.esc(r.pattern) +
+        '],"outboundTag":"' + tag + '"}');
+    }
+
+    // 2) 内置 geo / 内网
     const lan: string = '"127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16",' +
       '"169.254.0.0/16","::1/128","fc00::/7","fe80::/10"';
-    const ipRule: string = geoReady
-      ? '"ip":["geoip:cn",' + lan + ']'
-      : '"ip":[' + lan + ']';
-    let rules: string = '';
     if (geoReady) {
       // 域名优先：命中 geosite:cn 直接直连，避免走 IP 判定后被代理
-      rules += '{"type":"field","domain":["geosite:cn"],"outboundTag":"direct"},';
+      parts.push('{"type":"field","domain":["geosite:cn"],"outboundTag":"direct"}');
     }
-    rules += '{"type":"field",' + ipRule + ',"outboundTag":"direct"}';
-    return ',"routing":{"domainStrategy":"IPIfNonMatch","rules":[' + rules + ']}';
+    const ipRule: string = geoReady ? '"ip":["geoip:cn",' + lan + ']' : '"ip":[' + lan + ']';
+    parts.push('{"type":"field",' + ipRule + ',"outboundTag":"direct"}');
+
+    return ',"routing":{"domainStrategy":"IPIfNonMatch","rules":[' + parts.join(',') + ']}';
   }
   private static buildOutbound(node: XrayNode, credential: string): string {
     const proto: string = (node.protocol || 'vless').toLowerCase();

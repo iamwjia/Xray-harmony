@@ -103,7 +103,7 @@ struct Index {
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)
       : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password, credential,
-        GeoAssets.isReady());
+        GeoAssets.isReady(), this.cfg.getRules());
     this.socksInfo = `本地 SOCKS 127.0.0.1:${ep.port}（已启用口令鉴权）`;
 
     try {

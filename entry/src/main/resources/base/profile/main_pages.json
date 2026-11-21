@@ -4,6 +4,7 @@
     "pages/Nodes",
     "pages/Settings",
     "pages/DevPanel",
-    "pages/NodeEdit"
+    "pages/NodeEdit",
+    "pages/RoutingRules"
   ]
 }
