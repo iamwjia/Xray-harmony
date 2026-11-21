@@ -732,3 +732,221 @@ extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info)
     OH_LOG_INFO(LOG_APP, "M9 stage=done %{public}s", combined.c_str());
     return MakeString(env, combined);
 }
+
+// ---------------------------------------------------------------------------
+// M10 / E15 step 1: can this process reach a host TCP port and complete HTTP?
+//
+// Why this exists: the emulator shell has ping/toybox but no curl/wget/nc, and an
+// ICMP reply says nothing about whether a TCP port accepts a connection.
+// "ping 10.0.2.2 works" is exactly how one ends up claiming "the emulator can
+// reach the host HTTP server" without ever having opened a socket.
+// ---------------------------------------------------------------------------
+extern "C" napi_value M10HostProbe(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value argv[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    const std::string host = (argc >= 1) ? GetStringArg(env, argv[0]) : std::string();
+    if (host.empty()) {
+        return MakeString(env, "[error=host required]");
+    }
+    int port = 8000;
+    if (argc >= 2) {
+        int32_t p = 0;
+        if (napi_get_value_int32(env, argv[1], &p) == napi_ok && p > 0 && p < 65536) {
+            port = static_cast<int>(p);
+        }
+    }
+    std::string path = (argc >= 3) ? GetStringArg(env, argv[2]) : std::string();
+    if (path.empty()) {
+        path = "/";
+    }
+
+    auto t0 = std::chrono::steady_clock::now();
+    int fd = ConnectTcp(host, port, 3);
+    auto t1 = std::chrono::steady_clock::now();
+    long long connectMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    if (fd < 0) {
+        std::string fail = "[tcp=FAIL][connect_ms=" + std::to_string(connectMs) + "] " + host + ":" +
+                           std::to_string(port);
+        OH_LOG_INFO(LOG_APP, "M10 %{public}s", fail.c_str());
+        return MakeString(env, fail);
+    }
+
+    auto t2 = std::chrono::steady_clock::now();
+    std::string resp = HttpGet(fd, host, path);
+    auto t3 = std::chrono::steady_clock::now();
+    long long httpMs = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
+    close(fd);
+
+    const std::string status = RespStatusLine(resp);
+    const std::string body = TrimText(RespBody(resp));
+    std::string out = "[tcp=OK][connect_ms=" + std::to_string(connectMs) +
+                      "][http_ms=" + std::to_string(httpMs) + "][status=" +
+                      (status.empty() ? std::string("<none>") : status) + "][body=" +
+                      (body.empty() ? std::string("<empty>") : body) + "]";
+    OH_LOG_INFO(LOG_APP, "M10 %{public}s", out.c_str());
+    return MakeString(env, out);
+}
+
+// ---------------------------------------------------------------------------
+// M11 / E15 step 2: SOCKS5 **with username/password** -> HTTP GET.
+//
+// M9's helper only speaks `noauth`, but the inbound now requires a password
+// (FR-35: loopback is shared across apps, so an unauthenticated local proxy is an
+// open relay). To prove the kernel actually forwards through the configured node,
+// the probe has to authenticate like a real client would.
+//
+// Evidence produced: HTTP status + body on the app side; on the server side the
+// VLESS inbound logs `accepted tcp:<target>` only after the user id validates.
+// ---------------------------------------------------------------------------
+namespace {
+
+std::string Socks5HttpGetAuth(const std::string &socksHost, int socksPort,
+                              const std::string &user, const std::string &pass,
+                              const std::string &targetHost, int targetPort,
+                              const std::string &path, std::string *err)
+{
+    int fd = ConnectTcp(socksHost, socksPort, 3);
+    if (fd < 0) {
+        *err = "socks connect failed";
+        return std::string();
+    }
+
+    // greeting: offer username/password auth only
+    const unsigned char hello[4] = {0x05, 0x01, 0x02};
+    if (!SendAll(fd, hello, 3)) {
+        *err = "greeting send failed";
+        close(fd);
+        return std::string();
+    }
+    unsigned char sel[2] = {0};
+    if (recv(fd, sel, 2, 0) != 2 || sel[0] != 0x05) {
+        *err = "greeting reply invalid";
+        close(fd);
+        return std::string();
+    }
+    if (sel[1] != 0x02) {
+        *err = "server did not accept username/password auth (method=" + std::to_string(sel[1]) + ")";
+        close(fd);
+        return std::string();
+    }
+
+    // RFC1929
+    std::string auth;
+    auth.push_back(0x01);
+    auth.push_back(static_cast<char>(user.size()));
+    auth += user;
+    auth.push_back(static_cast<char>(pass.size()));
+    auth += pass;
+    if (!SendAll(fd, auth.data(), auth.size())) {
+        *err = "auth send failed";
+        close(fd);
+        return std::string();
+    }
+    unsigned char authRep[2] = {0};
+    if (recv(fd, authRep, 2, 0) != 2 || authRep[1] != 0x00) {
+        *err = "auth rejected (status=" + std::to_string(static_cast<int>(authRep[1])) + ")";
+        close(fd);
+        return std::string();
+    }
+
+    // CONNECT by domain (or IPv4 literal, which xray accepts as a domain target)
+    std::string req;
+    req.push_back(0x05);
+    req.push_back(0x01);
+    req.push_back(0x00);
+    req.push_back(0x03);
+    req.push_back(static_cast<char>(targetHost.size()));
+    req += targetHost;
+    req.push_back(static_cast<char>((targetPort >> 8) & 0xFF));
+    req.push_back(static_cast<char>(targetPort & 0xFF));
+    if (!SendAll(fd, req.data(), req.size())) {
+        *err = "connect request send failed";
+        close(fd);
+        return std::string();
+    }
+
+    unsigned char rep[4] = {0};
+    if (recv(fd, rep, 4, 0) != 4 || rep[1] != 0x00) {
+        *err = "socks connect rejected (rep=" + std::to_string(static_cast<int>(rep[1])) + ")";
+        close(fd);
+        return std::string();
+    }
+    int addrLen = 0;
+    if (rep[3] == 0x01) {
+        addrLen = 4;
+    } else if (rep[3] == 0x04) {
+        addrLen = 16;
+    } else if (rep[3] == 0x03) {
+        unsigned char l = 0;
+        if (recv(fd, &l, 1, 0) != 1) {
+            *err = "addr len read failed";
+            close(fd);
+            return std::string();
+        }
+        addrLen = l;
+    } else {
+        *err = "unknown atyp";
+        close(fd);
+        return std::string();
+    }
+    char drain[64] = {0};
+    if (recv(fd, drain, addrLen + 2, 0) <= 0) {
+        *err = "addr drain failed";
+        close(fd);
+        return std::string();
+    }
+
+    std::string resp = HttpGet(fd, targetHost, path);
+    close(fd);
+    if (resp.empty()) {
+        *err = "no HTTP response through SOCKS (handshake+CONNECT ok)";
+    }
+    return resp;
+}
+
+} // namespace
+
+extern "C" napi_value M11SocksProbe(napi_env env, napi_callback_info info)
+{
+    size_t argc = 6;
+    napi_value argv[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    int socksPort = 0;
+    if (argc >= 1) {
+        napi_get_value_int32(env, argv[0], &socksPort);
+    }
+    const std::string user = (argc >= 2) ? GetStringArg(env, argv[1]) : std::string();
+    const std::string pass = (argc >= 3) ? GetStringArg(env, argv[2]) : std::string();
+    const std::string targetHost = (argc >= 4) ? GetStringArg(env, argv[3]) : std::string();
+    int targetPort = 80;
+    if (argc >= 5) {
+        napi_get_value_int32(env, argv[4], &targetPort);
+    }
+    std::string path = (argc >= 6) ? GetStringArg(env, argv[5]) : std::string();
+    if (path.empty()) {
+        path = "/";
+    }
+    if (socksPort <= 0 || targetHost.empty()) {
+        return MakeString(env, "[error=socksPort and targetHost required]");
+    }
+
+    std::string err;
+    auto t0 = std::chrono::steady_clock::now();
+    std::string resp = Socks5HttpGetAuth("127.0.0.1", socksPort, user, pass, targetHost, targetPort, path, &err);
+    auto t1 = std::chrono::steady_clock::now();
+    long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+    const std::string status = RespStatusLine(resp);
+    const std::string body = TrimText(RespBody(resp));
+    std::string out = "[ms=" + std::to_string(ms) + "][socks=127.0.0.1:" + std::to_string(socksPort) + "]" +
+                      "[target=" + targetHost + ":" + std::to_string(targetPort) + "]" +
+                      "[status=" + (status.empty() ? std::string("<none>") : status) + "]" +
+                      "[body=" + (body.empty() ? std::string("<empty>") : body) + "]" +
+                      "[err=" + (err.empty() ? std::string("-") : err) + "]";
+    OH_LOG_INFO(LOG_APP, "M11 %{public}s", out.c_str());
+    return MakeString(env, out);
+}

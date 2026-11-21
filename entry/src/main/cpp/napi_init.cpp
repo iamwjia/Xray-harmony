@@ -19,6 +19,10 @@ extern "C" napi_value M9ProxyProbe(napi_env env, napi_callback_info info);
 // geo: point xray-core at the directory holding geoip.dat / geosite.dat.
 // Must be called before runXrayFromJson (rules are parsed at instance creation).
 extern "C" napi_value SetAssetPath(napi_env env, napi_callback_info info);
+// M10: TCP connect + HTTP GET from inside the app process (E15 step 1 reachability).
+extern "C" napi_value M10HostProbe(napi_env env, napi_callback_info info);
+// M11: SOCKS5 with username/password -> HTTP GET (E15 step 2 end-to-end probe).
+extern "C" napi_value M11SocksProbe(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -58,6 +62,8 @@ napi_value Init(napi_env env, napi_value exports)
         {"m8Invoke", nullptr, M8Invoke, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"m9ProxyProbe", nullptr, M9ProxyProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setAssetPath", nullptr, SetAssetPath, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m10HostProbe", nullptr, M10HostProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"m11SocksProbe", nullptr, M11SocksProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

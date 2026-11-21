@@ -29,6 +29,7 @@ struct DevPanel {
   @State m6Result: string = '(M6 not run)';
   @State m7Result: string = '(M7 not run)';
   @State m8Result: string = '(M8 not run)';
+  @State m10Result: string = '(M10 not run)';
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
   private kernelDebug: KernelService = KernelService.getInstance();
@@ -185,6 +186,26 @@ struct DevPanel {
     }
   }
 
+  /**
+   * E15 Step 1：从**应用进程**发一次真正的 TCP 连接 + HTTP GET。
+   *
+   * 为什么不能只 ping：ICMP 通只说明路由可达，不说明宿主的 8000 端口在监听、
+   * 也不说明 NAT 允许该端口。这两件事必须用 TCP 握手来证明。
+   * 探针走 native（模拟器 shell 没有 curl/wget/nc），顺带还能复用 M9 里同一套 socket 代码。
+   */
+  private runM10(): void {
+    hilog.info(DOMAIN, TAG, 'M10 clicked');
+    try {
+      const ret: string = nativeEntry.m10HostProbe('10.0.2.2', 8000, '/probe.txt');
+      this.m10Result = ret;
+      hilog.info(DOMAIN, TAG, 'M10 result=%{public}s', ret);
+    } catch (e) {
+      const err = e as BusinessError;
+      this.m10Result = `M10 failed: ${err.code} ${err.message}`;
+      hilog.error(DOMAIN, TAG, 'M10 failed code=%{public}d msg=%{public}s', err.code, err.message);
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Row({ space: 8 }) {
@@ -218,6 +239,10 @@ struct DevPanel {
 
           Button('M8: SOCKS via kernel + IP compare').onClick(() => this.runM8()).width('100%')
           Text(this.m8Result).fontSize(12).width('100%')
+
+          // E15 Step 1：真测 TCP + HTTP。不用 ping 代替——ICMP 通不代表端口通。
+          Button('M10: 探测宿主 10.0.2.2:8000').onClick(() => this.runM10()).width('100%')
+          Text(this.m10Result).fontSize(12).width('100%')
 
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）

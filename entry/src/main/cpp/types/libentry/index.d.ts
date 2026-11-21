@@ -15,3 +15,12 @@ export const m9ProxyProbe: () => string;
 // Must be called BEFORE m8Invoke('runXrayFromJson', ...), otherwise
 // `geosite:cn` / `geoip:cn` rules fail to resolve.
 export const setAssetPath: (dir: string) => string;
+// M10: TCP connect + HTTP GET from inside the app process (E15 step 1 reachability).
+// Returns "[tcp=OK][connect_ms=..][http_ms=..][status=..][body=..]" or "[tcp=FAIL]...".
+// Rationale: the emulator shell has no curl/wget/nc, and an ICMP reply proves
+// nothing about whether a TCP port accepts a connection.
+export const m10HostProbe: (host: string, port: number, path: string) => string;
+// M11: SOCKS5 (username/password) -> HTTP GET through the kernel's inbound.
+// socksPort/user/pass come from SocksGuard; the request exits via the node outbound.
+export const m11SocksProbe: (socksPort: number, user: string, pass: string,
+  targetHost: string, targetPort: number, path: string) => string;
