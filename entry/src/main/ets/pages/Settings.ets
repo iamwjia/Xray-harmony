@@ -212,6 +212,23 @@ struct Settings {
             })
         }
         .width('100%')
+        Divider()
+        Row({ space: 8 }) {
+          Column({ space: 2 }) {
+            Text('运行日志').fontSize(13)
+            Text('查看应用内日志并导出（已脱敏）；出问题时用这个代替连电脑抓 hilog')
+              .fontSize(10).fontColor('#999999')
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('查看').fontSize(12)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/Logs' }).catch((e: Error) => {
+                this.persistError = `打开日志页失败：${e.message}`;
+              });
+            })
+        }
+        .width('100%')
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)

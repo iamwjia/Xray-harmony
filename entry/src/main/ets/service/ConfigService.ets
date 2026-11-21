@@ -87,6 +87,8 @@ export class ConfigService {
       }
       this.config.settings.onboardingDone = settings.onboardingDone;
     }
+    // 让 Logger 的缓冲门槛与已保存的日志级别一致（否则重启后"运行日志"页面仍是默认级别）
+    Logger.setMinLevel(this.config.settings.logLevel);
 
     // 载入自定义分流规则；解析失败时保留（空的）默认值，不覆盖磁盘上的原数据
     const rules: RoutingRule[] | null = RulesStore.load();
@@ -600,6 +602,8 @@ export class ConfigService {
       Logger.error(`logLevel set failed, rolled back to ${prev}`);
       return false;
     }
+    // 同步到 Logger 的缓冲过滤门槛，否则页面上选的级别对"运行日志"不生效
+    Logger.setMinLevel(level);
     Logger.info(`logLevel -> ${level}`);
     return true;
   }
