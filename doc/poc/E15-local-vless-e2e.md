@@ -61,11 +61,27 @@ E15 step2 kernel stopped
                 local endpoint 192.168.3.55:54076, remote endpoint 13.251.36.15:80
 ```
 
-**为什么这组日志能证明"走了一次 VLESS"**（三条件同时成立）：
+**为什么这组日志能证明"走了一次 VLESS"**（三条件必须**同时**成立）：
 
-1. `accepted` 只在 **UUID 校验通过之后**才出现（负对照：错误 UUID 会得到 `rejected … invalid request user id`）；
-2. `firstLen = 140` 是 VLESS 请求头的量级（负对照：非 VLESS 客户端打这个端口是 `firstLen = 621` 或 `1460`，报 `invalid request version`）；
-3. `proxy/freedom: connection opened` 说明服务端**真的把连接打出去了**，且出口是宿主网卡（`192.168.3.55`）。
+1. `accepted` 只在 **UUID 校验通过之后**才出现；
+2. `firstLen` 落在 VLESS 请求头的量级（我们 140/205），而不是 `621`（HTTP 打进来）或 `1460`（TLS ClientHello）；
+3. `proxy/freedom: connection opened` —— 服务端**真的把连接打出去了**。
+
+> **判据收紧（2026-11-21，独立复核后修订）**：
+> **只看到 `accepted` 不足以判"转发成功"**。陷阱 3 就是反例：`accepted tcp:10.0.2.2:8000`
+> 之后紧跟 `blocked target … blackholing`，握手与路由都成立，出站却被 SSRF 防护拦掉。
+> 因此最低判据必须包含第三行 `proxy/freedom: connection opened …`；
+> 只有 `accepted` 时只能判「**握手成功、出站被拦**」。
+
+### 负对照（独立复核补充，同端口 10443）
+
+| 场景 | 服务端日志 | 客户端 |
+|---|---|---|
+| **错误 UUID** | `firstLen = 205` → `rejected proxy/vless/encoding: invalid request user id: 1111…` | 503 |
+| **正确 UUID** | `firstLen = 205` → `accepted …` → `connection opened` | 200，`body=222.247.206.159` |
+
+⇒ 证明 `accepted` 确实与 UUID 校验强相关，不是"任何连接都会打"。
+另外两组指纹可用于快速归因：`firstLen = 621` = 非 VLESS 客户端（HTTP 打进来）；`firstLen = 1460` = TLS ClientHello（安全层配错）。
 
 App 侧 200 与 服务端侧 `accepted` 是**同一时刻**的同一个请求，缺任一条都不成立。
 
@@ -80,7 +96,6 @@ App 侧 200 与 服务端侧 `accepted` 是**同一时刻**的同一个请求，
 第 2 条顺带暴露一个产品风险：**节点对象的默认安全层是 TLS**。分享链接里 `security` 缺省会被解析成 `none`，所以导入路径没问题；但任何"代码里直接构造节点"的地方都必须显式设置，否则会产生与"配置错了"一模一样的现象。
 
 ## 5. 能证明什么 / 不能证明什么
-
 **能证明**
 
 - 模拟器应用进程能连宿主端口（TCP + HTTP 200）；
