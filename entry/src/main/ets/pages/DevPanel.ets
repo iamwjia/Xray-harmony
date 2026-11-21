@@ -6,6 +6,7 @@ import { router } from '@kit.ArkUI';
 import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
 import { KernelService } from '../service/KernelService';
+import { VpnController } from '../service/VpnController';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -40,30 +41,23 @@ struct DevPanel {
     }
   }
 
+  /**
+   * 请求启动 VPN 扩展。
+   *
+   * 这条路径在模拟器上**必然超时**：模拟器缺系统 VPN 授权组件，调用不会 settle。
+   * 正因为如此，它是验证"超时归因"最方便的场景——这里要看到的不是成功，
+   * 而是限定时间内给出可理解的结论，而不是永远停在"连接中"。
+   */
   private probeVpnExt(): void {
-    try {
-      const t: string = typeof vpnExtension.startVpnExtensionAbility;
-      hilog.info(DOMAIN, TAG, 'VPNPROBE typeof=%{public}s', t);
-    } catch (e) {
-      const err = e as BusinessError;
-      hilog.error(DOMAIN, TAG, 'VPNPROBE typeof threw code=%{public}d msg=%{public}s', err.code, err.message);
-    }
-    const want: Want = {
-      deviceId: '',
-      bundleName: 'com.tunnelix.app',
-      abilityName: 'MyVpnExtAbility',
-    };
-    hilog.info(DOMAIN, TAG, 'VPNPROBE invoking startVpnExtensionAbility');
-    vpnExtension.startVpnExtensionAbility(want)
-      .then(() => {
-        hilog.info(DOMAIN, TAG, 'VPNPROBE resolved');
-      })
-      .catch((err: BusinessError) => {
-        hilog.error(DOMAIN, TAG, 'VPNPROBE rejected code=%{public}d msg=%{public}s', err.code, err.message);
-      });
-    setTimeout(() => {
-      hilog.info(DOMAIN, TAG, 'VPNPROBE pending-after-6s (no resolve/reject within 6s)');
-    }, 6000);
+    this.vpnExtResult = '请求中…';
+    VpnController.start('com.tunnelix.app', 'MyVpnExtAbility').then(() => {
+      this.vpnExtResult = '已请求启动（真机上此刻应出现系统授权弹窗）';
+      hilog.info(DOMAIN, TAG, 'vpn start resolved');
+    }).catch((e: Object) => {
+      const msg: string = VpnController.describeError(e);
+      this.vpnExtResult = `未成功：${msg}`;
+      hilog.error(DOMAIN, TAG, 'vpn start failed: %{public}s', msg);
+    });
   }
 
   private runNapiHello(): void {
