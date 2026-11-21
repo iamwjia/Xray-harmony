@@ -49,6 +49,8 @@ struct NodeEdit {
   @State shortId: string = '';
   @State fingerprint: string = '';
   @State group: string = '';
+  @State groupOptions: SelectOption[] = [];
+  @State groupSelectIdx: number = 0;
   @State remark: string = '';
   /** 留空 = 不修改凭据 */
   @State credentialInput: string = '';
@@ -109,6 +111,27 @@ struct NodeEdit {
     this.remark = node.remark;
     this.transportIdx = this.indexOfTransport(node.transport);
     this.securityIdx = this.indexOfSecurity(node.security);
+    this.reloadGroups();
+  }
+
+  /**
+   * 分组候选：来自现有节点。
+   * 为什么要下拉 + 手输并存：纯自由输入会让「Home」和「home」分裂成两个组，
+   * 而分组的价值就在归类；纯下拉又不能新建组。所以两者都留。
+   */
+  private reloadGroups(): void {
+    const list: string[] = this.cfg.getGroups();
+    const opts: SelectOption[] = [{ value: '（不分组）' } as SelectOption];
+    for (let i = 0; i < list.length; i++) {
+      opts.push({ value: list[i] } as SelectOption);
+    }
+    this.groupOptions = opts;
+    this.groupSelectIdx = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] === this.group) {
+        this.groupSelectIdx = i + 1;
+      }
+    }
   }
 
   private findNode(id: string): XrayNode | null {
@@ -341,8 +364,19 @@ struct NodeEdit {
               this.fingerprint = v;
             })
 
-          Text('分组（留空=未分组）').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.group }).fontSize(12)
+          Text('分组（选已有，或直接输入新组名）').fontSize(12).fontColor('#666666').width('100%')
+          if (this.groupOptions.length > 1) {
+            Select(this.groupOptions)
+              .selected(this.groupSelectIdx)
+              .value(this.groupSelectIdx === 0 ? '（不分组）' : this.group)
+              .font({ size: 12 })
+              .width('100%')
+              .onSelect((index: number, value: string) => {
+                this.groupSelectIdx = index;
+                this.group = index === 0 ? '' : value;
+              })
+          }
+          TextInput({ text: $$this.group, placeholder: '输入新组名会覆盖上面的选择' }).fontSize(12)
             .onChange((v: string) => {
               this.group = v;
             })
