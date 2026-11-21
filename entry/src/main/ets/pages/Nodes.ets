@@ -4,6 +4,7 @@ import { ConfigService } from '../service/ConfigService';
 import { ShareLinkParser } from '../service/ShareLinkParser';
 import { Logger } from '../platform/Logger';
 import { NodeEditParams } from './NodeEdit';
+import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
 
 /**
  * pages/Nodes.ets — 节点列表（本地假数据 + 选中切换）
@@ -28,6 +29,9 @@ struct Nodes {
   @State groupFilter: string = '';
   @State linkInput: string = '';
   @State importMsg: string = '';
+  /** 订阅导入（FR-02）：URL 输入与进行中状态 */
+  @State subInput: string = '';
+  @State subBusy: boolean = false;
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -86,6 +90,46 @@ struct Nodes {
     if (this.cfg.moveNode(id, delta)) {
       this.reload();
     }
+  }
+
+  /**
+   * 订阅导入（FR-02）。
+   * 结果话术刻意区分三种情况，避免"只导入了一部分却像全部成功"：
+   * 全失败 / 部分成功 / 全部成功。
+   */
+  private doImportSubscription(): void {
+    const url: string = this.subInput.trim();
+    if (url.length === 0) {
+      this.importMsg = '请先填订阅地址';
+      return;
+    }
+    this.subBusy = true;
+    this.importMsg = '正在拉取订阅…';
+    SubscriptionService.importFromUrl(url, '').then((r: SubscriptionImportResult) => {
+      this.subBusy = false;
+      this.reload();
+      if (r.total === 0) {
+        this.importMsg = `订阅导入失败：${r.error.length > 0 ? r.error : '里面没有可识别的节点'}`;
+        return;
+      }
+      let msg: string = `订阅：解析 ${r.total} 条，新增 ${r.added} 条`;
+      if (r.skipped > 0) {
+        // 重新导入同一份订阅时全是"已存在"，把它说成失败会误导用户
+        msg += `，已存在 ${r.skipped} 条`;
+      }
+      if (r.failed > 0) {
+        msg += `，失败 ${r.failed} 条`;
+      }
+      if (r.error.length > 0) {
+        msg += `（首条错误：${r.error}）`;
+      }
+      this.importMsg = msg;
+      this.subInput = '';
+    }).catch((e: Object) => {
+      this.subBusy = false;
+      const msg: string = e instanceof Error ? e.message : String(e);
+      this.importMsg = `订阅导入失败：${msg}`;
+    });
   }
 
   private pick(id: string): void {
@@ -186,6 +230,20 @@ struct Nodes {
       if (this.importMsg) {
         Text(this.importMsg).fontSize(11).fontColor('#1976D2').width('100%')
       }
+
+      // 订阅导入：只在用户点击时才拉取，不做后台轮询（与 FR-45 同类约束）
+      Row({ space: 8 }) {
+        TextInput({ placeholder: '订阅地址 https://…（支持 Base64 内容）', text: this.subInput })
+          .fontSize(12)
+          .layoutWeight(1)
+          .onChange((v: string) => {
+            this.subInput = v;
+          })
+        Button(this.subBusy ? '导入中…' : '订阅导入').fontSize(12)
+          .enabled(!this.subBusy)
+          .onClick(() => this.doImportSubscription())
+      }
+      .width('100%')
 
       // 分组筛选：只在真的有分组时出现，避免空界面上多一行无用控件
       if (this.groups.length > 0) {
