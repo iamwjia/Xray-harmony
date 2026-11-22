@@ -2,6 +2,8 @@ import { vpnExtension } from '@kit.NetworkKit';
 import { Want } from '@kit.AbilityKit';
 import { Logger } from '../platform/Logger';
 import { VpnSession } from './VpnSession';
+import { common } from '@kit.AbilityKit';
+import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 
 /**
  * 主应用侧的 VPN 接管控制器。
@@ -57,6 +59,53 @@ export class VpnController {
     return true;
   }
 
+  /**
+   * 轮询扩展进程回传的状态，直到 running / error / 超时。
+   *
+   * 为什么要轮询而不是事件：两个进程共享的只有沙箱目录，没有跨进程回调通道。
+   * 轮询只在“正在连接”这个短窗口里进行，拿到结果立即停，不留常驻定时器。
+   */
+  static async waitForState(ctx: common.Context, timeoutMs: number): Promise<VpnState> {
+    const start: number = Date.now();
+    let last: VpnState | null = null;
+    while (Date.now() - start < timeoutMs) {
+      const st: VpnState | null = VpnStateFile.read(ctx);
+      if (st !== null) {
+        last = st;
+        if (st.state === 'running' || st.state === 'error') {
+          // running 也要查过期：扩展进程被系统杀掉时不会写 stopped
+          if (VpnStateFile.isStale(st)) {
+            const stale = new VpnState();
+            stale.state = 'error';
+            stale.code = -1;
+            stale.msg = '状态已过期：扩展进程可能已被系统终止';
+            stale.at = Date.now();
+            return stale;
+          }
+          return st;
+        }
+      }
+      await VpnController.sleep(KernelSleepMs);
+    }
+    if (last !== null) {
+      return last;
+    }
+    const timeout = new VpnState();
+    timeout.state = 'error';
+    timeout.code = -2;
+    timeout.msg = '等待 VPN 扩展进程响应超时';
+    timeout.at = Date.now();
+    return timeout;
+  }
+
+  private static sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, ms);
+    });
+  }
+
   static markStopped(): void {
     VpnController.running = false;
   }
@@ -86,3 +135,6 @@ interface BusinessErrorLike {
   code: number;
   message: string;
 }
+
+/** 轮询间隔：250ms —— 比这更密是白费 CPU，更稀会让用户觉得“点了没反应” */
+const KernelSleepMs: number = 250;

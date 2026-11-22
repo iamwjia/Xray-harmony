@@ -3,6 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Want } from '@kit.AbilityKit';
 import { KernelService } from '../service/KernelService';
 import { VpnSession } from '../service/VpnSession';
+import { VpnStateFile } from '../platform/VpnStateFile';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_EXT';
@@ -41,8 +42,11 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     if (this.session === null) {
       // 没有会话参数就不该建 tun：建了也无人转发，只会把设备流量吸进黑洞
       hilog.error(DOMAIN, TAG, 'missing session parameters, refusing to establish tun');
+      VpnStateFile.put(this.context, 'error', 0, '会话参数缺失，已拒绝建立 tun');
       return;
     }
+    // 先告知“正在起”：否则应用进程只能看到旧状态，分不清“没启动”与“启动中”
+    VpnStateFile.put(this.context, 'starting', 0, '');
     hilog.info(DOMAIN, TAG, 'session: %{public}s', this.session.describe());
     this.bootstrap().then(() => {
       hilog.info(DOMAIN, TAG, 'bootstrap finished');
@@ -50,6 +54,9 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
       // 不能直接 String(e)：BusinessError 是对象，打出来是 "[object Object]"，
       // 等于把最有用的 code 丢掉了（实测踩到）。
       hilog.error(DOMAIN, TAG, 'bootstrap failed: %{public}s', MyVpnExtAbility.describe(e));
+      const err = e as BusinessErrorLike;
+      const code: number = err.code === undefined ? 0 : err.code;
+      VpnStateFile.put(this.context, 'error', code, MyVpnExtAbility.describe(e));
     });
   }
 
@@ -71,6 +78,7 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     hilog.info(DOMAIN, TAG, 'onDestroy tunFd=%{public}d', this.tunFd);
     this.shutdown().then(() => {
       hilog.info(DOMAIN, TAG, 'shutdown finished');
+      VpnStateFile.put(this.context, 'stopped', 0, '');
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
       hilog.error(DOMAIN, TAG, 'shutdown failed: %{private}s', msg);
@@ -124,6 +132,10 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     // tun 已建立而无人读 fd 时，设备流量会被吸进黑洞（显示已连接但没有网络）。
     hilog.warn(DOMAIN, TAG,
       'forwarding layer is NOT attached: tun is up but nothing reads it; expect no connectivity in this state');
+
+    // 回传给应用进程。注意 msg 不带任何敏感信息（无地址、无 fd）。
+    VpnStateFile.put(this.context, 'running', 0,
+      '内核与 tun 已就绪，转发层尚未接入');
   }
 
   /** 先停内核再销毁 tun：避免"网卡还在、转发已死"的中间态 */

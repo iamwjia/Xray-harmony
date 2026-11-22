@@ -3,13 +3,14 @@ import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common
 import { PageHeader } from '../components/PageHeader';
 import { vpnExtension } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Want } from '@kit.AbilityKit';
+import { Want, common } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
 import { KernelService } from '../service/KernelService';
 import { VpnController } from '../service/VpnController';
 import { VpnSession } from '../service/VpnSession';
+import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
 import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
@@ -39,6 +40,8 @@ struct DevPanel {
   @State socksProbeResult: string = '(未运行)';
   @State bundleResult: string = '(未运行)';
   @State hostProbeResult: string = '(未运行)';
+  /** 扩展进程回传的状态（starting / running / error / stopped） */
+  @State vpnPhase: string = '';
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
   private kernelDebug: KernelService = KernelService.getInstance();
@@ -60,12 +63,43 @@ struct DevPanel {
    */
   private probeVpnExt(): void {
     this.vpnExtResult = '准备会话…';
-    this.launchVpnSession().then(() => {
-      this.vpnExtResult = '已请求启动（真机上此刻应出现系统授权弹窗）';
+    this.vpnPhase = 'starting';
+    this.launchVpnSession().then(async () => {
+      this.vpnExtResult = '已请求启动，等待扩展进程回传状态…';
+      // 这一步就是本轮要验证的东西：应用进程能不能看到另一个进程里的真实状态
+      const st: VpnState = await VpnController.waitForState(this.ctx(), 15000);
+      this.vpnPhase = st.state;
+      if (st.state === 'running') {
+        this.vpnExtResult = `扩展进程已运行：${st.msg}`;
+      } else {
+        this.vpnExtResult = `扩展进程状态=${st.state} code=${st.code} ${st.msg}`;
+      }
+      hilog.info(DOMAIN, TAG, 'extension state: %{public}s', this.vpnExtResult);
     }).catch((e: Object) => {
       const msg: string = VpnController.describeError(e);
+      this.vpnPhase = 'error';
       this.vpnExtResult = `未成功：${msg}`;
     });
+  }
+
+  /** 取应用上下文（状态文件在沙箱目录，两个进程同一份） */
+  /**
+   * 读一次扩展进程回传的状态（不启动、不等待）。
+   * 用来排查“为什么没连上”：状态文件里的 code 就是扩展进程真实碰到的错误。
+   */
+  private readExtState(): void {
+    const st: VpnState | null = VpnStateFile.read(this.ctx());
+    if (st === null) {
+      this.vpnExtResult = '无状态记录（扩展进程本次启动后从未被唤起）';
+      return;
+    }
+    const age: number = st.at > 0 ? Math.round((Date.now() - st.at) / 1000) : -1;
+    this.vpnPhase = st.state;
+    this.vpnExtResult = `状态=${st.state} code=${st.code} ${st.msg}（${age} 秒前）`;
+  }
+
+  private ctx(): common.UIAbilityContext {
+    return getContext(this) as common.UIAbilityContext;
   }
 
   /**
@@ -285,8 +319,9 @@ api failed: ${err.code} ${err.message}`;
           Button('prebuilt_add(1,2)').onClick(() => this.runPrebuiltAdd()).width('100%')
           Text(this.prebuiltAddResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
-          Button('启动 VpnExtensionAbility（仅代码）').onClick(() => this.runVpnExt()).width('100%')
+          Button('启动 VpnExtensionAbility（仅代码）').onClick(() => this.probeVpnExt()).width('100%')
           Text(this.vpnExtResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
+          Button('读取扩展进程回传状态').onClick(() => this.readExtState()).width('100%')
 
           Button('Go CGoPing()').onClick(() => this.runCGoPing()).width('100%')
           Text(this.cgoPingResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
