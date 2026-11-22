@@ -59,6 +59,25 @@ struct Backup {
   }
 
   /** 生成并保存：先加密，再让用户选落点（应用不往公共目录私自写） */
+  /**
+   * 生成一个高熵口令。
+   *
+   * 为什么不让用户自己想：这个口令**只用一次**（导出时设、恢复时输），
+   * 用户没有动机记住它，也就没有动机把它想得够强——人手输的口令大多是
+   * 同一串字符换个顺序，直接生成反而更安全。
+   */
+  private generatePassphrase(): void {
+    const alphabet: string = 'abcdefghijkmnpqrstuvwxyz23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const bytes: Uint8Array = BundleCrypto.randomBytes(20);
+    let out: string = '';
+    for (let i = 0; i < bytes.length; i++) {
+      out += alphabet.charAt(bytes[i] % alphabet.length);
+    }
+    this.exportPass = out;
+    this.exportPass2 = out;
+    this.setExportMsg('已生成随机口令：先导出文件，再把口令另发一条消息', 0);
+  }
+
   private doExport(): void {
     const weak: string = BundleCrypto.weaknessHint(this.exportPass);
     if (weak.length > 0) {
@@ -206,6 +225,16 @@ struct Backup {
     });
   }
 
+  /**
+   * 页面退出时把口令从内存里抹掉。
+   * 它不是应用密码，只属于“这一次导出”：不存盘、不进安全存储、不进日志。
+   */
+  aboutToDisappear(): void {
+    this.exportPass = '';
+    this.exportPass2 = '';
+    this.importPass = '';
+  }
+
   @Builder
   section(title: string, hint: string) {
     Column({ space: Space.xxs }) {
@@ -270,6 +299,12 @@ struct Backup {
                 .fontColor($r('app.color.text_on_accent'))
                 .enabled(!this.exporting)
                 .onClick(() => this.doExport())
+              Button('随机生成')
+                .height(Height.hit)
+                .fontSize(FontSize.bodySm)
+                .backgroundColor($r('app.color.bg_chip'))
+                .fontColor($r('app.color.text_primary'))
+                .onClick(() => this.generatePassphrase())
               Button('复制口令')
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
