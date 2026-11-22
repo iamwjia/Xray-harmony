@@ -57,6 +57,8 @@ struct NodeEdit {
   /** 留空 = 不修改凭据 */
   @State credentialInput: string = '';
   @State transportIdx: number = 0;
+  /** 传输类型下拉选项：5 项在 360vp 下已经贴边，再加就放不下了 */
+  @State transportOptions: SelectOption[] = [];
   @State securityIdx: number = 0;
   @State saveMsg: string = '';
   @State saving: boolean = false;
@@ -111,6 +113,7 @@ struct NodeEdit {
     this.fingerprint = node.fingerprint;
     this.group = node.group;
     this.remark = node.remark;
+    this.transportOptions = this.buildTransportOptions();
     this.transportIdx = this.indexOfTransport(node.transport);
     this.securityIdx = this.indexOfSecurity(node.security);
     this.reloadGroups();
@@ -121,6 +124,15 @@ struct NodeEdit {
    * 为什么要下拉 + 手输并存：纯自由输入会让「Home」和「home」分裂成两个组，
    * 而分组的价值就在归类；纯下拉又不能新建组。所以两者都留。
    */
+  /** 把 transports 转成下拉选项（Select 需要 SelectOption[]） */
+  private buildTransportOptions(): SelectOption[] {
+    const opts: SelectOption[] = [];
+    for (let i = 0; i < this.transports.length; i++) {
+      opts.push({ value: this.transports[i].label } as SelectOption);
+    }
+    return opts;
+  }
+
   private reloadGroups(): void {
     const list: string[] = this.cfg.getGroups();
     const opts: SelectOption[] = [{ value: '（不分组）' } as SelectOption];
@@ -294,18 +306,20 @@ struct NodeEdit {
           }.width('100%')
 
           Text('传输').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          Row({ space: 6 }) {
-            ForEach(this.transports, (t: TransportOption, i: number) => {
-              Button(t.label).fontSize(FontSize.caption)
-                .layoutWeight(1)
-                .padding({ left: 0, right: 0 })
-                .backgroundColor(i === this.transportIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(i === this.transportIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
-                .onClick(() => {
-                  this.transportIdx = i;
-                })
-            }, (t: TransportOption) => t.label)
-          }.width('100%')
+          // 传输用下拉而不是按钮组：5 项等宽时 HTTP2/mKCP 已经贴边，
+          // 再加传输类型（QUIC 等）就放不下；下拉项数增长不会挤爆布局。
+          Select(this.transportOptions)
+            .selected(this.transportIdx)
+            .value(this.transports[this.transportIdx].label)
+            .font({ size: FontSize.body })
+            .width('100%')
+            .height(Height.input)
+            // 与输入框同款浅底：白底在浅色页面里等于"看不见的控件"
+            .backgroundColor($r('app.color.bg_chip'))
+            .borderRadius(Radius.panel)
+            .onSelect((index: number, value: string) => {
+              this.transportIdx = index;
+            })
 
           Text('安全').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           Row({ space: 6 }) {
