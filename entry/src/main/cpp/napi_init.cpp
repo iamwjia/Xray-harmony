@@ -23,6 +23,9 @@ extern "C" napi_value SetAssetPath(napi_env env, napi_callback_info info);
 extern "C" napi_value ProbeHostHttp(napi_env env, napi_callback_info info);
 // SOCKS5 with username/password -> HTTP GET (end-to-end probe).
 extern "C" napi_value ProbeSocksThroughKernel(napi_env env, napi_callback_info info);
+// 转发接线：tun fd 交给 tun2socks（实现在合并库里，这里只做 dlsym 调用）
+extern "C" napi_value StartForwarding(napi_env env, napi_callback_info info);
+extern "C" napi_value StopForwarding(napi_env env, napi_callback_info info);
 
 namespace {
 
@@ -64,6 +67,8 @@ napi_value Init(napi_env env, napi_value exports)
         {"setAssetPath", nullptr, SetAssetPath, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeHostHttp", nullptr, ProbeHostHttp, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeSocksThroughKernel", nullptr, ProbeSocksThroughKernel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startForwarding", nullptr, StartForwarding, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopForwarding", nullptr, StopForwarding, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

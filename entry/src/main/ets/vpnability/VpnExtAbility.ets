@@ -4,6 +4,7 @@ import { Want } from '@kit.AbilityKit';
 import { KernelService } from '../service/KernelService';
 import { VpnSession } from '../service/VpnSession';
 import { VpnStateFile } from '../platform/VpnStateFile';
+import { Forwarding, ForwardingResult } from '../service/Forwarding';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_EXT';
@@ -130,16 +131,33 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
 
     // 转发层尚未接入，这里明确说明后果，不做"已接上"的假象：
     // tun 已建立而无人读 fd 时，设备流量会被吸进黑洞（显示已连接但没有网络）。
-    hilog.warn(DOMAIN, TAG,
-      'forwarding layer is NOT attached: tun is up but nothing reads it; expect no connectivity in this state');
+    // tun 已就绪：把 fd 交给转发层。这一步之后，设备全局流量才真的进代理。
+    // 失败不能当成“已连接”：tun 已建立但无人读，流量会被吸进黑洞。
+    const fr: ForwardingResult = Forwarding.start(this.tunFd, s.socksPort, s.socksUser, s.socksPass);
+    if (!fr.ok) {
+      hilog.error(DOMAIN, TAG, 'forwarding start failed: %{public}s', fr.error);
+      VpnStateFile.put(this.context, 'error', 0, `转发启动失败：${fr.error}`);
+      // 已建的 tun 不能留着：没人读的 tun 会把设备流量后掉
+      try {
+        await this.conn.destroy();
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, 'destroy tun after forwarding failure failed');
+      }
+      this.conn = null;
+      this.tunFd = -1;
+      return;
+    }
 
-    // 回传给应用进程。注意 msg 不带任何敏感信息（无地址、无 fd）。
+    // 回传给应用进程。msg 不带任何敏感信息（无地址、无 fd、无口令）。
     VpnStateFile.put(this.context, 'running', 0,
-      '内核与 tun 已就绪，转发层尚未接入');
+      '内核、tun 与转发层均就绪');
   }
 
   /** 先停内核再销毁 tun：避免"网卡还在、转发已死"的中间态 */
   private async shutdown(): Promise<void> {
+    // 顺序：先停转发，再销 tun，最后停内核。
+    // 反过来会让转发层读到一个已关闭的 fd。
+    Forwarding.stop();
     try {
       await this.kernel.stop(KernelService.DISCONNECT_TIMEOUT_MS);
       hilog.info(DOMAIN, TAG, 'kernel stopped');

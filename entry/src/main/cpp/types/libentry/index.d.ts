@@ -24,3 +24,8 @@ export const probeHostHttp: (host: string, port: number, path: string) => string
 // socksPort/user/pass come from SocksGuard; the request exits via the node outbound.
 export const probeSocksThroughKernel: (socksPort: number, user: string, pass: string,
   targetHost: string, targetPort: number, path: string) => string;
+
+// 转发接线：把 tun fd 交给 tun2socks（实现位于合并库，本层只做 dlsym 调用）。
+// 必须在创建 tun 的那个进程（VPN 扩展进程）里调用；返回 JSON {success,error}。
+export const startForwarding: (tunFd: number, socksUrl: string) => string;
+export const stopForwarding: () => string;

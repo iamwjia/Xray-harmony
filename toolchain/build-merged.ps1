@@ -47,7 +47,10 @@ $mapFile = Join-Path $outDir 'merged.map'
   global:
     Invoke;
     FreeString;
+    CGoInvoke;
+    CGoFree;
     StartTun2Socks;
+    StopTun2Socks;
   local:
     *;
 };

@@ -950,3 +950,99 @@ extern "C" napi_value ProbeSocksThroughKernel(napi_env env, napi_callback_info i
     OH_LOG_INFO(LOG_APP, "M11 %{public}s", out.c_str());
     return MakeString(env, out);
 }
+
+// ============================================================================
+// \u8f6c\u53d1\u63a5\u7ebf\uff1atun fd -> \u672c\u5faa\u73af SOCKS \u5165\u7ad9
+//
+// \u4e3a\u4ec0\u4e48\u653e\u5728\u8fd9\u4e2a\u6587\u4ef6\uff1a\u8fd9\u91cc\u5df2\u6709 dlopen + \u53d6\u9519\u4fe1\u606f + OwnModuleDir() \u7684\u6210\u5b57\u5de5\u5177\uff0c
+// \u518d\u5f00\u4e00\u4e2a\u6587\u4ef6\u53ea\u4f1a\u628a\u540c\u4e00\u5957\u9519\u8bef\u5904\u7406\u518d\u5199\u4e00\u904d\u3002
+//
+// \u4e24\u4e2a\u51fd\u6570\u90fd\u8fd4\u56de\u5b57\u7b26\u4e32\uff08JSON\uff09\u800c\u4e0d\u662f\u629b\u5f02\u5e38\uff1a\u8c03\u7528\u65b9\u5728 ArkTS \u4fa7\uff0c
+// \u5f02\u5e38\u8de8 NAPI \u4f20\u9012\u4f1a\u4e22\u6389\u771f\u6b63\u6709\u7528\u7684\u9519\u8bef\u7801\u3002
+// ============================================================================
+
+typedef char *(*StartTun2SocksFn)(int, const char *);
+typedef char *(*StopTun2SocksFn)();
+
+namespace {
+
+// \u6253\u5f00\u5e76\u7f13\u5b58\u5408\u5e76\u5e93\u53e5\u67c4\uff1a\u8f6c\u53d1\u53ea\u80fd\u542f\u52a8\u4e00\u6b21\uff0c\u53e5\u67c4\u4e5f\u5c31\u53ea\u9700\u8981\u4e00\u4efd
+void *ForwardLib()
+{
+    static void *handle = nullptr;
+    if (handle != nullptr) {
+        return handle;
+    }
+    handle = dlopen("libxray.so", RTLD_NOW);
+    if (handle == nullptr) {
+        std::string dir = OwnModuleDir();
+        std::string full = dir.empty() ? std::string("libxray.so") : (dir + "libxray.so");
+        handle = dlopen(full.c_str(), RTLD_NOW);
+    }
+    return handle;
+}
+
+} // namespace
+
+extern "C" napi_value StartForwarding(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value argv[2] = {nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    int32_t fd = -1;
+    if (argc < 2) {
+        return MakeString(env, "{\"success\":false,\"error\":\"fd and socks url required\"}");
+    }
+    napi_get_value_int32(env, argv[0], &fd);
+    const std::string socksUrl = GetStringArg(env, argv[1]);
+    if (fd < 0) {
+        return MakeString(env, "{\"success\":false,\"error\":\"invalid tun fd\"}");
+    }
+
+    void *handle = ForwardLib();
+    if (handle == nullptr) {
+        const char *e = dlerror();
+        OH_LOG_ERROR(LOG_APP, "forwarding dlopen failed: %{public}s", e != nullptr ? e : "unknown");
+        return MakeString(env, std::string("{\"success\":false,\"error\":\"dlopen: ") +
+                                   (e != nullptr ? e : "unknown") + "\"}");
+    }
+    auto startFn = reinterpret_cast<StartTun2SocksFn>(dlsym(handle, "StartTun2Socks"));
+    if (startFn == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "forwarding dlsym StartTun2Socks FAILED (merged build not deployed?)");
+        return MakeString(env, "{\"success\":false,\"error\":\"dlsym StartTun2Socks missing: "
+                               "libxray.so is not the merged build\"}");
+    }
+
+    OH_LOG_INFO(LOG_APP, "forwarding start fd=%{public}d", static_cast<int>(fd));
+    char *raw = startFn(static_cast<int>(fd), socksUrl.c_str());
+    std::string out = (raw == nullptr) ? std::string("{\"success\":false,\"error\":\"NULL\"}")
+                                       : std::string(raw);
+    auto freeFn = reinterpret_cast<CGoFreeXFn>(dlsym(handle, "FreeString"));
+    if (raw != nullptr && freeFn != nullptr) {
+        freeFn(raw);
+    }
+    OH_LOG_INFO(LOG_APP, "forwarding start result=%{public}s", out.c_str());
+    return MakeString(env, out);
+}
+
+extern "C" napi_value StopForwarding(napi_env env, napi_callback_info info)
+{
+    (void)info;
+    void *handle = ForwardLib();
+    if (handle == nullptr) {
+        return MakeString(env, "{\"success\":false,\"error\":\"lib not loaded\"}");
+    }
+    auto stopFn = reinterpret_cast<StopTun2SocksFn>(dlsym(handle, "StopTun2Socks"));
+    if (stopFn == nullptr) {
+        return MakeString(env, "{\"success\":false,\"error\":\"dlsym StopTun2Socks missing\"}");
+    }
+    char *raw = stopFn();
+    std::string out = (raw == nullptr) ? std::string("{\"success\":true}") : std::string(raw);
+    auto freeFn = reinterpret_cast<CGoFreeXFn>(dlsym(handle, "FreeString"));
+    if (raw != nullptr && freeFn != nullptr) {
+        freeFn(raw);
+    }
+    OH_LOG_INFO(LOG_APP, "forwarding stopped result=%{public}s", out.c_str());
+    return MakeString(env, out);
+}
