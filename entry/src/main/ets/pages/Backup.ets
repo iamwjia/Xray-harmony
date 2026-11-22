@@ -3,6 +3,9 @@ import { fileIo, picker } from '@kit.CoreFileKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { common } from '@kit.AbilityKit';
+import { fileUri } from '@kit.CoreFileKit';
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigBundle, BundleImportResult } from '../service/ConfigBundle';
@@ -127,6 +130,95 @@ struct Backup {
       this.setExportMsg(m, 2);
       Logger.error(`bundle export failed: ${m}`);
     });
+  }
+
+  /**
+   * 导出并唤起系统分享面板。
+   *
+   * 用 Share Kit（`systemShare`），不是 Want 隐式意图：后者让系统自己匹配能力，
+   * 实测会被日历应用抢走（详见 doc/poc/pc14）；Share Kit 才是「分享面板」。
+   *
+   * 一个必须保留的退路：若系统没有分享面板（比如部分模拟器镜像），
+   * `show()` 会抛错。此时文件已在沙箱里，页面要把文件名告诉用户并指向「导出到文件」。
+   */
+  private doExportAndShare(): void {
+    const weak: string = BundleCrypto.weaknessHint(this.exportPass);
+    if (weak.length > 0) {
+      this.setExportMsg(weak, 1);
+      return;
+    }
+    if (this.exportPass !== this.exportPass2) {
+      this.setExportMsg('两次输入的口令不一致', 1);
+      return;
+    }
+    this.exporting = true;
+    this.setExportMsg('正在生成…', 0);
+    ConfigBundle.exportToText(this.exportPass).then((text: string) => {
+      const ctx = getContext(this) as common.UIAbilityContext;
+      const kb: string = `${Math.round(text.length / 102.4) / 10}`;
+      const dir: string = `${ctx.filesDir}/exports`;
+      const fileName: string = `tunnelix-backup-${Date.now()}.tunnelixbak`;
+      let path: string = '';
+      try {
+        if (!fileIo.accessSync(dir)) {
+          fileIo.mkdirSync(dir);
+        }
+        path = `${dir}/${fileName}`;
+        const f = fileIo.openSync(path,
+          fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+        try {
+          fileIo.writeSync(f.fd, text);
+        } finally {
+          fileIo.closeSync(f);
+        }
+      } catch (e) {
+        this.exporting = false;
+        const m: string = e instanceof Error ? e.message : String(e);
+        this.setExportMsg(`写入失败：${m}`, 2);
+        return;
+      }
+      this.showSharePanel(ctx, path, fileName, kb);
+    }).catch((e: Object) => {
+      this.exporting = false;
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.setExportMsg(m, 2);
+    });
+  }
+
+  /** 打开系统分享面板；失败时把"文件在哪"说清楚，而不是只说失败 */
+  private showSharePanel(ctx: common.UIAbilityContext, path: string, fileName: string, kb: string): void {
+    try {
+      const record: systemShare.SharedRecord = {
+        // general.file 是"任意文件"的统一类型；用具体类型（如 octet-stream）反而可能匹配不到接收方
+        utd: utd.UniformDataType.FILE,
+        uri: fileUri.getUriFromPath(path),
+        title: fileName,
+        description: '加密备份，需口令解开'
+      };
+      const data: systemShare.SharedData = new systemShare.SharedData(record);
+      const controller: systemShare.ShareController = new systemShare.ShareController(data);
+      controller.show(ctx, {
+        selectionMode: systemShare.SelectionMode.SINGLE,
+        previewMode: systemShare.SharePreviewMode.DETAIL
+      }).then(() => {
+        this.exporting = false;
+        this.setExportMsg(`已发送到分享面板（约 ${kb} KB）。` +
+          '请把口令另发一条消息。', 0);
+        this.exportPass = '';
+        this.exportPass2 = '';
+      }).catch((e: Object) => {
+        this.exporting = false;
+        const m: string = e instanceof Error ? e.message : String(e);
+        this.setExportMsg(`分享面板未打开（${m}）。文件已生成：${fileName}` +
+          '（约 ' + kb + ' KB），可用「导出到文件」自选位置', 1);
+        Logger.warn(`share panel failed: ${m}`);
+      });
+    } catch (e) {
+      this.exporting = false;
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.setExportMsg(`分享失败：${m}（文件已生成：${fileName}）`, 1);
+      Logger.warn(`share panel threw: ${m}`);
+    }
   }
 
   /** 选文件 + 先看文件头（不解密），避免用户对着一个不相关的文件输口令 */
@@ -300,17 +392,28 @@ struct Backup {
             this.passField('再输一次', this.exportPass2, (v: string) => {
               this.exportPass2 = v;
             })
-            Button(this.exporting ? '生成中…' : '导出到文件')
-              .width('100%')
-              .height(Height.hit)
-              .fontSize(FontSize.bodySm)
-              .backgroundColor($r('app.color.accent'))
-              .fontColor($r('app.color.text_on_accent'))
-              .enabled(!this.exporting)
-              .onClick(() => this.doExport())
+            Row({ space: Space.sm }) {
+              Button(this.exporting ? '生成中…' : '导出并分享')
+                .layoutWeight(1)
+                .height(Height.hit)
+                .fontSize(FontSize.bodySm)
+                .backgroundColor($r('app.color.accent'))
+                .fontColor($r('app.color.text_on_accent'))
+                .enabled(!this.exporting)
+                .onClick(() => this.doExportAndShare())
+              Button('导出到文件')
+                .layoutWeight(1)
+                .height(Height.hit)
+                .fontSize(FontSize.bodySm)
+                .backgroundColor($r('app.color.bg_chip'))
+                .fontColor($r('app.color.text_primary'))
+                .enabled(!this.exporting)
+                .onClick(() => this.doExport())
+            }
+            .width('100%')
 
-            Text('导出后可在「文件」里找到该文件并分享。' +
-              '（系统分享面板需要 Share Kit，当前 SDK 未提供；用隐式意图会被日历类应用抢走）')
+            Text('「导出并分享」直接打开系统分享面板（Share Kit）；' +
+              '部分设备若无分享面板，可用「导出到文件」保存后再分享')
               .fontSize(FontSize.caption)
               .lineHeight(LineHeight.caption)
               .fontColor($r('app.color.text_tertiary'))
