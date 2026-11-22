@@ -1,6 +1,7 @@
 import { vpnExtension } from '@kit.NetworkKit';
 import { Want } from '@kit.AbilityKit';
 import { Logger } from '../platform/Logger';
+import { VpnSession } from './VpnSession';
 
 /**
  * 主应用侧的 VPN 接管控制器。
@@ -24,14 +25,15 @@ export class VpnController {
   }
 
   /**
-   * 请求启动 VPN 扩展。
+   * 请求启动 VPN 扩展，并把本次会话参数带过去。
    * 成功返回 true；失败抛出带人话的 Error（原始 code 进日志）。
    */
-  static async start(bundleName: string, abilityName: string,
+  static async start(bundleName: string, abilityName: string, session: VpnSession,
     timeoutMs: number = VpnController.START_TIMEOUT_MS): Promise<boolean> {
     const want: Want = {
       bundleName: bundleName,
-      abilityName: abilityName
+      abilityName: abilityName,
+      parameters: session.toParameters()
     };
     let timer: number = -1;
     const timeout = new Promise<boolean>((resolve) => {

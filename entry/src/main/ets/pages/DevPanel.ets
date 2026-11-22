@@ -7,6 +7,10 @@ import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
 import { KernelService } from '../service/KernelService';
 import { VpnController } from '../service/VpnController';
+import { VpnSession } from '../service/VpnSession';
+import { GeoAssets } from '../service/GeoAssets';
+import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
+import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -34,6 +38,8 @@ struct DevPanel {
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
   private kernelDebug: KernelService = KernelService.getInstance();
+  /** 组装 VPN 会话时需要读当前节点与规则 */
+  private cfg: ConfigService = ConfigService.getInstance();
 
   aboutToAppear(): void {
     if (AUTO_PROBE_VPN) {
@@ -42,22 +48,51 @@ struct DevPanel {
   }
 
   /**
-   * 请求启动 VPN 扩展。
+   * 请求启动 VPN 扩展（数据面搬到扩展进程）。
    *
-   * 这条路径在模拟器上**必然超时**：模拟器缺系统 VPN 授权组件，调用不会 settle。
-   * 正因为如此，它是验证"超时归因"最方便的场景——这里要看到的不是成功，
-   * 而是限定时间内给出可理解的结论，而不是永远停在"连接中"。
+   * 这条路径在模拟器上必然失败或超时：模拟器缺系统 VPN 授权组件。
+   * 它的用途是**真机联调时一键验证**：把当前选中节点的完整配置带进扩展进程，
+   * 由那边起内核并建 tun，UI 侧只看结果。
    */
   private probeVpnExt(): void {
-    this.vpnExtResult = '请求中…';
-    VpnController.start('com.tunnelix.app', 'MyVpnExtAbility').then(() => {
+    this.vpnExtResult = '准备会话…';
+    this.launchVpnSession().then(() => {
       this.vpnExtResult = '已请求启动（真机上此刻应出现系统授权弹窗）';
-      hilog.info(DOMAIN, TAG, 'vpn start resolved');
     }).catch((e: Object) => {
       const msg: string = VpnController.describeError(e);
       this.vpnExtResult = `未成功：${msg}`;
-      hilog.error(DOMAIN, TAG, 'vpn start failed: %{public}s', msg);
     });
+  }
+
+  /**
+   * 组装会话并启动扩展。
+   * 配置在这里生成（而不是让扩展自己拼）：配置怎么写只有一处，避免两个进程各拼一份、
+   * 规则悄悄不一致。
+   */
+  private async launchVpnSession(): Promise<void> {
+    const sel = this.cfg.getSelectedNode();
+    if (sel === null) {
+      this.vpnExtResult = '请先在节点列表里选择一个节点';
+      return;
+    }
+    const cred: string | null = await this.cfg.resolveCredential(sel);
+    if (cred === null) {
+      this.vpnExtResult = '节点凭据不可用，请重新导入该节点';
+      return;
+    }
+    const ep: SocksEndpoint = SocksGuard.rotate();
+    const mode = this.cfg.getConfig().settings.routingMode;
+    const cfgJson: string = KernelConfigBuilder.buildWithNode(sel, ep.port, mode,
+      ep.user, ep.password, cred, GeoAssets.isReady(), this.cfg.getRules());
+
+    const s = new VpnSession();
+    s.configJson = cfgJson;
+    s.socksPort = ep.port;
+    s.socksUser = ep.user;
+    s.socksPass = ep.password;
+    s.routingMode = mode as string;
+    hilog.info(DOMAIN, TAG, 'vpn session: %{public}s', s.describe());
+    await VpnController.start('com.tunnelix.app', 'MyVpnExtAbility', s);
   }
 
   private runNapiHello(): void {

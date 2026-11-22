@@ -1,29 +1,29 @@
 import { VpnExtensionAbility, vpnExtension, connection } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Want } from '@kit.AbilityKit';
+import { KernelService } from '../service/KernelService';
+import { VpnSession } from '../service/VpnSession';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_EXT';
-/** 虚拟网卡地址：不落进常见家庭网段，避免与应用要访问的内网地址冲突 */
+/** 虚拟网卡地址：不落进常见家庭网段，避免与要访问的内网地址冲突 */
 const TUN_ADDRESS: string = '10.8.0.1';
 const TUN_PREFIX: number = 24;
 const TUN_MTU: number = 1500;
 
 /**
- * VPN 扩展：建立系统级 tun。
+ * VPN 扩展：数据面宿主进程。
  *
- * 当前范围（有意收窄，不是遗漏）：
- *   1. 建立 VpnConnection，配置虚拟网卡地址、默认路由、DNS、MTU；
- *   2. `create()` 拿到 tun fd 并把 fd 记进日志，用于真机确认这一步通不通过；
- *   3. **不做转发**。
+ * 架构决定（为什么内核搬到这里）：
+ *   `tun fd` 只在创建它的进程内有效。内核若继续跑在 UI 进程，扩展拿到的 fd 就没人能用；
+ *   把 fd 跨进程交给 UI 进程，代价与风险都高于"把内核搬过来"。
+ *   所以：**扩展进程 = 数据面（内核 + 转发），UI 进程 = 控制与展示**。
  *
- * 为什么不在这里写转发：数据面是 `tun fd -> userspace 协议栈 -> loopback SOCKS -> 内核出站`。
- * 架构上有一条硬约束——**一个进程只能加载一个 Go runtime**。内核已经是 Go 共享库；
- * 若转发层也用 Go 实现，必须与内核合并进同一次构建，否则只能用 C/C++。
- * 选型未定之前写转发代码，只会得到"看起来完整、实际跑不通"的东西。
- *
- * 另一条同样重要的边界：**tun fd 只在这个扩展进程内有效**。主应用进程拿不到它，
- * 所以转发层必须活在扩展进程里——这直接决定了后面的构建方案（合并后的 .so 在这里加载）。
+ * 因此本进程的职责：
+ *   1. 按 Want 里带过来的配置先启动内核（SOCKS 入站监听 loopback）；
+ *   2. 再建立系统 tun，拿到 fd；
+ *   3. 把 tun fd 交给转发层 —— **这一步尚未实现**，见 bootstrap() 末尾说明；
+ *   4. 销毁时先停内核再销毁 tun，顺序反了会留下"网卡还在、转发已死"的黑洞状态。
  *
  * 官方约束：扩展内不得引用 contact / geolocation / multimedia.audio / camera /
  * telephony.call|sim|sms，否则可能导致进程异常退出。
@@ -31,26 +31,33 @@ const TUN_MTU: number = 1500;
 export default class MyVpnExtAbility extends VpnExtensionAbility {
   private conn: vpnExtension.VpnConnection | null = null;
   private tunFd: number = -1;
+  private session: VpnSession | null = null;
+  private kernel: KernelService = KernelService.getInstance();
 
   onCreate(want: Want): void {
     hilog.info(DOMAIN, TAG, 'onCreate abilityName=%{public}s', want.abilityName ?? '');
-    // 不阻塞生命周期回调：首次连接会弹系统授权框，用户不点之前 create() 不会返回，
-    // 必须放到异步流程里并自己兜底超时。
-    this.establish().then(() => {
-      hilog.info(DOMAIN, TAG, 'establish finished');
+    this.session = VpnSession.fromWant(want);
+    if (this.session === null) {
+      // 没有会话参数就不该建 tun：建了也无人转发，只会把设备流量吸进黑洞
+      hilog.error(DOMAIN, TAG, 'missing session parameters, refusing to establish tun');
+      return;
+    }
+    hilog.info(DOMAIN, TAG, 'session: %{public}s', this.session.describe());
+    this.bootstrap().then(() => {
+      hilog.info(DOMAIN, TAG, 'bootstrap finished');
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
-      hilog.error(DOMAIN, TAG, 'establish failed: %{private}s', msg);
+      hilog.error(DOMAIN, TAG, 'bootstrap failed: %{private}s', msg);
     });
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, TAG, 'onDestroy tunFd=%{public}d', this.tunFd);
-    this.teardown().then(() => {
-      hilog.info(DOMAIN, TAG, 'teardown finished');
+    this.shutdown().then(() => {
+      hilog.info(DOMAIN, TAG, 'shutdown finished');
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
-      hilog.error(DOMAIN, TAG, 'teardown failed: %{private}s', msg);
+      hilog.error(DOMAIN, TAG, 'shutdown failed: %{private}s', msg);
     });
   }
 
@@ -69,7 +76,7 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     const cfg: vpnExtension.VpnConfig = {
       addresses: [tunLink],
       routes: [defaultRoute],
-      // DNS 先给公共地址；后续要改成"隧道内解析"，否则 DNS 查询会绕过代理（泄漏点）
+      // DNS 目前给公共地址；隧道内解析未实现，DNS 查询会绕过代理（已知泄漏点）
       dnsAddresses: ['1.1.1.1'],
       mtu: TUN_MTU,
       isIPv4Accepted: true
@@ -77,20 +84,46 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     return cfg;
   }
 
-  private async establish(): Promise<void> {
+  /**
+   * 顺序是刻意的：**先起内核，再建 tun**。
+   * 反过来，tun 一旦建立系统就开始往里送流量，而此刻 SOCKS 还没在监听，
+   * 这批流量会被直接丢掉——表现是"连上的一瞬间所有应用断网"。
+   */
+  private async bootstrap(): Promise<void> {
+    const s: VpnSession | null = this.session;
+    if (s === null) {
+      return;
+    }
+
+    hilog.info(DOMAIN, TAG, 'starting kernel in extension process');
+    await this.kernel.start(s.configJson, KernelService.CONNECT_TIMEOUT_MS);
+    hilog.info(DOMAIN, TAG, 'kernel running in extension process');
+
     this.conn = vpnExtension.createVpnConnection(this.context);
-    const cfg: vpnExtension.VpnConfig = this.buildConfig();
-    this.tunFd = await this.conn.create(cfg);
+    this.tunFd = await this.conn.create(this.buildConfig());
     hilog.info(DOMAIN, TAG, 'tun established fd=%{public}d address=%{public}s/%{public}d mtu=%{public}d',
       this.tunFd, TUN_ADDRESS, TUN_PREFIX, TUN_MTU);
-    hilog.info(DOMAIN, TAG, 'forwarding NOT implemented: fd stays in this process, traffic goes nowhere yet');
+
+    // 转发层尚未接入，这里明确说明后果，不做"已接上"的假象：
+    // tun 已建立而无人读 fd 时，设备流量会被吸进黑洞（显示已连接但没有网络）。
+    hilog.warn(DOMAIN, TAG,
+      'forwarding layer is NOT attached: tun is up but nothing reads it; expect no connectivity in this state');
   }
 
-  private async teardown(): Promise<void> {
+  /** 先停内核再销毁 tun：避免"网卡还在、转发已死"的中间态 */
+  private async shutdown(): Promise<void> {
+    try {
+      await this.kernel.stop(KernelService.DISCONNECT_TIMEOUT_MS);
+      hilog.info(DOMAIN, TAG, 'kernel stopped');
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      hilog.error(DOMAIN, TAG, 'kernel stop failed: %{private}s', msg);
+    }
     if (this.conn !== null) {
       await this.conn.destroy();
       this.conn = null;
       this.tunFd = -1;
+      hilog.info(DOMAIN, TAG, 'tun destroyed');
     }
   }
 }
