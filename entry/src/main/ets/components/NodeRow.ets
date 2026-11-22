@@ -187,10 +187,16 @@ export struct NodeRow {
 
       // 命中区②：溢出菜单（自己消费事件，不冒泡到整行）
       Button({ type: ButtonType.Circle }) {
-        Text('\u22ef')
-          .fontSize(IconSize.md)
-          .fontColor($r('app.color.text_secondary'))
-          .accessibilityLevel('no')
+        Stack() {
+          Text('\u22ef')
+            .fontSize(IconSize.md)
+            .fontColor($r('app.color.text_secondary'))
+            .accessibilityLevel('no')
+        }
+        .width(32)
+        .height(32)
+        .backgroundColor($r('app.color.bg_chip'))
+        .borderRadius(Radius.pill)
       }
       .width(Height.hit)
       .height(Height.hit)

@@ -1,4 +1,4 @@
-import { FontSize, LineHeight, Space, Height, IconSize } from '../common/Token';
+import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
  * components/PageHeader.ets — 页面顶栏
@@ -57,18 +57,27 @@ export struct PageHeader {
 
       if (this.countText.length > 0) {
         Text(this.countText)
-          .fontSize(FontSize.caption)
-          .lineHeight(LineHeight.caption)
-          .fontColor($r('app.color.text_tertiary'))
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_secondary'))
           .margin({ right: Space.sm })
       }
 
       if (this.actionGlyph.length > 0) {
+        // 右上角动作（+ / ×）原来是"透明按钮里放一个字形"——视觉上就是个小字符，
+        // 手指找不到能按的地方。现在命中区仍是 44，但字形包进 32 的浅底圆，
+        // 一眼看出是可点的按钮，而不是标题旁的标点。
         Button({ type: ButtonType.Circle }) {
-          Text(this.actionGlyph)
-            .fontSize(IconSize.md)
-            .fontColor($r('app.color.accent'))
-            .accessibilityLevel('no').lineHeight(LineHeight.bodySm)
+          Stack() {
+            Text(this.actionGlyph)
+              .fontSize(IconSize.md)
+              .fontColor($r('app.color.accent'))
+              .accessibilityLevel('no').lineHeight(LineHeight.bodySm)
+          }
+          .width(32)
+          .height(32)
+          .backgroundColor($r('app.color.bg_chip'))
+          .borderRadius(Radius.pill)
         }
         .width(Height.hit)
         .height(Height.hit)
