@@ -342,7 +342,8 @@ struct Logs {
       // 早先这里是 width('100%') + margin：margin 加在 100% 宽度外侧，按钮被撑出屏幕、
       // 两侧边距实际不生效，看起来"贴着屏幕边"，与其它页的底部条不一致。
       Row() {
-        Button(this.entries.length === 0 ? '导出为文本文件（空）' : '导出为文本文件')
+        Button(this.entries.length === 0 ? '导出（暂无日志）' : '导出')
+          .accessibilityText('导出日志为文本文件')
           .width('100%')
           .height(Height.hit)
           .fontSize(FontSize.bodySm)

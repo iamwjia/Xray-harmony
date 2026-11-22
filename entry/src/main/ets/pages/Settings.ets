@@ -75,6 +75,11 @@ struct Settings {
   }
 
   /** 分流模式的文字口径：与分流规则页按钮同一套说法 */
+  /** 调度间隔的短标签：6h / 12h / 24h / 每周；完整说法放进无障碍文本 */
+  private static intervalLabel(h: number): string {
+    return h === 168 ? '每周' : `${h}h`;
+  }
+
   private routingText(): string {
     if (this.routingMode === RoutingMode.GLOBAL) {
       return '全局代理';
@@ -310,11 +315,12 @@ struct Settings {
               // 换行会让这组看起来像"一堆零散 chip"，与页面里其它选项组不一致。
               Row({ space: Space.sm }) {
                 ForEach([6, 12, 24, 168], (h: number) => {
-                  Button(h === 168 ? '每周' : `每 ${h} 小时`, { type: ButtonType.Capsule })
+                  Button(Settings.intervalLabel(h), { type: ButtonType.Capsule })
                     .layoutWeight(1)
                     .padding({ left: 0, right: 0 })
                     .height(Height.hit)
                     .fontSize(FontSize.bodySm)
+                    .accessibilityText(h === 168 ? '每周自动更新一次' : `每 ${h} 小时自动更新`)
                     .fontColor(this.autoUpdateHours === h
                       ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
                     .backgroundColor(this.autoUpdateHours === h

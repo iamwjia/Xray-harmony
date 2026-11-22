@@ -71,15 +71,28 @@ struct Subscriptions {
     const hours: number = cfg.getConfig().settings.autoUpdateHours;
     const limitMs: number = hours * 60 * 60 * 1000;
     const now: number = Date.now();
-    let stale: number = 0;
+    // 分两类统计：从未更新 与 超过间隔。"从未更新"不能被说成"超过 N 小时未更新"——
+    // 前者根本没有基准时间，写成后者会让用户以为它三天前更新过（实测就被这么误读过）。
+    let neverUpdated: number = 0;
+    let outdated: number = 0;
     for (let i = 0; i < this.subs.length; i++) {
       const t: number = this.subs[i].lastUpdated;
-      if (t <= 0 || (now - t) > limitMs) {
-        stale++;
+      if (t <= 0) {
+        neverUpdated++;
+      } else if ((now - t) > limitMs) {
+        outdated++;
       }
     }
+    const stale: number = neverUpdated + outdated;
     if (stale > 0 && this.busyId.length === 0) {
-      this.setNotice(`有 ${stale} 个订阅超过 ${hours} 小时未更新`, 1);
+      const parts: string[] = [];
+      if (outdated > 0) {
+        parts.push(`${outdated} 个超过 ${Subscriptions.intervalText(hours)}未更新`);
+      }
+      if (neverUpdated > 0) {
+        parts.push(`${neverUpdated} 个从未更新`);
+      }
+      this.setNotice(`有 ${parts.join('，')}`, 1);
       this.staleCount = stale;
       return;
     }
@@ -447,6 +460,17 @@ struct Subscriptions {
     }
   }
 
+  /** 168 小时这种数字要翻成人话：7 天 / 每周，不要直接把小时数印在界面上 */
+  private static intervalText(hours: number): string {
+    if (hours >= 168) {
+      return ' 1 周';
+    }
+    if (hours >= 48) {
+      return ` ${Math.round(hours / 24)} 天`;
+    }
+    return ` ${hours} 小时`;
+  }
+
   private closeSwipe(): void {
     this.swipeRev = this.swipeRev + 1;
   }
@@ -563,6 +587,7 @@ struct Subscriptions {
         .width('100%')
         .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
         .onRefreshing(() => {
+          Logger.info('subscriptions pull-refresh');
           this.refreshStale();
         })
       }
@@ -614,7 +639,8 @@ struct Subscriptions {
       }
 
       Row() {
-        Button(this.showAdd ? '收起添加面板' : '＋ 添加订阅地址')
+        Button(this.showAdd ? '收起' : '＋ 添加')
+          .accessibilityText('添加订阅地址')
           .width('100%')
           .height(Height.hit)
           .fontSize(FontSize.bodySm)

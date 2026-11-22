@@ -462,7 +462,7 @@ struct Nodes {
         .fontColor($r('app.color.text_secondary'))
       Text(this.groupFilter.length > 0
         ? `「${this.groupFilter}」里的节点都被移走了`
-        : '点右上角「+」，粘贴分享链接或订阅地址')
+        : '点下方「＋ 导入」，粘贴分享链接或订阅地址')
         .fontSize(FontSize.bodySm)
         .lineHeight(LineHeight.bodySm)
         .fontColor($r('app.color.text_tertiary'))
@@ -731,6 +731,7 @@ struct Nodes {
         .width('100%')
         .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
         .onRefreshing(() => {
+          Logger.info('nodes pull-refresh');
           this.reload();
           // 留一点时间让指示器转完，否则手指一松就消失，用户会以为没刷新
           setTimeout(() => {
@@ -742,7 +743,8 @@ struct Nodes {
       // 单手可达：顶栏那个「+」在屏幕顶端右侧，单手拿手机时很难够到。
       // 底部再给一个同样入口（大命中区），两个入口指向同一个导入面板。
       Row() {
-        Button(this.showImport ? '收起导入面板' : '＋ 导入节点 / 订阅地址')
+        Button(this.showImport ? '收起' : '＋ 导入')
+          .accessibilityText('导入节点或订阅地址')
           .width('100%')
           .height(Height.hit)
           .fontSize(FontSize.bodySm)
