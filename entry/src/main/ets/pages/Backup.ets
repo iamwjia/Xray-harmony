@@ -450,10 +450,11 @@ struct Backup {
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
                 .enabled(this.exportPass.length > 0)
-                .backgroundColor(this.exportPass.length > 0
-                  ? $r('app.color.accent_subtle') : $r('app.color.bg_chip'))
+                // 与「随机生成」同款填充浅底：两者是同一排的辅助动作，
+                // 一个 tinted 一个 chip 会显得像两种级别
+                .backgroundColor($r('app.color.bg_chip'))
                 .fontColor(this.exportPass.length > 0
-                  ? $r('app.color.accent') : $r('app.color.text_tertiary'))
+                  ? $r('app.color.text_primary') : $r('app.color.text_tertiary'))
                 .onClick(() => this.copyPassphrase())
             }
             .width('100%')
@@ -487,8 +488,10 @@ struct Backup {
               .width('100%')
               .height(Height.hit)
               .fontSize(FontSize.bodySm)
-              .backgroundColor($r('app.color.bg_chip'))
-              .fontColor($r('app.color.text_primary'))
+              // 与「导出到文件」同款描边：都是"选一个本地文件"这类次级动作
+              .backgroundColor($r('app.color.bg_surface'))
+              .fontColor($r('app.color.accent'))
+              .border({ width: 1, color: $r('app.color.accent') })
               .onClick(() => this.pickImportFile())
 
             if (this.importName.length > 0) {

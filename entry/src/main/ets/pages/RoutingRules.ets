@@ -260,7 +260,16 @@ struct RoutingRules {
             .onChange((v: string) => {
               this.newPattern = v;
             })
-          Button('添加').fontSize(FontSize.bodySm).onClick(() => this.doAdd())
+          // 与其它"添加"类按钮一致：统一命中高；输入为空时禁用（点了只会弹报错）
+          Button('添加')
+            .fontSize(FontSize.bodySm)
+            .height(Height.hit)
+            .backgroundColor(this.newPattern.trim().length > 0
+              ? $r('app.color.accent') : $r('app.color.bg_chip'))
+            .fontColor(this.newPattern.trim().length > 0
+              ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+            .enabled(this.newPattern.trim().length > 0)
+            .onClick(() => this.doAdd())
         }
         .width('100%')
 
