@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
 import { PageHeader } from '../components/PageHeader';
+import { IconButton } from '../components/Glyph';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
@@ -532,15 +533,18 @@ struct NodeEdit {
       // 保存按钮固定在滚动区之外：
       // 表单比一屏长，键盘弹起后如果按钮在滚动内容底部，用户会找不到保存入口
       // （实测在模拟器上就是滚不动、按钮被键盘挡住的局面）。
-      Button(this.saving ? '保存中…' : '保存')
-        .width('100%')
-        .height(Height.hit)
-        .fontSize(FontSize.bodyLg)
-        .backgroundColor(!this.saving && this.existed ? $r('app.color.accent') : $r('app.color.bg_chip'))
-        .fontColor(!this.saving && this.existed ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-        .enabled(!this.saving && this.existed && this.requiredFilled())
-        .accessibilityText(this.requiredFilled() ? '保存' : '保存（请先填写地址与端口）')
-        .onClick(() => this.doSave())
+      // 加对勾图标：这是本页唯一的主操作，图标让它在一堆输入框和下拉里能被一眼定位；
+      // 字号继续用 bodyLg 15（IconButton 默认是 bodySm 次级档，主操作用它会把重量让出去）。
+      IconButton({
+        kind: 'check',
+        label: this.saving ? '保存中…' : '保存',
+        variant: 'primary',
+        enabledState: !this.saving && this.existed && this.requiredFilled(),
+        labelSize: FontSize.bodyLg,
+        labelLine: LineHeight.bodyLg,
+        a11yLabel: this.requiredFilled() ? '保存' : '保存（请先填写地址与端口）',
+        onTap: () => this.doSave()
+      })
     }
     .width('100%')
     .height('100%')

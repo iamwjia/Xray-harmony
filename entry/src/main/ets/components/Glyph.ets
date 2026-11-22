@@ -141,6 +141,13 @@ export struct Glyph {
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
         Line().width(24).height(24).startPoint([16, 15]).endPoint([19, 12])
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'check') {
+        // 保存/提交：对勾。为什么不是磁盘图标——18vp 下磁盘的"方框 + 顶部凹口"
+        // 两个细节会糊成一坨；对勾两笔，最小尺寸下也认得出，且没有隐喻歧义。
+        Line().width(24).height(24).startPoint([5, 13]).endPoint([10, 18])
+          .stroke(this.color).strokeWidth(2.4).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([10, 18]).endPoint([19, 7])
+          .stroke(this.color).strokeWidth(2.4).strokeLineCap(LineCapStyle.Round)
       } else if (this.kind === 'info') {
         Circle().width(16).height(16).fill(Color.Transparent)
           .stroke(this.color).strokeWidth(2)
@@ -345,6 +352,14 @@ export struct IconButton {
   /** primary=实心主色；outline=描边；chip=填充浅底 */
   @Prop variant: string = 'outline';
   @Prop enabledState: boolean = true;
+  /**
+   * 文字档位。默认 bodySm 13（次级动作的常规档），
+   * 页面级唯一主操作（如编辑页「保存」）传 bodyLg 15——主操作的视觉重量不能借图标省掉。
+   */
+  @Prop labelSize: number = FontSize.bodySm;
+  @Prop labelLine: number = LineHeight.bodySm;
+  /** 无障碍文本；空串时用 label（禁用态需要额外说明时传，如"请先填写地址与端口"） */
+  @Prop a11yLabel: string = '';
   onTap: () => void = () => {
   };
 
@@ -381,8 +396,8 @@ export struct IconButton {
       Row({ space: Space.sm }) {
         Glyph({ kind: this.kind, color: this.fontColorOf(), box: 18 })
         Text(this.label)
-          .fontSize(FontSize.bodySm)
-          .lineHeight(LineHeight.bodySm)
+          .fontSize(this.labelSize)
+          .lineHeight(this.labelLine)
           .fontColor(this.fontColorOf())
           .maxLines(1)
       }
@@ -395,7 +410,7 @@ export struct IconButton {
     .backgroundColor(this.fillColorOf())
     .border({ width: this.variant === 'outline' ? 1 : 0, color: this.strokeColorOf() })
     .enabled(this.enabledState)
-    .accessibilityText(this.label)
+    .accessibilityText(this.a11yLabel.length > 0 ? this.a11yLabel : this.label)
     .onClick(() => {
       this.onTap();
     })
