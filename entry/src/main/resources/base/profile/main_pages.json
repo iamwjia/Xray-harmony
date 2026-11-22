@@ -8,6 +8,7 @@
     "pages/RoutingRules",
     "pages/Logs",
     "pages/Licenses",
-    "pages/Subscriptions"
+    "pages/Subscriptions",
+    "pages/Backup"
   ]
 }

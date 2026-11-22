@@ -238,6 +238,23 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
+            Text('备份与恢复').fontSize(FontSize.bodySm).maxLines(1)
+            Text('导出加密备份文件（含凭据，需口令）；换机、重装或分享给别人时用')
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('打开').fontSize(FontSize.bodySm)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/Backup' }).catch((e: Error) => {
+                this.persistError = `打开备份页失败：${e.message}`;
+              });
+            })
+        }
+        .width('100%')
+        Divider()
+        Row({ space: 8 }) {
+          Column({ space: 2 }) {
             Text('运行日志').fontSize(FontSize.bodySm).maxLines(1)
             Text('查看应用内日志并导出（已脱敏）；出问题时用这个代替连电脑抓 hilog')
               .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)

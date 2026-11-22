@@ -12,6 +12,7 @@ import { VpnSession } from '../service/VpnSession';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
 import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
+import { BundleImportResult, ConfigBundle } from '../service/ConfigBundle';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -35,6 +36,7 @@ struct DevPanel {
   @State cgoInvokeResult: string = '(未运行)';
   @State xrayVersionResult: string = '(未运行)';
   @State socksProbeResult: string = '(未运行)';
+  @State bundleResult: string = '(未运行)';
   @State hostProbeResult: string = '(未运行)';
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
@@ -139,8 +141,32 @@ api failed: ${err.code} ${err.message}`;
       });
   }
 
-  private runCGoPing(): void {
-    hilog.info(DOMAIN, TAG, 'cgoPing clicked');
+  /**
+   * 备份链路自检：导出 → 用错口令必须失败 → 用对口令必须成功。
+   * 不做"只看导出成功"的假验证：解密失败路径才是密码学最容易错的地方。
+   */
+  private runBundleSelfTest(): void {
+    this.bundleResult = 'running…';
+    ConfigBundle.exportToText('selftest-pass-123').then(async (text: string) => {
+      // 错口令必须被拒绝：这里看的是“结果不成功且有明确原因”，
+      // 而不是“有没有抛异常”——服务层为了让 UI 可渲染是把错误放进结果对象的。
+      const wrong: BundleImportResult = await ConfigBundle.importFromText(text, 'wrong-pass');
+      const wrongRejected: boolean = !wrong.ok && wrong.error.length > 0;
+      const ok: BundleImportResult = await ConfigBundle.importFromText(text, 'selftest-pass-123');
+      const plainCred = text.indexOf('credential') >= 0 && text.indexOf('"credential": ""') < 0;
+      const summary = `size=${text.length} wrongPassRejected=${wrongRejected} ` +
+        `importOk=${ok.ok} nodes(${ok.addedNodes}/${ok.skippedNodes}) rules(${ok.addedRules}/${ok.skippedRules}) ` +
+        `plaintextCredLeak=${plainCred}`;
+      this.bundleResult = summary;
+      hilog.info(DOMAIN, TAG, 'bundle self-test: %{public}s', summary);
+    }).catch((e: Object) => {
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.bundleResult = `failed: ${m}`;
+      hilog.error(DOMAIN, TAG, 'bundle self-test failed: %{public}s', m);
+    });
+  }
+
+  private runCGoPing(): void {    hilog.info(DOMAIN, TAG, 'cgoPing clicked');
     try {
       const ret: string = nativeEntry.probeGoPing();
       this.cgoPingResult = ret;
@@ -274,6 +300,10 @@ api failed: ${err.code} ${err.message}`;
           // E15 Step 1：真测 TCP + HTTP。不用 ping 代替——ICMP 通不代表端口通。
           Button('探测宿主 10.0.2.2:8000').onClick(() => this.runHostProbe()).width('100%')
           Text(this.hostProbeResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
+
+          // 备份链路自检：导出 → 错口令必须失败 → 对口令必须成功（脚本化，不依赖系统文件选择器）
+          Button('备份自检（导出/解密/导入）').onClick(() => this.runBundleSelfTest()).width('100%')
+          Text(this.bundleResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
