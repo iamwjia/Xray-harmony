@@ -4,6 +4,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { LogEntry, LogLevel, Logger } from '../platform/Logger';
 import { LastEndpoint, SocksGuard } from '../service/SocksGuard';
 import { KernelService } from '../service/KernelService';
+import { ConfigService } from '../service/ConfigService';
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
@@ -31,6 +32,12 @@ struct Logs {
   /** 空串 = 全部级别 */
   @State filter: string = '';
   @State msg: string = '';
+  /** 写入级别（控制"记不记"，与上面的"筛不筛"是两件事，必须分开说明） */
+  @State writeLevel: string = 'INFO';
+  @State levelPersistError: string = '';
+
+  private levelOptions: string[] = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+  private cfg: ConfigService = ConfigService.getInstance();
 
   private chips: LevelChip[] = [
     { label: '全部', value: '' },
@@ -41,6 +48,13 @@ struct Logs {
 
   aboutToAppear(): void {
     this.reload();
+    this.writeLevel = this.cfg.getLogLevel();
+  }
+
+  private setWriteLevel(v: string): void {
+    const ok: boolean = this.cfg.setLogLevel(v);
+    this.writeLevel = this.cfg.getLogLevel();
+    this.levelPersistError = ok ? '' : this.cfg.getPersistError();
   }
 
   private reload(): void {
@@ -196,6 +210,56 @@ struct Logs {
       .width('100%')
       .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
 
+      // 写入级别：从设置页搬过来的。它属于日志，放在这里用户才看得懂
+      // "为什么我没看到某某日志"——要么被级别挡住、要么被筛选挡住。
+      // 用卡片包起来，是为了和下面那条"筛选"胶囊行在视觉上分层：一个是设置，一个是筛选。
+      Column({ space: Space.sm }) {
+        Row({ space: Space.sm }) {
+          Text('记录级别')
+            .fontSize(FontSize.bodySm)
+            .lineHeight(LineHeight.bodySm)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+          Text('低于该级别不写入；下面那条只是筛选已记录的')
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.text_tertiary'))
+            .layoutWeight(1)
+        }
+        .width('100%')
+
+        Row({ space: Space.sm }) {
+          ForEach(this.levelOptions, (lv: string) => {
+            Button(lv, { type: ButtonType.Capsule })
+              .layoutWeight(1)
+              .padding({ left: 0, right: 0 })
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
+              .backgroundColor(lv === this.writeLevel ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(lv === this.writeLevel ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+              .onClick(() => {
+                this.setWriteLevel(lv);
+              })
+          }, (lv: string) => lv)
+        }
+        .width('100%')
+
+        if (this.levelPersistError.length > 0) {
+          Text(this.levelPersistError)
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.warning'))
+            .width('100%')
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .padding(Space.md)
+      .margin({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
+
+      // 筛选行：只筛"已经记下来的"，与上面的记录级别是两件事
       Scroll() {
         Row({ space: Space.sm }) {
           ForEach(this.chips, (c: LevelChip) => {

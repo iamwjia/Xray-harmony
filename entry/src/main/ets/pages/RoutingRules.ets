@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { RoutingRule } from '../model/AppConfig';
+import { RoutingRule, RoutingMode } from '../model/AppConfig';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
@@ -25,6 +25,11 @@ interface ActionOption {
   value: string;
 }
 
+interface ModeOption {
+  label: string;
+  value: RoutingMode;
+}
+
 @Entry
 @Component
 struct RoutingRules {
@@ -33,8 +38,17 @@ struct RoutingRules {
   @State matchIdx: number = 0;
   @State actionIdx: number = 0;
   @State msg: string = '';
+  /** 分流模式（与规则同页：模式决定"要不要用规则"） */
+  @State mode: RoutingMode = RoutingMode.RULE;
+  @State modeError: string = '';
 
   private cfg: ConfigService = ConfigService.getInstance();
+
+  private modes: ModeOption[] = [
+    { label: '全局代理', value: RoutingMode.GLOBAL },
+    { label: '规则分流', value: RoutingMode.RULE },
+    { label: '全部直连', value: RoutingMode.DIRECT }
+  ];
 
   private matches: MatchOption[] = [
     { label: '域名', value: 'domain', hint: '支持精确域名、domain: 前缀、keyword: 关键字、geosite: 分类' },
@@ -48,6 +62,24 @@ struct RoutingRules {
 
   aboutToAppear(): void {
     this.reload();
+    this.mode = this.cfg.getConfig().settings.routingMode;
+  }
+
+  private setMode(m: RoutingMode): void {
+    const ok: boolean = this.cfg.setRoutingMode(m);
+    // 写盘失败时 ConfigService 已回滚内存值，这里必须读回真实值
+    this.mode = this.cfg.getConfig().settings.routingMode;
+    this.modeError = ok ? '' : this.cfg.getPersistError();
+  }
+
+  private modeHint(): string {
+    if (this.mode === RoutingMode.GLOBAL) {
+      return '全局代理：所有流量走当前节点，下面的自定义规则不生效。';
+    }
+    if (this.mode === RoutingMode.DIRECT) {
+      return '全部直连：不经过代理，下面的自定义规则不生效（连上后仅国内可访问）。';
+    }
+    return '规则分流：先匹配下面的自定义规则，再按内置的国内域名/IP 直连，其余走代理（依赖 geo 资源）。';
   }
 
   private reload(): void {
@@ -122,10 +154,52 @@ struct RoutingRules {
           .onClick(() => {
             router.back();
           })
-        Text('自定义分流规则').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1).maxLines(1)
+        Text('分流').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1).maxLines(1)
         Text(`已启用 ${this.enabledCount()} 条`).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
       }
       .width('100%')
+
+      // 分流模式：从设置页搬到它的归属页——模式与规则是同一件事的两层，
+      // 分开放在两页会让用户来回跳着改。
+      Column({ space: Space.sm }) {
+        Text('分流模式')
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_primary'))
+          .width('100%')
+        Row({ space: Space.sm }) {
+          ForEach(this.modes, (m: ModeOption) => {
+            Button(m.label, { type: ButtonType.Capsule })
+              .layoutWeight(1)
+              .padding({ left: 0, right: 0 })
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
+              .backgroundColor(m.value === this.mode ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(m.value === this.mode ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+              .onClick(() => {
+                this.setMode(m.value);
+              })
+          }, (m: ModeOption) => m.value)
+        }
+        .width('100%')
+        Text(this.modeHint())
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+        if (this.modeError.length > 0) {
+          Text(this.modeError)
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.warning'))
+            .width('100%')
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
 
       Text('优先级：这里列出的规则**先于**内置的国内直连规则匹配，顺序即优先级。')
         .fontSize(FontSize.caption).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.caption)

@@ -13,6 +13,7 @@ import { common } from '@kit.AbilityKit';
 import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 import { VpnController } from '../service/VpnController';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
+import { NavTile } from '../components/Glyph';
 
 /**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
@@ -65,6 +66,30 @@ struct Index {
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
     this.migrationWarning = this.cfg.getMigrationError();
     this.refreshVpnLine();
+  }
+
+  private nav(url: string): void {
+    router.pushUrl({ url: url }).catch((e: Error) => {
+      Logger.error(`nav ${url} failed: ${e.message}`);
+    });
+  }
+
+  /** 入口格的副标题：写"有几个"，不写"点击进入"这种废话 */
+  private nodeCountHint(): string {
+    return `${this.cfg.getNodes().length} 个`;
+  }
+
+  private subHint(): string {
+    const n: number = this.cfg.getConfig().subscriptions.length;
+    return n === 0 ? '未添加' : `${n} 个`;
+  }
+
+  private routingHint(): string {
+    const m: RoutingMode = this.cfg.getConfig().settings.routingMode;
+    if (m === RoutingMode.GLOBAL) {
+      return '全局代理';
+    }
+    return m === RoutingMode.DIRECT ? '全部直连' : '规则分流';
   }
 
   /** 语义色调 → 资源色（页面是唯一知道"哪个令牌对应哪种状态"的地方） */
@@ -392,23 +417,20 @@ struct Index {
 
       Blank()
 
-      Row({ space: Space.md }) {
-        Button('节点列表').layoutWeight(1)
-          .height(Height.hit)
-          .fontSize(FontSize.bodySm)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
-              Logger.error(`nav Nodes failed: ${e.message}`);
-            });
-          })
-        Button('设置').layoutWeight(1)
-          .height(Height.hit)
-          .fontSize(FontSize.bodySm)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/Settings' }).catch((e: Error) => {
-              Logger.error(`nav Settings failed: ${e.message}`);
-            });
-          })
+      // 常用入口：2×3 图标格。整格可点（命中区 = 视觉区），
+      // 副标题直接写"当前是什么"，省得为了看一眼状态点进去再退出来。
+      Column({ space: Space.sm }) {
+        Row({ space: Space.sm }) {
+          NavTile({ kind: 'nodes', label: '节点', hint: this.nodeCountHint(), onTap: () => this.nav('pages/Nodes') })
+          NavTile({ kind: 'sub', label: '订阅', hint: this.subHint(), onTap: () => this.nav('pages/Subscriptions') })
+          NavTile({ kind: 'routes', label: '分流', hint: this.routingHint(), onTap: () => this.nav('pages/RoutingRules') })
+        }.width('100%')
+
+        Row({ space: Space.sm }) {
+          NavTile({ kind: 'logs', label: '日志', hint: '运行记录', onTap: () => this.nav('pages/Logs') })
+          NavTile({ kind: 'backup', label: '备份', hint: '加密导出', onTap: () => this.nav('pages/Backup') })
+          NavTile({ kind: 'settings', label: '设置', hint: '更多', onTap: () => this.nav('pages/Settings') })
+        }.width('100%')
       }
       .width('100%')
     }
