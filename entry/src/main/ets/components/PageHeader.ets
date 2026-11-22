@@ -15,8 +15,12 @@ import { FontSize, LineHeight, Space, Height, IconSize } from '../common/Token';
 @Component
 export struct PageHeader {
   @Prop title: string = '';
-  /** 负数表示不显示计数 */
-  @Prop count: number = -1;
+  /**
+   * 右侧计数文本（空串=不显示）。
+   * 传**拼好的字符串**而不是数字：单位是每页不同的（`12 个` / `127 条` / `已启用 3 条`），
+   * 在顶栏里写死"个"会让 Logs 显示成"127 个"。
+   */
+  @Prop countText: string = '';
   /** 空串表示不显示右侧动作按钮 */
   @Prop actionGlyph: string = '';
   @Prop actionA11y: string = '';
@@ -51,8 +55,8 @@ export struct PageHeader {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
 
-      if (this.count >= 0) {
-        Text(`${this.count} 个`)
+      if (this.countText.length > 0) {
+        Text(this.countText)
           .fontSize(FontSize.caption)
           .lineHeight(LineHeight.caption)
           .fontColor($r('app.color.text_tertiary'))

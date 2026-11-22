@@ -56,6 +56,8 @@ export class Radius {
   static readonly card: number = 12;
   static readonly panel: number = 8;
   static readonly chip: number = 4;
+  /** 弹层 / 大卡片 */
+  static readonly lg: number = 16;
   /** 胶囊用足够大的值表达"两端半圆" */
   static readonly pill: number = 999;
 }

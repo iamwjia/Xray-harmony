@@ -5,6 +5,7 @@ import { GeoAssets } from '../service/GeoAssets';
 import { KernelService } from '../service/KernelService';
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
+import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
  * pages/Settings.ets — 设置（最小项：日志级别 / 关于）
@@ -157,59 +158,59 @@ struct Settings {
       // 设置写盘失败横幅：必须可见，否则用户会以为设置已生效
       if (this.persistError.length > 0) {
         Text(this.persistError)
-          .fontSize(12)
-          .fontColor('#8D6E63')
+          .fontSize(FontSize.bodySm)
+          .fontColor($r('app.color.warning'))
           .width('100%')
           .padding(10)
-          .backgroundColor('#FFF3E0')
-          .borderRadius(8)
+          .backgroundColor($r('app.color.warning_subtle'))
+          .borderRadius(Radius.panel)
       }
 
       Column({ space: 8 }) {
-        Text('日志级别').fontSize(14).fontWeight(FontWeight.Medium)
+        Text('日志级别').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
         Row({ space: 8 }) {
           ForEach(this.levels, (lv: string) => {
-            Button(lv).fontSize(12)
-              .backgroundColor(lv === this.logLevel ? '#1976D2' : '#E0E0E0')
-              .fontColor(lv === this.logLevel ? '#FFFFFF' : '#333333')
+            Button(lv).fontSize(FontSize.bodySm)
+              .backgroundColor(lv === this.logLevel ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(lv === this.logLevel ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
               .onClick(() => this.setLevel(lv))
           }, (lv: string) => lv)
         }
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .padding(12)
-      .backgroundColor('#FAFAFA')
-      .borderRadius(8)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
 
       Column({ space: 8 }) {
-        Text('分流模式').fontSize(14).fontWeight(FontWeight.Medium)
+        Text('分流模式').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
         Row({ space: 8 }) {
-          Button('全局').fontSize(12)
-            .backgroundColor(this.routingMode === RoutingMode.GLOBAL ? '#1976D2' : '#E0E0E0')
-            .fontColor(this.routingMode === RoutingMode.GLOBAL ? '#FFFFFF' : '#333333')
+          Button('全局').fontSize(FontSize.bodySm)
+            .backgroundColor(this.routingMode === RoutingMode.GLOBAL ? $r('app.color.accent') : $r('app.color.bg_chip'))
+            .fontColor(this.routingMode === RoutingMode.GLOBAL ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
             .onClick(() => this.setRouting(RoutingMode.GLOBAL))
-          Button('规则').fontSize(12)
-            .backgroundColor(this.routingMode === RoutingMode.RULE ? '#1976D2' : '#E0E0E0')
-            .fontColor(this.routingMode === RoutingMode.RULE ? '#FFFFFF' : '#333333')
+          Button('规则').fontSize(FontSize.bodySm)
+            .backgroundColor(this.routingMode === RoutingMode.RULE ? $r('app.color.accent') : $r('app.color.bg_chip'))
+            .fontColor(this.routingMode === RoutingMode.RULE ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
             .onClick(() => this.setRouting(RoutingMode.RULE))
-          Button('直连').fontSize(12)
-            .backgroundColor(this.routingMode === RoutingMode.DIRECT ? '#1976D2' : '#E0E0E0')
-            .fontColor(this.routingMode === RoutingMode.DIRECT ? '#FFFFFF' : '#333333')
+          Button('直连').fontSize(FontSize.bodySm)
+            .backgroundColor(this.routingMode === RoutingMode.DIRECT ? $r('app.color.accent') : $r('app.color.bg_chip'))
+            .fontColor(this.routingMode === RoutingMode.DIRECT ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
             .onClick(() => this.setRouting(RoutingMode.DIRECT))
         }
         Text('规则：国内域名/IP 与内网直连，其余走代理（依赖下方 geo 资源；资源不可用时降级为仅内网直连）')
-          .fontSize(10).fontColor('#999999')
+          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('自定义规则').fontSize(13)
+            Text('自定义规则').fontSize(FontSize.bodySm)
             Text(`已启用 ${this.ruleCount} 条；先于内置国内直连规则匹配`)
-              .fontSize(10).fontColor('#999999')
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Button('管理').fontSize(12)
+          Button('管理').fontSize(FontSize.bodySm)
             .onClick(() => {
               router.pushUrl({ url: 'pages/RoutingRules' }).catch((e: Error) => {
                 this.persistError = `打开规则页失败：${e.message}`;
@@ -220,13 +221,13 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('运行日志').fontSize(13)
+            Text('运行日志').fontSize(FontSize.bodySm)
             Text('查看应用内日志并导出（已脱敏）；出问题时用这个代替连电脑抓 hilog')
-              .fontSize(10).fontColor('#999999')
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Button('查看').fontSize(12)
+          Button('查看').fontSize(FontSize.bodySm)
             .onClick(() => {
               router.pushUrl({ url: 'pages/Logs' }).catch((e: Error) => {
                 this.persistError = `打开日志页失败：${e.message}`;
@@ -237,13 +238,13 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('开源许可').fontSize(13)
+            Text('开源许可').fontSize(FontSize.bodySm)
             Text('第三方组件、MPL-2.0 义务、商标归属与源码获取方式')
-              .fontSize(10).fontColor('#999999')
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Button('查看').fontSize(12)
+          Button('查看').fontSize(FontSize.bodySm)
             .onClick(() => {
               router.pushUrl({ url: 'pages/Licenses' }).catch((e: Error) => {
                 this.persistError = `打开许可页失败：${e.message}`;
@@ -254,47 +255,47 @@ struct Settings {
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .padding(12)
-      .backgroundColor('#FAFAFA')
-      .borderRadius(8)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
       Column({ space: 4 }) {
-        Text('关于').fontSize(14).fontWeight(FontWeight.Medium)
-        Text('Tunnelix · 骨架版本').fontSize(12).fontColor('#666666')
-        Text('内核：libXray v26.7.28（libxray.so）').fontSize(12).fontColor('#666666')
-        Text(`分流资源：${this.geoLabel}`).fontSize(12).fontColor('#666666')
+        Text('关于').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
+        Text('Tunnelix · 骨架版本').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
+        Text('内核：libXray v26.7.28（libxray.so）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
+        Text(`分流资源：${this.geoLabel}`).fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
         Row({ space: 8 }) {
           Button(this.geoBusy ? '更新中…' : '联网更新（约 25 MB）')
-            .fontSize(12)
+            .fontSize(FontSize.bodySm)
             .enabled(!this.geoBusy)
             .onClick(() => this.confirmGeoUpdate())
           Button('从本地文件导入')
-            .fontSize(12)
+            .fontSize(FontSize.bodySm)
             .enabled(!this.geoBusy)
-            .backgroundColor('#607D8B')
+            .backgroundColor($r('app.color.bg_chip'))
             .onClick(() => this.doGeoImport())
         }
         if (this.geoMsg.length > 0) {
-          Text(this.geoMsg).fontSize(11).fontColor('#1976D2')
+          Text(this.geoMsg).fontSize(FontSize.caption).fontColor($r('app.color.accent'))
         }
         Text('说明：内置资源为 v2fly 官方构建。只有点上面按钮才会联网；访问不了 GitHub 时，' +
           '可自行下载 geoip.dat + geosite.dat（或含两者的 zip）后用「从本地文件导入」，全程不联网。')
-          .fontSize(11).fontColor('#999999')
+          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .padding(12)
-      .backgroundColor('#FAFAFA')
-      .borderRadius(8)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
 
       Column({ space: 4 }) {
         Text('开发者选项')
-          .fontSize(14)
+          .fontSize(FontSize.body)
           .fontWeight(FontWeight.Medium)
         Text('失败路径探针、内核与应用状态。正常使用不需要进来。')
-          .fontSize(12)
-          .fontColor('#777777')
+          .fontSize(FontSize.bodySm)
+          .fontColor($r('app.color.text_tertiary'))
         Button('打开开发者面板')
-          .fontSize(12)
+          .fontSize(FontSize.bodySm)
           .width('100%')
           .onClick(() => {
             router.pushUrl({ url: 'pages/DevPanel' }).catch((e: Error) => {
@@ -304,9 +305,9 @@ struct Settings {
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .padding(12)
-      .backgroundColor('#FAFAFA')
-      .borderRadius(8)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
       }
       .width('100%')
       .padding(16)

@@ -24,7 +24,6 @@ import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 struct Index {
   @State view: ConnectionView = new ConnectionView();
   @State nodeName: string = '（未选择）';
-  @State stateTag: string = 'DISCONNECTED';
   @State configWarning: string = '';
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
@@ -54,7 +53,6 @@ struct Index {
     // 只把展示字符串交给 viewmodel：节点名优先，退到 host:port（不传 port/mode 这类实现字段）
     const label: string = n === null ? '' : (n.name.length > 0 ? n.name : `${n.address}:${n.port}`);
     this.view = this.vm.deriveView(label);
-    this.stateTag = this.vm.getState().toString();
     this.nodeName = n === null ? '（未选择）' : n.name;
     // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
@@ -232,31 +230,34 @@ struct Index {
       // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
       if (this.configWarning.length > 0) {
         Text(this.configWarning)
-          .fontSize(12)
-          .fontColor('#8D6E63')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.warning'))
           .width('100%')
-          .padding(10)
-          .backgroundColor('#FFF3E0')
-          .borderRadius(8)
+          .padding(Space.md)
+          .backgroundColor($r('app.color.warning_subtle'))
+          .borderRadius(Radius.panel)
       }
 
       // 凭据迁移失败横幅：不允许"以为已加密，其实还是明文"
       if (this.migrationWarning.length > 0) {
         Text(this.migrationWarning)
-          .fontSize(12)
-          .fontColor('#B71C1C')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.danger'))
           .width('100%')
-          .padding(10)
-          .backgroundColor('#FFEBEE')
-          .borderRadius(8)
+          .padding(Space.md)
+          .backgroundColor($r('app.color.danger_subtle'))
+          .borderRadius(Radius.panel)
       }
 
-      Column({ space: 8 }) {
-        Row({ space: 6 }) {
+      Column({ space: Space.sm }) {
+        Row({ space: Space.xs }) {
           // 语义枚举 → 资源色：ViewModel 里不再有 hex，深色模式才有解
           Text(this.view.label)
-            .fontSize(22)
-            .fontWeight(FontWeight.Medium)
+            .fontSize(FontSize.display)
+            .lineHeight(LineHeight.display)
+            .fontWeight(FontWeight.Bold)
             .fontColor(this.toneColor())
         }
         Text(this.view.hint)
@@ -270,10 +271,6 @@ struct Index {
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.accent'))
         }
-        Text(`state=${this.stateTag}`)
-          .fontSize(FontSize.fontChip)
-          .lineHeight(LineHeight.fontChip)
-          .fontColor($r('app.color.text_tertiary'))
         if (this.socksInfo.length > 0) {
           // 诊断类信息：层级明确低于节点名/状态，但端口必须可读、可复制
           Text(this.socksInfo)
@@ -302,10 +299,22 @@ struct Index {
       .backgroundColor($r('app.color.bg_surface_alt'))
       .borderRadius(Radius.card)
 
-      Row({ space: 8 }) {
-        Text('当前节点').fontSize(14).fontColor('#666666')
-        Text(this.nodeName).fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
-        Button('更换').fontSize(12)
+      Row({ space: Space.sm }) {
+        Text('当前节点')
+          .fontSize(FontSize.body)
+          .fontColor($r('app.color.text_secondary'))
+        Text(this.nodeName)
+          .fontSize(FontSize.body)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        Button('更换')
+          .fontSize(FontSize.bodySm)
+          .height(Height.hit)
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor($r('app.color.text_primary'))
           .onClick(() => {
             router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
               Logger.error(`nav Nodes failed: ${e.message}`);
@@ -313,20 +322,24 @@ struct Index {
           })
       }
       .width('100%')
-      .padding(12)
-      .backgroundColor('#FAFAFA')
-      .borderRadius(8)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface'))
+      .borderRadius(Radius.panel)
 
       Blank()
 
-      Row({ space: 12 }) {
+      Row({ space: Space.md }) {
         Button('节点列表').layoutWeight(1)
+          .height(Height.hit)
+          .fontSize(FontSize.bodySm)
           .onClick(() => {
             router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
               Logger.error(`nav Nodes failed: ${e.message}`);
             });
           })
         Button('设置').layoutWeight(1)
+          .height(Height.hit)
+          .fontSize(FontSize.bodySm)
           .onClick(() => {
             router.pushUrl({ url: 'pages/Settings' }).catch((e: Error) => {
               Logger.error(`nav Settings failed: ${e.message}`);
@@ -337,7 +350,8 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .padding(16)
+    .padding(Space.lg)
+    .backgroundColor($r('app.color.bg_canvas'))
 
       if (this.showNotice) {
         this.noticeOverlay()
@@ -375,6 +389,10 @@ struct Index {
 
         Button('我已了解')
           .width('100%')
+          .height(Height.hit)
+          .fontSize(FontSize.bodyLg)
+          .backgroundColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
           .onClick(() => {
             if (this.cfg.markOnboardingDone()) {
               this.showNotice = false;
@@ -387,24 +405,33 @@ struct Index {
       }
       .alignItems(HorizontalAlign.Start)
       .width('88%')
-      .padding(20)
-      .backgroundColor('#FFFFFF')
-      .borderRadius(14)
+      .padding(Space.xl)
+      .backgroundColor($r('app.color.bg_surface'))
+      .borderRadius(Radius.lg)
     }
     .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     // 全屏遮罩：点空白处不关闭（没有 onClick），只挡住背景交互
-    .backgroundColor('#99000000')
+    .backgroundColor($r('app.color.scrim'))
   }
 
   @Builder
   noticeItem(index: string, text: string) {
-    Row({ space: 8 }) {
-      Text(index).fontSize(12).fontColor('#FFFFFF')
-        .width(20).height(20).textAlign(TextAlign.Center)
-        .backgroundColor('#1976D2').borderRadius(10)
-      Text(text).fontSize(13).fontColor('#333333').layoutWeight(1)
+    Row({ space: Space.sm }) {
+      Text(index)
+        .fontSize(FontSize.caption)
+        .fontColor($r('app.color.text_on_accent'))
+        .width(24)
+        .height(24)
+        .textAlign(TextAlign.Center)
+        .backgroundColor($r('app.color.accent'))
+        .borderRadius(Radius.pill)
+      Text(text)
+        .fontSize(FontSize.bodySm)
+        .lineHeight(LineHeight.bodySm)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
     }
     .alignItems(VerticalAlign.Top)
     .width('100%')

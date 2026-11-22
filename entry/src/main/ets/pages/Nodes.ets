@@ -276,7 +276,7 @@ struct Nodes {
   header() {
     PageHeader({
       title: '节点列表',
-      count: this.visibleNodes().length,
+      countText: `${this.visibleNodes().length} 个`,
       actionGlyph: this.showImport ? '\u00d7' : '+',
       actionA11y: this.showImport ? '收起导入面板' : '导入节点或订阅',
       onBack: () => {
