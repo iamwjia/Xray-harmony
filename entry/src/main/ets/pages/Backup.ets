@@ -354,27 +354,6 @@ struct Backup {
     .width('100%')
   }
 
-  @Builder
-  passField(placeholder: string, value: string, onEdit: (v: string) => void,
-    onSubmit: () => void = () => {
-    }) {
-    TextInput({ placeholder: placeholder, text: value })
-      .type(InputType.Password)
-      .height(Height.input)
-      .fontSize(FontSize.body)
-      .placeholderColor($r('app.color.text_tertiary'))
-      .backgroundColor($r('app.color.bg_surface'))
-      .borderRadius(Radius.panel)
-      .onChange((v: string) => {
-        onEdit(v);
-      })
-      // 回车直接提交：手机上键盘遮住下方按钮，还要先收键盘再点它
-      .enterKeyType(EnterKeyType.Go)
-      .onSubmit(() => {
-        onSubmit();
-      })
-  }
-
   build() {
     Column({ space: 0 }) {
       Column() {
@@ -398,14 +377,32 @@ struct Backup {
               .lineHeight(LineHeight.caption)
               .fontColor($r('app.color.text_tertiary'))
               .width('100%')
-            this.passField('设置备份口令（至少 8 位）', this.exportPass, (v: string) => {
-              this.exportPass = v;
-            })
-            this.passField('再输一次', this.exportPass2, (v: string) => {
-              this.exportPass2 = v;
-            }, () => {
-              this.doExport();
-            })
+            // 口令框必须用 $$ 双向绑定：@Builder 里的 `text: value` 只在首次渲染生效，
+            // "随机生成"把值写进 @State 后，输入框不会重绘（用户看到的是"点了没反应"）。
+            TextInput({ placeholder: '设置备份口令（至少 8 位）', text: $$this.exportPass })
+              .type(InputType.Password)
+              .height(Height.input)
+              .fontSize(FontSize.body)
+              .placeholderColor($r('app.color.text_tertiary'))
+              .backgroundColor($r('app.color.bg_surface'))
+              .borderRadius(Radius.panel)
+              .onChange((v: string) => {
+                this.exportPass = v;
+              })
+            TextInput({ placeholder: '再输一次', text: $$this.exportPass2 })
+              .type(InputType.Password)
+              .height(Height.input)
+              .fontSize(FontSize.body)
+              .placeholderColor($r('app.color.text_tertiary'))
+              .backgroundColor($r('app.color.bg_surface'))
+              .borderRadius(Radius.panel)
+              .enterKeyType(EnterKeyType.Go)
+              .onChange((v: string) => {
+                this.exportPass2 = v;
+              })
+              .onSubmit(() => {
+                this.doExport();
+              })
             Row({ space: Space.sm }) {
               Button(this.exporting ? '生成中…' : '导出并分享')
                 .layoutWeight(1)
@@ -505,11 +502,21 @@ struct Backup {
                 .width('100%')
             }
 
-            this.passField('输入备份口令', this.importPass, (v: string) => {
-              this.importPass = v;
-            }, () => {
-              this.doImport();
-            })
+            // 同样用 $$：恢复页虽然不是"一键生成"，但输入后程序回填（如清空重填）也得刷新
+            TextInput({ placeholder: '输入备份口令', text: $$this.importPass })
+              .type(InputType.Password)
+              .height(Height.input)
+              .fontSize(FontSize.body)
+              .placeholderColor($r('app.color.text_tertiary'))
+              .backgroundColor($r('app.color.bg_surface'))
+              .borderRadius(Radius.panel)
+              .enterKeyType(EnterKeyType.Go)
+              .onChange((v: string) => {
+                this.importPass = v;
+              })
+              .onSubmit(() => {
+                this.doImport();
+              })
 
             Button(this.importing ? '恢复中…' : '解密并恢复')
               .width('100%')

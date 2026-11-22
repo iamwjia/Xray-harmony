@@ -59,6 +59,8 @@ struct Nodes {
   /** 正在拖的节点 id 与累计位移（vp）；松手时换算成“移动几行” */
   private dragId: string = '';
   private dragOffset: number = 0;
+  /** 松手后会插到哪一行（画插入线，否则拖动没有任何视觉反馈） */
+  @State dropTargetId: string = '';
   /** 一行的高度：节点行 minHeight 64 + 行间距 8 */
   private static readonly ROW_STEP: number = 72;
   /** 下拉刷新：重新读盘（另一个入口导入了数据、或外部改了订阅时用） */
@@ -532,10 +534,26 @@ struct Nodes {
 
   private onRowDragUpdate(offsetY: number): void {
     this.dragOffset = offsetY;
+    const list: XrayNode[] = this.visibleNodes();
+    let from: number = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === this.dragId) {
+        from = i;
+        break;
+      }
+    }
+    if (from < 0) {
+      return;
+    }
+    const steps: number = Math.round(offsetY / Nodes.ROW_STEP);
+    let to: number = from + steps;
+    to = to < 0 ? 0 : (to >= list.length ? list.length - 1 : to);
+    this.dropTargetId = to === from ? '' : list[to].id;
   }
 
   private onRowDragEnd(id: string): void {
     const steps: number = Math.round(this.dragOffset / Nodes.ROW_STEP);
+    this.dropTargetId = '';
     this.dragId = '';
     this.dragOffset = 0;
     if (steps === 0) {
@@ -686,7 +704,16 @@ struct Nodes {
           List({ space: Space.sm, scroller: this.listScroller }) {
           ForEach(this.visibleNodes(), (item: XrayNode) => {
             ListItem() {
-              NodeRow({
+              Column() {
+                // 插入线：拖动时唯一可靠的"会插到哪"提示（行本身不跟手，光靠抓手变色太弱）
+                if (item.id === this.dropTargetId) {
+                  Divider()
+                    .strokeWidth(3)
+                    .color($r('app.color.accent'))
+                    .width('100%')
+                    .margin({ bottom: 2 })
+                }
+                NodeRow({
                 nodeId: item.id,
                 name: item.name,
                 protocol: item.protocol,
@@ -704,7 +731,9 @@ struct Nodes {
                 onCopyLink: (id: string) => this.copyShareLink(id),
                 probeText: item.id === this.probeResultId ? this.probeResultText : '',
                 probeLevel: this.probeResultLevel
-              })
+                })
+              }
+              .width('100%')
             }
             // 行内左滑：右侧露出「测连通性 / 删除」，按危险程度配色 + 图标；
             // 右滑露出「编辑」。滑回去或执行任一动作即收起——操作始终属于这一行，

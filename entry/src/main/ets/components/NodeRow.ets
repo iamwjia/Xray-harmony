@@ -54,6 +54,8 @@ export struct NodeRow {
   @Prop probeText: string = '';
   /** 0 成功 / 2 失败 */
   @Prop probeLevel: number = 0;
+  /** 拖动中：这一行是松手后的落点（画一条插入线，让用户知道会插到哪） */
+  @Prop dropTarget: boolean = false;
 
   private rowA11y(): string {
     const g: string = this.group.length > 0 ? this.group : '未分组';
@@ -317,9 +319,14 @@ export struct NodeRow {
       : (this.selected ? $r('app.color.selected_row_bg') : $r('app.color.bg_surface')))
     .borderRadius(Radius.card)
     .border({
-      width: 1,
-      color: this.selected ? Color.Transparent : $r('app.color.border_subtle')
+      width: this.dragging ? 2 : 1,
+      color: this.dragging
+        ? $r('app.color.accent')
+        : (this.selected ? Color.Transparent : $r('app.color.border_subtle'))
     })
+    // 拖动时的"拎起"效果：放大 2%、略透明。没有这个反馈，用户会以为手指没抓住行
+    .scale(this.dragging ? { x: 1.02, y: 1.02 } : { x: 1.0, y: 1.0 })
+    .opacity(this.dragging ? 0.94 : 1.0)
     .onTouch((e: TouchEvent) => {
       // 只跟随按下/抬起与取消；不在这里做选中逻辑（那是 onClick 的事）
       if (e.type === TouchType.Down) {
