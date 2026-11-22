@@ -5,7 +5,7 @@ import { GeoAssets } from '../service/GeoAssets';
 import { KernelService } from '../service/KernelService';
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
-import { EntryRow } from '../components/Glyph';
+import { EntryRow, Glyph } from '../components/Glyph';
 import { SubscriptionService } from '../service/SubscriptionService';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
@@ -265,13 +265,17 @@ struct Settings {
         Column() {
           EntryRow({
             title: '分流方式与规则',
+            iconKind: 'routes',
+            iconColor: $r('app.color.proto_trojan'),
             detail: `已启用 ${this.ruleCount} 条自定义规则`,
             value: this.routingText(),
             onTap: () => this.nav('pages/RoutingRules', '分流规则')
           })
           EntryRow({
             title: '订阅管理',
-            detail: '更新订阅、查看上次更新时间；删订阅不删节点',
+            iconKind: 'sub',
+            iconColor: $r('app.color.proto_vmess'),
+            detail: '更新与删除；删订阅不删节点',
             value: this.subCount === 0 ? '未添加' : `${this.subCount} 个`,
             onTap: () => this.nav('pages/Subscriptions', '订阅管理')
           })
@@ -301,25 +305,27 @@ struct Settings {
             .padding({ left: Space.md, right: Space.md, top: Space.sm, bottom: Space.sm })
 
             if (this.autoUpdateSubs) {
-              // 用 Flex 换行而不是 Row：四个调度在 360vp 宽下会拤一起、第四个被压扁
-              Flex({ wrap: FlexWrap.Wrap }) {
+              // 四个调度做成等宽一组：与其它"选项组"（协议/传输/安全）同一形态。
+              // 之前用 Flex 换行是为了防压扁，但 4 个在 360vp 下放得下；
+              // 换行会让这组看起来像"一堆零散 chip"，与页面里其它选项组不一致。
+              Row({ space: Space.sm }) {
                 ForEach([6, 12, 24, 168], (h: number) => {
                   Button(h === 168 ? '每周' : `每 ${h} 小时`, { type: ButtonType.Capsule })
+                    .layoutWeight(1)
+                    .padding({ left: 0, right: 0 })
                     .height(Height.hit)
-                    .padding({ left: Space.md, right: Space.md })
                     .fontSize(FontSize.bodySm)
                     .fontColor(this.autoUpdateHours === h
                       ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
                     .backgroundColor(this.autoUpdateHours === h
                       ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                    .margin({ right: Space.sm, bottom: Space.sm })
                     .onClick(() => {
                       this.setAutoUpdateHours(h);
                     })
                 }, (h: number) => `${h}`)
               }
               .width('100%')
-              .padding({ left: Space.md, right: Space.sm, bottom: Space.xs })
+              .padding({ left: Space.md, right: Space.md, bottom: Space.sm })
             }
           }
           .width('100%')
@@ -338,29 +344,37 @@ struct Settings {
         Column() {
           EntryRow({
             title: '运行日志',
-            detail: '查看与导出（已脱敏）；写入级别也在这里改',
+            iconKind: 'logs',
+            iconColor: $r('app.color.proto_ss'),
+            detail: '导出已脱敏；级别在此修改',
             value: this.logLevel,
             onTap: () => this.nav('pages/Logs', '运行日志')
           })
           EntryRow({
             title: '备份与恢复',
+            iconKind: 'backup',
+            iconColor: $r('app.color.accent'),
             detail: '加密导出，含凭据需口令；换机、重装时用',
             onTap: () => this.nav('pages/Backup', '备份页')
           })
           // geo 不是导航，是一组动作：单独一块说明 + 两个按钮，避免伪装成可跳转行
           Column({ space: Space.sm }) {
-            Column({ space: 2 }) {
-              Text('分流资源')
-                .fontSize(FontSize.bodyLg)
-                .lineHeight(LineHeight.bodyLg)
-                .fontColor($r('app.color.text_primary'))
-                .maxLines(1)
-              Text(this.geoLabel)
-                .fontSize(FontSize.caption)
-                .lineHeight(LineHeight.caption)
-                .fontColor($r('app.color.text_tertiary'))
+            Row({ space: Space.md }) {
+              Glyph({ kind: 'routes', color: $r('app.color.proto_trojan'), box: 22 })
+              Column({ space: 2 }) {
+                Text('分流资源')
+                  .fontSize(FontSize.bodyLg)
+                  .lineHeight(LineHeight.bodyLg)
+                  .fontColor($r('app.color.text_primary'))
+                  .maxLines(1)
+                Text(this.geoLabel)
+                  .fontSize(FontSize.caption)
+                  .lineHeight(LineHeight.caption)
+                  .fontColor($r('app.color.text_tertiary'))
+              }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
             }
-            .alignItems(HorizontalAlign.Start)
             .width('100%')
 
             Row({ space: Space.sm }) {
@@ -413,16 +427,22 @@ struct Settings {
         Column() {
           EntryRow({
             title: '开源许可',
+            iconKind: 'info',
+            iconColor: $r('app.color.text_secondary'),
             detail: '第三方组件、MPL-2.0 义务、商标归属',
             onTap: () => this.nav('pages/Licenses', '许可页')
           })
           EntryRow({
             title: '开发者选项',
-            detail: '失败路径探针、内核与应用状态；正常使用不用进来',
+            iconKind: 'settings',
+            iconColor: $r('app.color.text_secondary'),
+            detail: '失败探针与内核状态；日常不用进来',
             onTap: () => this.nav('pages/DevPanel', '开发者面板')
           })
           EntryRow({
             title: '版本',
+            iconKind: 'info',
+            iconColor: $r('app.color.text_secondary'),
             detail: '内核 libXray v26.7.28',
             value: '骨架版本',
             showChevron: false,
@@ -445,6 +465,8 @@ struct Settings {
             .width('100%')
           EntryRow({
             title: this.clearing ? '清理中…' : '清空所有数据',
+            iconKind: 'trash',
+            iconColor: $r('app.color.danger'),
             danger: true,
             onTap: () => {
               if (!this.clearing) {

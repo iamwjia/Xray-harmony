@@ -454,6 +454,8 @@ struct Nodes {
   @Builder
   emptyState() {
     Column({ space: Space.sm }) {
+      // 空态不是"没东西"，是"该怎么开始"：图标 + 一句指路，比纯文字少一次犹豫
+      Glyph({ kind: 'nodes', color: $r('app.color.text_tertiary'), box: 40 })
       Text(this.groupFilter.length > 0 ? '该分组下没有节点' : '还没有节点')
         .fontSize(FontSize.titleMd)
         .lineHeight(LineHeight.titleMd)
@@ -474,7 +476,6 @@ struct Nodes {
           .fontSize(FontSize.bodySm)
           .backgroundColor($r('app.color.bg_chip'))
           .fontColor($r('app.color.text_primary'))
-          .borderRadius(Radius.pill)
           .onClick(() => {
             this.groupFilter = '';
           })

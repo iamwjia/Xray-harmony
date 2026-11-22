@@ -71,6 +71,13 @@ export struct Glyph {
         Rect().width(12).height(13).radius(2).fill(Color.Transparent)
           .stroke(this.color).strokeWidth(2)
           .position({ x: 6, y: 7 })
+      } else if (this.kind === 'info') {
+        Circle().width(16).height(16).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 4, y: 4 })
+        Line().width(24).height(24).startPoint([12, 11]).endPoint([12, 17])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Circle().width(2).height(2).fill(this.color).position({ x: 11, y: 7 })
       } else if (this.kind === 'copy') {
         // 两个重叠的方框：复制/分享的通用形状
         Rect().width(11).height(11).radius(2).fill(Color.Transparent)
@@ -186,6 +193,9 @@ export struct EntryRow {
   /** 右侧值（如"规则""INFO"），让用户不点也能看到当前状态 */
   @Prop value: string = '';
   @Prop danger: boolean = false;
+  /** 行首图标（空串表示不显示）。和首页入口格同一套图标语言 */
+  @Prop iconKind: string = '';
+  @Prop iconColor: ResourceColor = $r('app.color.text_secondary');
   /** 没有跳转行为的行（如"版本"）不要画 ›，否则看起来点了会跳走 */
   @Prop showChevron: boolean = true;
   onTap: () => void = () => {
@@ -193,7 +203,10 @@ export struct EntryRow {
   @State pressed: boolean = false;
 
   build() {
-    Row({ space: Space.sm }) {
+    Row({ space: Space.md }) {
+      if (this.iconKind.length > 0) {
+        Glyph({ kind: this.iconKind, color: this.iconColor, box: 22 })
+      }
       Column({ space: 2 }) {
         Text(this.title)
           .fontSize(FontSize.bodyLg)

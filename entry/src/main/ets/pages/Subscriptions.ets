@@ -377,11 +377,12 @@ struct Subscriptions {
   @Builder
   emptyState() {
     Column({ space: Space.sm }) {
+      Glyph({ kind: 'sub', color: $r('app.color.text_tertiary'), box: 40 })
       Text('还没有订阅')
         .fontSize(FontSize.titleMd)
         .lineHeight(LineHeight.titleMd)
         .fontColor($r('app.color.text_secondary'))
-      Text('在「节点列表」右上角「+」里粘贴 http(s) 订阅地址即可添加')
+      Text('点击下方「＋ 添加订阅地址」粘贴 http(s) 订阅地址即可')
         .fontSize(FontSize.bodySm)
         .lineHeight(LineHeight.bodySm)
         .fontColor($r('app.color.text_tertiary'))
