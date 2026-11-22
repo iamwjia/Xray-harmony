@@ -109,23 +109,42 @@ XVPN_EXT: bootstrap failed: code=202 msg=Non-system applications use system APIs
 
 **2026-11-23 复查（把上面的推测变成了结论的一半）**
 
+**0. 系统侧日志给出的完整因果链（模拟器 API 26，真实路径点「连接」）**
+
+```
+NETMANAGER_EXT: StartVpnExtensionAbility SelfAppName = Tunnelix 0
+NETMANAGER_EXT: GetCachedWant: get cachedwant success
+ServiceExt:      name:com.huawei.hmos.vpndialog VpnServiceExtAbility, userId:-1
+BMSCommon:       bundle not exist -n com.huawei.hmos.vpndialog
+BMSQuery:        ExplicitQueryExtension size:0 -e VpnServiceExtAbility
+AMS:             [SAU91]failed: com.huawei.hmos.vpndialog
+NETMANAGER_EXT:  connectAbility failed 2097152
+```
+
+读法：我们的 `startVpnExtensionAbility` **成功到达系统**（`CacheCurrentWant` 说明 want 已被缓存）；
+系统随后去拉起**授权对话框组件** `com.huawei.hmos.vpndialog/VpnServiceExtAbility`；
+该包在模拟器镜像里不存在 → `bundle not exist` → `connectAbility failed`。
+
+**所以「为什么没弹授权框」有确切答案：弹窗是系统组件画的，不是应用画的；
+模拟器镜像没有这个组件，用户自然什么都看不到**（`bm dump -a` 共 66 个包，有
+`amsdialog`/`commondialog`/`notificationdialog`/`pasteboarddialog`/`powerdialog`，**独缺 vpndialog**）。
+
 1. 走**真实路径**（点首页「连接」→ `VpnController.start` → `startVpnExtensionAbility`）实测：
    界面停在"连接中…"，**没有出现任何系统授权弹窗**；15s 后 UI 报
-   "连接异常：等待扩展进程响应超时"；`vpn_state.json` **根本没被创建**；日志里没有 `XVPN_EXT` 输出。
-   → 即：真实路径**没走到 `create()`**，压根没有 202。
-2. 查模拟器镜像里的授权组件：
-   ```
-   hdc shell "bm dump -n com.huawei.hmos.vpndialog"   → error: failed to get information
-   hdc shell "bm dump -a | grep -i vpn"                → （无输出，镜像里没有任何 VPN 相关包）
-   ```
-   → **模拟器镜像里没有 VPN 授权对话框组件**，所以 `startVpnExtensionAbility` 不可能完成授权。
-3. 因此 202 的性质定为：**「绕过授权、直接 `aa start` 拉起扩展后再调 `create()`」的后果**，
+   "系统未响应 VPN 授权请求（没有出现授权弹窗）"；`vpn_state.json` **根本没被创建**；
+   日志里没有 `XVPN_EXT` 输出（扩展进程从未被拉起）。
+   → 真实路径**没走到 `create()`**，压根没有 202。
+2. 因此 202 的性质定为：**「绕过授权、直接 `aa start` 拉起扩展后再调 `create()`」的后果**，
    不是"第三方应用不能建 VPN"的证据。规格层证据：d.ts 全文 0 处 `@systemapi`、
    该 API 无 `@permission` 标注、模块头注释写明这是"提供给第三方应用的 VPN 能力"。
-4. 仍未验证：**真机走完整授权流程后 `create()` 是否返回 fd**。
+3. 仍未验证：**真机走完整授权流程后 `create()` 是否返回 fd**。
    残余风险很具体——`ohos.permission.MANAGE_VPN` 在 SDK 的 `PermissionDefinitions.json` 里是
    `availableLevel: system_basic` + `availableType: SYSTEM`，第三方应用申请不到；
    若某个实现要求它，那就是真·硬限制。公开 API 没有标注它，且定位是第三方 VPN，
    但这只能说明"应该不需要"，不能证明"一定不需要"。
-5. 判定方法（真机 10 分钟）：装 HAP → 点连接 → 看①是否弹授权框 ②允许后 `vpn_state.json`
+4. 判定方法（真机 10 分钟）：装 HAP → 点连接 → 看①是否弹授权框 ②允许后 `vpn_state.json`
    是否 `running` ③`hilog | grep XVPN_EXT` 是否出现 `tun established fd=`。三条都过才算通。
+5. 连带影响（对其它协议的判断）：这条限制**与协议/传输无关**。`create()` 发生在"创建 tun 网卡"
+   这一步，此时 ss/vless/vmess/trojan 都还没参与；所以不是"只有 ss+WS 有问题"，
+   而是**所有协议的 tun 接管都被同一个授权链路挡住**。内核层（SOCKS 入站 + 出站）不受影响，
+   在扩展进程里已经成功启动过。

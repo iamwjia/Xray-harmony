@@ -113,8 +113,15 @@ export class VpnController {
     const timeout = new VpnState();
     timeout.state = 'error';
     timeout.code = -2;
-    timeout.msg = '等待 VPN 扩展进程响应超时';
+    // 文案要能指向原因，而不是只说"超时"。实测（模拟器 API 26）：
+    // 系统的 NETMANAGER_EXT 收到 startVpnExtensionAbility 后，会去拉起授权对话框组件
+    // `com.huawei.hmos.vpndialog/VpnServiceExtAbility`；模拟器镜像里没有这个包，
+    // 于是 `connectAbility failed 2097152`，我们的 Promise 永不 settle → 只能等到超时。
+    // 也就是说：**弹窗是系统组件画的，不是应用画的**；系统组件缺失时，用户什么也看不到。
+    timeout.msg = '系统未响应 VPN 授权请求（没有出现授权弹窗）';
     timeout.at = Date.now();
+    Logger.error('vpn start: no state and no dialog within timeout; ' +
+      'if this device is an emulator, it likely lacks com.huawei.hmos.vpndialog');
     return timeout;
   }
 
@@ -194,7 +201,11 @@ export class VpnController {
       return '扩展进程状态已过期（可能已被系统终止）';
     }
     if (code === -2) {
-      return '等待扩展进程响应超时';
+      // 实测（模拟器 API 26）：系统 NETMANAGER_EXT 收到请求后会去拉起授权对话框组件
+      // com.huawei.hmos.vpndialog/VpnServiceExtAbility，该包缺失时 connectAbility failed，
+      // 我们的 Promise 永不 settle。用户看到的现象就是"没弹窗、一直在连接中"，
+      // 所以这句话必须指出"没有弹窗"这件事，否则用户会以为是自己没点或网络慢。
+      return '系统未响应 VPN 授权请求（没有出现授权弹窗）';
     }
     return code === 0 ? '' : `未知错误码 ${code}`;
   }
