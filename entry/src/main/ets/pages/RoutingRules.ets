@@ -209,18 +209,41 @@ struct RoutingRules {
 
       // 新增表单
       Column({ space: 8 }) {
-        Row({ space: 6 }) {
+        // 匹配方式与动作分两行、各自等宽：原来五个按钮挤在一行靠 Blank 隔开，
+        // 结果"域名"和"走代理"宽度不同、还分不清哪几个是一组（属于哪一组看标签才知道）。
+        Text('匹配方式')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+        Row({ space: Space.sm }) {
           ForEach(this.matches, (m: MatchOption, i: number) => {
-            Button(m.label).fontSize(FontSize.caption)
+            Button(m.label, { type: ButtonType.Capsule })
+              .layoutWeight(1)
+              .padding({ left: 0, right: 0 })
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
               .backgroundColor(i === this.matchIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
               .fontColor(i === this.matchIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
               .onClick(() => {
                 this.matchIdx = i;
               })
           }, (m: MatchOption) => m.value)
-          Blank()
+        }
+        .width('100%')
+
+        Text('命中后')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+        Row({ space: Space.sm }) {
           ForEach(this.actions, (a: ActionOption, i: number) => {
-            Button(a.label).fontSize(FontSize.caption)
+            Button(a.label, { type: ButtonType.Capsule })
+              .layoutWeight(1)
+              .padding({ left: 0, right: 0 })
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
               .backgroundColor(i === this.actionIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
               .fontColor(i === this.actionIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
               .onClick(() => {

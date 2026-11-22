@@ -51,6 +51,36 @@ export class SubscriptionStore {
     // 持久化改由 KvStore（preferences 同步读写）承载，保留空实现兼容旧调用
   }
 
+  /**
+   * 把某个订阅上移/下移一位（delta 只认 ±1，和节点列表一致）。
+   * 顺序就是列表顺序，没有额外的 sortKey：用户拖出来的顺序必须原样落盘。
+   */
+  static move(subId: string, delta: number): boolean {
+    const list: SubRecord[] | null = SubscriptionStore.load();
+    if (list === null) {
+      return false;
+    }
+    const subs: SubRecord[] = list;
+    let from: number = -1;
+    for (let i = 0; i < subs.length; i++) {
+      if (subs[i].id === subId) {
+        from = i;
+        break;
+      }
+    }
+    if (from < 0) {
+      return false;
+    }
+    const to: number = from + delta;
+    if (to < 0 || to >= subs.length) {
+      return false;
+    }
+    const moved: SubRecord = subs[from];
+    subs.splice(from, 1);
+    subs.splice(to, 0, moved);
+    return SubscriptionStore.save(subs);
+  }
+
   static save(subs: SubRecord[]): boolean {
     try {
       const list: StoredSub[] = [];

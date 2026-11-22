@@ -130,6 +130,37 @@ export struct NodeRow {
     return i === 2 ? $r('app.color.group_c_bg') : $r('app.color.group_a_bg');
   }
 
+  @Builder
+  handleMenu() {
+    Column() {
+      this.handleItem('编辑', false, () => this.onEdit(this.nodeId))
+      this.handleItem('复制分享链接', false, () => this.onCopyLink(this.nodeId))
+      this.handleItem('测连通性', false, () => this.onProbe(this.nodeId))
+      Divider().color($r('app.color.border_subtle'))
+      this.handleItem('删除', true, () => this.onDelete(this.nodeId))
+    }
+    .width(180)
+    .padding({ top: Space.xs, bottom: Space.xs })
+    .backgroundColor($r('app.color.bg_surface'))
+    .borderRadius(Radius.panel)
+    .border({ width: 1, color: $r('app.color.border_subtle') })
+  }
+
+  @Builder
+  handleItem(label: string, dangerous: boolean, action: () => void) {
+    Text(label)
+      .width(180)
+      .height(Height.hit)
+      .padding({ left: Space.lg, right: Space.lg })
+      .fontSize(FontSize.bodyLg)
+      .lineHeight(LineHeight.bodyLg)
+      .fontColor(dangerous ? $r('app.color.danger') : $r('app.color.text_primary'))
+      .textAlign(TextAlign.Start)
+      .onClick(() => {
+        action();
+      })
+  }
+
   build() {
     Row() {
       // ① 选中竖条：位置编码
@@ -251,6 +282,11 @@ export struct NodeRow {
       .height(Height.hit)
       .justifyContent(FlexAlign.Center)
       .margin({ left: Space.xs })
+      .onClick(() => {
+        // 点抓手 = 操作选项（菜单）；按住拖动 = 排序。两者都在同一个元素上，
+        // 不会和"点整行 = 选中"打架（那是另一个命中区）。
+      })
+      .bindMenu(this.handleMenu)
       // priorityGesture：抓手上的拖动手势必须压过整行的长按（复制链接），
       // 否则“按住抓手再拖”会先触发长按，用户看到的是复制而不是排序。
       .priorityGesture(

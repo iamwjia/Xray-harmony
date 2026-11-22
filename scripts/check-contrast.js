@@ -34,6 +34,8 @@ const PAIRS = [
   ['text_secondary', 'bg_surface_alt', '二级文本-次级卡片', 4.5],
   ['text_tertiary', 'bg_surface', '三级文本-卡片', 4.5],
   ['text_tertiary', 'bg_canvas', '三级文本-画布', 4.5],
+  ['text_primary', 'bg_chip', '次级按钮字-浅底', 4.5],
+  ['text_secondary', 'bg_chip', '次级按钮副字-浅底', 4.5],
   // 强调色上的文字
   ['text_on_accent', 'accent', '白字-主蓝', 4.5],
   ['text_on_accent', 'action_probe', '白字-测连通块', 4.5],

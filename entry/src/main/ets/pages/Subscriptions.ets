@@ -3,7 +3,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Glyph } from '../components/Glyph';
 import { EventLog } from '../service/EventLog';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
-import { SubRecord } from '../service/SubscriptionStore';
+import { SubRecord, SubscriptionStore } from '../service/SubscriptionStore';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
@@ -39,6 +39,11 @@ struct Subscriptions {
   @State addInput: string = '';
   @State addBusy: boolean = false;
   @State addMsg: string = '';
+  /** 正在拖的订阅 id 与累计位移；松手换算成"移动几行" */
+  private dragId: string = '';
+  private dragOffset: number = 0;
+  /** 一行高度：订阅行 minHeight 64 + 间距 8 */
+  private static readonly ROW_STEP: number = 72;
   /** 动作执行后收起左滑（key 里带上它，重建即复位） */
   @State swipeRev: number = 0;
 
@@ -317,18 +322,37 @@ struct Subscriptions {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Button({ type: ButtonType.Circle }) {
-        Text('\u22ef')
+      // 与节点行一致：点抓手 = 操作选项，按住拖动 = 排序
+      Column() {
+        Text('\u2261')
           .fontSize(IconSize.md)
-          .fontColor($r('app.color.text_secondary'))
+          .fontColor(this.dragId === rec.id ? $r('app.color.accent') : $r('app.color.text_secondary'))
+          .lineHeight(LineHeight.bodyLg)
           .accessibilityLevel('no')
       }
-      .width(Height.hit)
+      .width(40)
       .height(Height.hit)
+      .justifyContent(FlexAlign.Center)
       .margin({ left: Space.xs })
-      .backgroundColor(Color.Transparent)
       .bindMenu(this.overflowMenu(rec))
-      .accessibilityText('订阅操作：更新、删除')
+      .priorityGesture(
+        PanGesture({ direction: PanDirection.Vertical, distance: 4 })
+          .onActionStart(() => {
+            this.dragId = rec.id;
+            this.dragOffset = 0;
+          })
+          .onActionUpdate((e: GestureEvent) => {
+            this.dragOffset = e.offsetY;
+          })
+          .onActionEnd(() => {
+            this.applyDrag(rec.id);
+          })
+          .onActionCancel(() => {
+            this.dragId = '';
+            this.dragOffset = 0;
+          })
+      )
+      .accessibilityText('订阅操作与排序')
     }
     .width('100%')
     .constraintSize({ minHeight: Height.row })
@@ -399,6 +423,27 @@ struct Subscriptions {
       const m: string = e instanceof Error ? e.message : String(e);
       this.addMsg = `失败：${m}`;
     });
+  }
+
+  private applyDrag(id: string): void {
+    const steps: number = Math.round(this.dragOffset / Subscriptions.ROW_STEP);
+    this.dragId = '';
+    this.dragOffset = 0;
+    if (steps === 0) {
+      return;
+    }
+    const dir: number = steps > 0 ? 1 : -1;
+    let applied: number = 0;
+    for (let i = 0; i < Math.abs(steps); i++) {
+      if (!SubscriptionStore.move(id, dir)) {
+        break;
+      }
+      applied++;
+    }
+    if (applied > 0) {
+      this.reload();
+      this.setNotice(`已${dir > 0 ? '下' : '上'}移 ${applied} 位`, 0);
+    }
   }
 
   private closeSwipe(): void {
