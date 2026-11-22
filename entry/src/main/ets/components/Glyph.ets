@@ -71,6 +71,14 @@ export struct Glyph {
         Rect().width(12).height(13).radius(2).fill(Color.Transparent)
           .stroke(this.color).strokeWidth(2)
           .position({ x: 6, y: 7 })
+      } else if (this.kind === 'copy') {
+        // 两个重叠的方框：复制/分享的通用形状
+        Rect().width(11).height(11).radius(2).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 9, y: 9 })
+        Rect().width(11).height(11).radius(2).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 4, y: 4 })
       } else if (this.kind === 'probe') {
         // 脉冲：握手/连通性的通用表达
         Line().width(24).height(24).startPoint([3, 12]).endPoint([8, 12])

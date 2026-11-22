@@ -34,6 +34,11 @@ struct Subscriptions {
   @State refreshingAll: boolean = false;
   /** 按下中的行 id（为空 = 没有按下）：手机上需要可见反馈 */
   @State pressedId: string = '';
+  /** 添加订阅：输入面板是否展开 + 输入内容 + 进行中标记 */
+  @State showAdd: boolean = false;
+  @State addInput: string = '';
+  @State addBusy: boolean = false;
+  @State addMsg: string = '';
   /** 动作执行后收起左滑（key 里带上它，重建即复位） */
   @State swipeRev: number = 0;
 
@@ -364,6 +369,38 @@ struct Subscriptions {
     .padding({ left: Space.xl, right: Space.xl })
   }
 
+  /** 添加订阅：与节点页导入走同一个服务方法，避免两套解析逻辑 */
+  private doAddSubscription(): void {
+    const url: string = this.addInput.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      this.addMsg = '请粘贴 http(s) 开头的订阅地址';
+      return;
+    }
+    if (this.addBusy) {
+      return;
+    }
+    this.addBusy = true;
+    this.addMsg = '正在拉取…';
+    SubscriptionService.importFromUrl(url, '').then((r: SubscriptionImportResult) => {
+      this.addBusy = false;
+      this.reload();
+      if (r.total === 0) {
+        this.addMsg = `失败：${r.error.length > 0 ? r.error : '里面没有可识别的节点'}`;
+        EventLog.push(2, '订阅添加失败');
+        return;
+      }
+      this.addMsg = `已添加：解析 ${r.total} 条，新增 ${r.added} 条`;
+      this.setNotice(this.addMsg, r.failed > 0 ? 1 : 0);
+      EventLog.push(r.failed > 0 ? 1 : 0, `订阅已添加：新增 ${r.added} 个节点`);
+      this.addInput = '';
+      this.showAdd = false;
+    }).catch((e: Object) => {
+      this.addBusy = false;
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.addMsg = `失败：${m}`;
+    });
+  }
+
   private closeSwipe(): void {
     this.swipeRev = this.swipeRev + 1;
   }
@@ -483,6 +520,69 @@ struct Subscriptions {
           this.refreshStale();
         })
       }
+
+      // 与节点页同款：顶部没有任何入口时，这个页面就没有"添加"的落点，
+      // 用户只能回节点页粘贴订阅地址——入口一致才不需要记路径。
+      if (this.showAdd) {
+        Column({ space: Space.sm }) {
+          TextInput({ placeholder: '粘贴 http(s) 订阅地址', text: $$this.addInput })
+            .fontSize(FontSize.bodySm)
+            .height(Height.input)
+            .onSubmit(() => {
+              this.doAddSubscription();
+            })
+            .onChange((v: string) => {
+              this.addInput = v;
+            })
+          Row({ space: Space.sm }) {
+            Button(this.addBusy ? '添加中…' : '添加')
+              .layoutWeight(1)
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
+              .enabled(!this.addBusy)
+              .onClick(() => this.doAddSubscription())
+            Button('取消')
+              .height(Height.hit)
+              .fontSize(FontSize.bodySm)
+              .backgroundColor($r('app.color.bg_chip'))
+              .fontColor($r('app.color.text_primary'))
+              .onClick(() => {
+                this.showAdd = false;
+                this.addMsg = '';
+              })
+          }
+          .width('100%')
+          if (this.addMsg.length > 0) {
+            Text(this.addMsg)
+              .fontSize(FontSize.caption)
+              .lineHeight(LineHeight.caption)
+              .fontColor(this.addBusy ? $r('app.color.accent') : $r('app.color.text_secondary'))
+              .width('100%')
+          }
+        }
+        .width('100%')
+        .padding(Space.md)
+        .backgroundColor($r('app.color.bg_surface_alt'))
+        .borderRadius(Radius.panel)
+        .margin({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+      }
+
+      Row() {
+        Button(this.showAdd ? '收起添加面板' : '＋ 添加订阅地址')
+          .width('100%')
+          .height(Height.hit)
+          .fontSize(FontSize.bodySm)
+          .backgroundColor($r('app.color.accent_subtle'))
+          .fontColor($r('app.color.accent'))
+          .onClick(() => {
+            this.showAdd = !this.showAdd;
+            if (!this.showAdd) {
+              this.addMsg = '';
+            }
+          })
+      }
+      .width('100%')
+      .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
     }
     .width('100%')
     .height('100%')

@@ -1,8 +1,5 @@
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
-/** 操作菜单宽度：固定值，不跟屏幕宽度变化 */
-const MENU_WIDTH: number = 180;
-
 /**
  * components/NodeRow.ets — 节点行（两个命中区）
  *
@@ -25,6 +22,8 @@ export struct NodeRow {
   /** 首/末行的"上移/下移"必须置灰，否则用户会一直点一个永远不会生效的项 */
   /** 按下中：手机上必须有可见反馈，否则用户不知道自己点到了没有 */
   @State pressed: boolean = false;
+  /** 抓手正在被拖动：加深颜色，给用户“我正在拖”的反馈 */
+  @State dragging: boolean = false;
   @Prop canMoveUp: boolean = true;
   @Prop canMoveDown: boolean = true;
   /** 分组 chip 里真正的"标签"，与行内文字同层但不抢宽度 */
@@ -34,11 +33,15 @@ export struct NodeRow {
   };
   onEdit: (id: string) => void = () => {
   };
-  onMove: (id: string, delta: number) => void = () => {
-  };
   onDelete: (id: string) => void = () => {
   };
   onProbe: (id: string) => void = () => {
+  };
+  onHandleDragStart: (id: string) => void = () => {
+  };
+  onHandleDragMove: (offsetY: number) => void = () => {
+  };
+  onHandleDragEnd: (id: string) => void = () => {
   };
   /** 长按整行：复制分享链接（含凭据，调用方负责提示风险） */
   onCopyLink: (id: string) => void = () => {
@@ -125,48 +128,6 @@ export struct NodeRow {
       return $r('app.color.group_b_bg');
     }
     return i === 2 ? $r('app.color.group_c_bg') : $r('app.color.group_a_bg');
-  }
-
-  @Builder
-  overflowMenu() {
-    Column() {
-      this.menuItem('编辑', false, true, () => this.onEdit(this.nodeId))
-      this.menuItem('测连通性', false, true, () => this.onProbe(this.nodeId))
-      this.menuItem('上移', false, this.canMoveUp, () => this.onMove(this.nodeId, -1))
-      this.menuItem('下移', false, this.canMoveDown, () => this.onMove(this.nodeId, 1))
-      Divider().color($r('app.color.border_subtle'))
-      this.menuItem('删除', true, true, () => this.onDelete(this.nodeId))
-    }
-    // 定宽而不是 minWidth：弹层是“自适应”容器，只给下限会被拉到几乎全屏宽，
-    // 行内文字又是 width('100%')，于是文字看起来偏左、像被遮挡。
-    .width(MENU_WIDTH)
-    .padding({ top: Space.xs, bottom: Space.xs })
-    .backgroundColor($r('app.color.bg_surface'))
-    .borderRadius(Radius.panel)
-    // 自绘弹层没有系统阴影，深色下两个 bg_surface 会融成一片，必须描边
-    .border({ width: 1, color: $r('app.color.border_subtle') })
-  }
-
-  @Builder
-  menuItem(label: string, dangerous: boolean, enabled: boolean, action: () => void) {
-    Text(label)
-      .width(MENU_WIDTH)
-      .height(Height.hit)
-      .padding({ left: Space.lg, right: Space.lg })
-      // 菜单项比正文大一档：弹层里只有几个词，13/14 看着偏小且难点
-      .fontSize(FontSize.bodyLg)
-      .lineHeight(LineHeight.bodyLg)
-      .fontColor(!enabled
-        ? $r('app.color.text_tertiary')
-        : (dangerous ? $r('app.color.danger') : $r('app.color.text_primary')))
-      .textAlign(TextAlign.Start)
-      .enabled(enabled)
-      .accessibilityText(enabled ? label : `${label}（不可用）`)
-      .onClick(() => {
-        if (enabled) {
-          action();
-        }
-      }).lineHeight(LineHeight.bodySm)
   }
 
   build() {
@@ -277,25 +238,40 @@ export struct NodeRow {
           .accessibilityLevel('no')
       }
 
-      // 命中区②：溢出菜单（自己消费事件，不冒泡到整行）
-      Button({ type: ButtonType.Circle }) {
-        Stack() {
-          Text('\u22ef')
-            .fontSize(IconSize.md)
-            .fontColor($r('app.color.text_secondary'))
-            .accessibilityLevel('no')
-        }
-        .width(32)
-        .height(32)
-        .backgroundColor($r('app.color.bg_chip'))
-        .borderRadius(Radius.pill)
+      // 拖拽抓手：显式入口。整行长按已经是“复制分享链接”，两者分开才不会互相误触。
+      // 位移超过 4vp 才认成拖动，低于这个值多半是想点行。
+      Column() {
+        Text('\u2261')
+          .fontSize(IconSize.md)
+          .fontColor(this.dragging ? $r('app.color.accent') : $r('app.color.text_secondary'))
+          .lineHeight(LineHeight.bodyLg)
+          .accessibilityLevel('no')
       }
-      .width(Height.hit)
+      .width(40)
       .height(Height.hit)
+      .justifyContent(FlexAlign.Center)
       .margin({ left: Space.xs })
-      .backgroundColor(Color.Transparent)
-      .bindMenu(this.overflowMenu)
-      .accessibilityText('节点操作：编辑、上移、下移、删除')
+      // priorityGesture：抓手上的拖动手势必须压过整行的长按（复制链接），
+      // 否则“按住抓手再拖”会先触发长按，用户看到的是复制而不是排序。
+      .priorityGesture(
+        PanGesture({ direction: PanDirection.Vertical, distance: 4 })
+          .onActionStart(() => {
+            this.dragging = true;
+            this.onHandleDragStart(this.nodeId);
+          })
+          .onActionUpdate((e: GestureEvent) => {
+            this.onHandleDragMove(e.offsetY);
+          })
+          .onActionEnd(() => {
+            this.dragging = false;
+            this.onHandleDragEnd(this.nodeId);
+          })
+          .onActionCancel(() => {
+            this.dragging = false;
+            this.onHandleDragEnd(this.nodeId);
+          })
+      )
+      .accessibilityText('拖动排序')
     }
     .width('100%')
     .constraintSize({ minHeight: Height.row })
@@ -317,20 +293,12 @@ export struct NodeRow {
       }
     })
     .onClick(() => {
-      // 命中区①：只做选中。编辑/排序/删除都在溢出菜单里，不在这里分流。
+      // 命中区①：只做选中。编辑/测连通/删除在左滑动作里，复制在右滑动作里。
       this.onPick(this.nodeId);
     })
-    // 长按整行 = 复制分享链接。换机、求助、问"这节点还能用吗"都要把节点发出去，
-    // 现在没有这条路径就只能照着屏幕手打一遍。
-    // 用 parallelGesture：行的 onTouch/onClick 与列表的滑动都要正常，长按是并列识别，
-    // 用 .gesture() 会与列表的滑动手势互相等待，实测命令行注入的长按完全收不到。
-    .parallelGesture(
-      // 450ms：系统长按普遍是 500ms，取 450 才能被"标准长按"命中
-      LongPressGesture({ repeat: false, duration: 450 })
-        .onAction(() => {
-          this.onCopyLink(this.nodeId);
-        })
-    )
+    // 长按整行复制分享链接**已移除**：它和右侧拖拽抓手在同一次触摸里抢手势，
+    // 实测"按住抓手往上拖"会先命中 450ms 长按（用户看到的是复制，不是排序）。
+    // 复制改到右滑动作里（滑动手势与拖动不重叠），代价是少一个快捷入口。
     .accessibilityLevel('yes')
     .accessibilityText(this.rowA11y())
   }

@@ -56,6 +56,11 @@ struct Nodes {
   @State probeResultId: string = '';
   @State probeResultText: string = '';
   @State probeResultLevel: number = 0;
+  /** 正在拖的节点 id 与累计位移（vp）；松手时换算成“移动几行” */
+  private dragId: string = '';
+  private dragOffset: number = 0;
+  /** 一行的高度：节点行 minHeight 64 + 行间距 8 */
+  private static readonly ROW_STEP: number = 72;
   /** 下拉刷新：重新读盘（另一个入口导入了数据、或外部改了订阅时用） */
   @State refreshing: boolean = false;
   /**
@@ -519,6 +524,38 @@ struct Nodes {
     });
   }
 
+  private onRowDragStart(id: string): void {
+    this.dragId = id;
+    this.dragOffset = 0;
+  }
+
+  private onRowDragUpdate(offsetY: number): void {
+    this.dragOffset = offsetY;
+  }
+
+  private onRowDragEnd(id: string): void {
+    const steps: number = Math.round(this.dragOffset / Nodes.ROW_STEP);
+    this.dragId = '';
+    this.dragOffset = 0;
+    if (steps === 0) {
+      return;
+    }
+    // ConfigService 只提供"移一位"，多位就循环；先按位移方向逐步挪，避免一次算错位置
+    const dir: number = steps > 0 ? 1 : -1;
+    let applied: number = 0;
+    for (let i = 0; i < Math.abs(steps); i++) {
+      if (!this.cfg.moveNode(id, dir)) {
+        break;
+      }
+      applied++;
+    }
+    if (applied > 0) {
+      // 排序是用户亲手做的，必须给一句确认；否则他会怀疑到底是"系统动了"还是"自己拖错了"
+      this.setNotice(`已${dir > 0 ? '下' : '上'}移 ${applied} 位`, 0);
+    }
+    this.reload();
+  }
+
   private closeSwipe(): void {
     // 执行完动作就收起露出的操作，否则列表会留着一排开着的行。
     // 这一版 SDK 的 Scroller 没有 closeAllSwipeActions，只能靠重建行来复位滑动状态。
@@ -569,22 +606,44 @@ struct Nodes {
   /** 右滑露出（行左端）：编辑。紫色，与"测连通"的蓝、"删除"的红互不混淆 */
   @Builder
   rowStartActions(item: XrayNode) {
-    Column({ space: 2 }) {
-      Glyph({ kind: 'edit', color: $r('app.color.text_on_accent'), box: 20 })
-      Text('编辑')
-        .fontSize(FontSize.caption)
-        .lineHeight(LineHeight.caption)
-        .fontColor($r('app.color.text_on_accent'))
+    Row() {
+      Column({ space: 2 }) {
+        Glyph({ kind: 'edit', color: $r('app.color.text_on_accent'), box: 20 })
+        Text('编辑')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_on_accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.action_edit'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.openEdit(item.id);
+      })
+      .accessibilityText(`编辑 ${item.name}`)
+
+      // 复制分享链接：原来挂在"整行长按"上，但长按与拖拽抓手抢手势，
+      // 实测按住抓手拖动会先触发长按。挪到右滑里，滑动手势与拖动不重叠。
+      Column({ space: 2 }) {
+        Glyph({ kind: 'copy', color: $r('app.color.text_on_accent'), box: 20 })
+        Text('复制')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_on_accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.action_probe'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.copyShareLink(item.id);
+      })
+      .accessibilityText(`复制 ${item.name} 的分享链接`)
     }
-    .width(84)
     .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor($r('app.color.action_edit'))
-    .onClick(() => {
-      this.closeSwipe();
-      this.openEdit(item.id);
-    })
-    .accessibilityText(`编辑 ${item.name}`)
   }
 
   build() {
@@ -634,11 +693,11 @@ struct Nodes {
                 port: item.port,
                 group: item.group,
                 selected: item.id === this.selectedId,
-                canMoveUp: this.canMove(item.id, -1),
-                canMoveDown: this.canMove(item.id, 1),
                 onPick: (id: string) => this.pick(id),
                 onEdit: (id: string) => this.openEdit(id),
-                onMove: (id: string, delta: number) => this.doMove(id, delta),
+                onHandleDragStart: (id: string) => this.onRowDragStart(id),
+                onHandleDragMove: (offsetY: number) => this.onRowDragUpdate(offsetY),
+                onHandleDragEnd: (id: string) => this.onRowDragEnd(id),
                 onProbe: (id: string) => this.probeNode(id),
                 onDelete: (id: string) => this.confirmDeleteById(id),
                 onCopyLink: (id: string) => this.copyShareLink(id),
@@ -686,8 +745,8 @@ struct Nodes {
           .width('100%')
           .height(Height.hit)
           .fontSize(FontSize.bodySm)
-          .backgroundColor($r('app.color.bg_chip'))
-          .fontColor($r('app.color.text_primary'))
+          .backgroundColor($r('app.color.accent_subtle'))
+          .fontColor($r('app.color.accent'))
           .onClick(() => {
             this.showImport = !this.showImport;
           })
