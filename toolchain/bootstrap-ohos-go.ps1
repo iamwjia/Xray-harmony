@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   OHOS Go 工具链一键自举（Windows 原生路径）——E2 交付物。
 

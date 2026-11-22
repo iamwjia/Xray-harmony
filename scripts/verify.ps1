@@ -42,6 +42,9 @@ try {
     # 编码闸门：文本文件必须是合法 UTF-8（用 shell here-doc 追加中文会写成 GBK，编译不报错）
     & $node 'scripts\check-encoding.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-encoding' }
+    # 行尾闸门：跟踪的文本文件必须是 LF（core.autocrlf=true 会把 checkout 改写成 CRLF）
+    & $node 'scripts\check-eol.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'check-eol' }
 } finally { Pop-Location }
 
 # 2) 编译：arm64 是发布目标，顺带做 ArkTS 全量类型检查

@@ -1,4 +1,4 @@
-# Rebuild the prebuilt shared library (libprebuilt.so) for both ABIs.
+﻿# Rebuild the prebuilt shared library (libprebuilt.so) for both ABIs.
 #
 # Purpose: keep the checked-in binaries auditable/reproducible.
 #   Source : entry/src/main/cpp/prebuilt/prebuilt.c

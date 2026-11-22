@@ -1,4 +1,4 @@
-# Build the Go c-shared smoke library (libcgoping.so) for HarmonyOS / OpenHarmony.
+﻿# Build the Go c-shared smoke library (libcgoping.so) for HarmonyOS / OpenHarmony.
 #
 # Purpose: one-command, reproducible build + 4-point ELF validation, for both ABIs.
 #   Source   : toolchain/smoke/cgoping.go

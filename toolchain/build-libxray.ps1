@@ -1,4 +1,4 @@
-# Build libXray (real Xray kernel) as an OHOS c-shared library.
+﻿# Build libXray (real Xray kernel) as an OHOS c-shared library.
 #
 # Source   : _toolchain/libXray-v26.7.28 (pinned tag v26.7.28; NOT tracked by git)
 # Exports  : CGoInvoke / CGoFree  (everything else hidden via version-script)

@@ -1,4 +1,4 @@
-# Build the PoC HAP for a chosen ABI set (real device vs emulator).
+﻿# Build the PoC HAP for a chosen ABI set (real device vs emulator).
 #
 # Why this script exists:
 #   * The real device is arm64-v8a; the emulator is x86_64.
@@ -50,8 +50,14 @@ if (-not $m.Success) {
     exit 1
 }
 
-$abiLines = ($filters -split ',\s*' | ForEach-Object { '        "' + $_ + '"' }) -join ",`r`n"
-$replacement = $m.Groups[1].Value + "`r`n" + $abiLines + "`r`n      " + $m.Groups[3].Value
+# 防“漂移被带进提交”：开工前念一声。上一次就是因为某次构建被中断，
+# 把 x86_64 残留值提进了仓库，后面 arm64 构建一直失败。
+if ($m.Groups[2].Value -notmatch 'arm64-v8a' -or $m.Groups[2].Value -match 'x86_64') {
+    Write-Host ('WARN: build-profile abiFilters 不是默认值，当前为:' + $m.Groups[2].Value.Trim()) -ForegroundColor Yellow
+}
+
+$abiLines = ($filters -split ',\s*' | ForEach-Object { '        "' + $_ + '"' }) -join ",`n"
+$replacement = $m.Groups[1].Value + "`n" + $abiLines + "`n      " + $m.Groups[3].Value
 $patched = $original.Substring(0, $m.Index) + $replacement + $original.Substring($m.Index + $m.Length)
 
 try {
@@ -115,7 +121,11 @@ try {
     }
 } finally {
     # Always restore the arm64-only default.
-    [System.IO.File]::WriteAllText($profile, $original, (New-Object System.Text.UTF8Encoding($false)))
+    # 恢复到**固定默认**（arm64-v8a），而不是“这次开始时的内容”。
+    # 用 $original 会把上次残留的 x86_64 又写回去，错误会一直延续。
+    $repl = '$1' + "`n" + '        "arm64-v8a"' + "`n" + '      ' + '$3'
+    $restored = [regex]::Replace($original, $abiPattern, $repl)
+    [System.IO.File]::WriteAllText($profile, $restored, (New-Object System.Text.UTF8Encoding($false)))
     Write-Host ''
     Write-Host 'entry/build-profile.json5 restored to default (arm64-v8a only).'
 }

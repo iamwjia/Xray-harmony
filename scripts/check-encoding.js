@@ -33,6 +33,8 @@ const MOJIBAKE = [
 const badUtf8 = [];
 const mojibake = [];
 const bom = [];
+const ps1WithoutBom = [];
+const ps1List = [];
 
 function walk(dir) {
   let entries;
@@ -53,6 +55,9 @@ function walk(dir) {
     const buf = fs.readFileSync(full);
     const rel = path.relative(ROOT, full);
 
+    if (rel.toLowerCase().endsWith('.ps1')) {
+      ps1List.push(rel);
+    }
     if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
       bom.push(rel);
     }
@@ -74,6 +79,12 @@ function walk(dir) {
 
 walk(ROOT);
 
+// .ps1 必须带 BOM：PowerShell 5.1 把不带 BOM 的 UTF-8 当 ANSI，中文注释乱码后
+// 可能含引号类字节，直接把脚本弄成语法错误（实测踩到）。
+for (const f of ps1List) {
+  if (!bom.includes(f)) ps1WithoutBom.push(f);
+}
+
 let failed = false;
 if (badUtf8.length > 0) {
   failed = true;
@@ -85,12 +96,17 @@ if (mojibake.length > 0) {
   console.log(`ENCODING FAIL: ${mojibake.length} 个文件含 mojibake`);
   for (const f of mojibake) console.log('  ' + f);
 }
+if (ps1WithoutBom.length > 0) {
+  failed = true;
+  console.log('ENCODING FAIL: ' + ps1WithoutBom.length +
+    ' \u4e2a .ps1 \u7f3a UTF-8 BOM\uff08PowerShell 5.1 \u4f1a\u6309 ANSI \u8bfb\uff0c\u4e2d\u6587\u6ce8\u91ca\u628a\u811a\u672c\u5f04\u6210\u8bed\u6cd5\u9519\u8bef\uff09');
+  for (const f of ps1WithoutBom) console.log('  ' + f);
+}
 if (!failed) {
-  console.log('ENCODING PASS: 全部文本文件均为合法 UTF-8，无 mojibake');
+  console.log('ENCODING PASS: \u5168\u90e8\u6587\u672c\u6587\u4ef6\u5747\u4e3a\u5408\u6cd5 UTF-8\uff0c\u65e0 mojibake\uff0c.ps1 \u5747\u5e26 BOM');
 }
 if (bom.length > 0) {
-  // BOM 不算失败：Windows PowerShell 5.1 写 .ps1 需要 BOM 才能正确解析中文
-  console.log(`note: ${bom.length} 个文件带 BOM（.ps1 带 BOM 是刻意的，其余可清理）`);
+  console.log(`note: ${bom.length} \u4e2a\u6587\u4ef6\u5e26 BOM\uff08.ps1 \u5e26 BOM \u662f\u5fc5\u9700\uff0c\u5176\u4f59\u53ef\u6e05\u7406\uff09`);
   for (const f of bom) console.log('  BOM ' + f);
 }
 process.exit(failed ? 1 : 0);

@@ -1,4 +1,4 @@
-# Build the merged kernel + forwarding layer as a single OHOS c-shared library.
+﻿# Build the merged kernel + forwarding layer as a single OHOS c-shared library.
 #
 # Why merged: one process can host only one Go runtime, so the kernel and the
 # forwarding layer must live in the same .so instead of two.

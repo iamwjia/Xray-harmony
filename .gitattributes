@@ -1,0 +1,22 @@
+* text=auto eol=lf
+
+# 二进制：不要做任何换行/文本转换
+*.so binary
+*.a binary
+*.hap binary
+*.hsp binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.dat binary
+
+# 脚本与配置：统一 LF（PowerShell 5.1 能读 LF，关键是 UTF-8 BOM）
+*.ps1 text eol=lf
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

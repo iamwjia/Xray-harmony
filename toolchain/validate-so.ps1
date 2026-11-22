@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   OHOS .so 产物校验（E2 交付物）——判定「这个 .so 能不能被 HarmonyOS 加载且不崩」。
 
