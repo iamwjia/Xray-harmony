@@ -145,6 +145,12 @@ export class Logger {
     // ③ 键值形态的凭据
     s = s.replace(/("?(?:password|passwd|pwd|token|secret|uuid|publicKey|pbk)"?\s*[:=]\s*)"[^"]*"/gi,
       '$1"****"');
+    // ③b 没有引号的键值凭据：`password=xxx` / `token: xxx`
+    //     ③ 只管带引号的形式，拼接日志里常见的无引号写法会整条漏掉（有测试盯着）。
+    //     保留 `password` / `noauth` 这类「模式词」：它们不是凭据，抹掉反而丢诊断信息。
+    s = s.replace(
+      /(\b(?:password|passwd|pwd|pass|token|secret|uuid|publicKey|pbk|sid)\b\s*[:=]\s*)(?!password\b|noauth\b)([^\s,"'}]+)/gi,
+      '$1****');
     // ④ 节点地址（`protocol@host:port` 是我们自己的日志格式）：
     //    服务器地址属于用户隐私——一张截图就可能暴露他在用哪台机器，所以一并打掉。
     s = s.replace(/@[0-9a-zA-Z.\-]+:\d+/g, '@****');
