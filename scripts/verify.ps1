@@ -42,6 +42,9 @@ try {
     # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
     & $node 'scripts\check-text-style.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }
+    # 安全扫描：硬编码凭据 / 明文端点 / 绕过脱敏的日志 / unsafe C 函数
+    & $node 'scripts\security-scan.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'security-scan' }
     # 对比度闸门：色标/白字/三级灰必须过 WCAG AA 4.5:1（改一个 hex 就能把字压到读不出）
     & $node 'scripts\check-contrast.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-contrast' }
