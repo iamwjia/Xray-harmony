@@ -1,4 +1,5 @@
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
+import { PageHeader } from '../components/PageHeader';
 import { router } from '@kit.ArkUI';
 
 /**
@@ -64,12 +65,13 @@ struct Licenses {
 
   build() {
     Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(FontSize.caption)
-          .onClick(() => {
+      Row() {
+        PageHeader({
+          title: '开源许可',
+          onBack: () => {
             router.back();
-          })
-        Text('开源许可').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
+          }
+        })
       }
       .width('100%')
 
