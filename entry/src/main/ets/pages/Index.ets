@@ -16,6 +16,7 @@ import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { NavTile } from '../components/Glyph';
 import { AppEvent, EventLog } from '../service/EventLog';
 import { DemoFlags } from '../platform/DemoFlags';
+import { SubscriptionService } from '../service/SubscriptionService';
 
 /**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
@@ -183,7 +184,10 @@ struct Index {
   }
 
   private subHint(): string {
-    const n: number = this.cfg.getConfig().subscriptions.length;
+    // 订阅存在 SubscriptionStore 里。AppConfig.subscriptions 只有"旧整包 JSON"那条
+    // 反序列化路径才会被填，现在的持久化布局下它恒为空——读它就会把"3 个订阅"
+    // 显示成"未添加"（这个 bug 就是这么来的）。
+    const n: number = SubscriptionService.listSubscriptions().length;
     return n === 0 ? '未添加' : `${n} 个`;
   }
 

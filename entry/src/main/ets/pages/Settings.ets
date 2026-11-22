@@ -6,6 +6,7 @@ import { KernelService } from '../service/KernelService';
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
 import { EntryRow } from '../components/Glyph';
+import { SubscriptionService } from '../service/SubscriptionService';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
@@ -51,13 +52,13 @@ struct Settings {
     this.refreshRuleCount();
     this.autoUpdateSubs = this.cfg.getConfig().settings.autoUpdateSubs;
     this.autoUpdateHours = this.cfg.getConfig().settings.autoUpdateHours;
-    this.subCount = this.cfg.getConfig().subscriptions.length;
+    this.subCount = SubscriptionService.listSubscriptions().length;
   }
 
   /** 从子页返回时刷新（规则、订阅、日志级别都可能被改过） */
   onPageShow(): void {
     this.refreshRuleCount();
-    this.subCount = this.cfg.getConfig().subscriptions.length;
+    this.subCount = SubscriptionService.listSubscriptions().length;
     this.logLevel = this.cfg.getLogLevel();
     this.routingMode = this.cfg.getConfig().settings.routingMode;
   }
@@ -219,7 +220,7 @@ struct Settings {
       this.refreshRuleCount();
       this.routingMode = this.cfg.getConfig().settings.routingMode;
       this.logLevel = this.cfg.getLogLevel();
-      this.subCount = this.cfg.getConfig().subscriptions.length;
+      this.subCount = SubscriptionService.listSubscriptions().length;
     }).catch((e: Object) => {
       this.clearing = false;
       this.clearMsgLevel = 2;

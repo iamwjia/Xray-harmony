@@ -36,6 +36,9 @@ try {
     # 日志脱敏：一条没被掩掉的 UUID/密码等于把用户凭据公开（导出/截图都会带出去）
     & $node 'tests\log-redaction.test.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'log-redaction.test.js' }
+    # 订阅条数不能读 AppConfig.subscriptions：该字段从未被填充，会让 3 个订阅显示成未添加
+    & $node 'tests\config-subs-source.test.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'config-subs-source.test.js' }
     # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
     & $node 'scripts\check-text-style.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }

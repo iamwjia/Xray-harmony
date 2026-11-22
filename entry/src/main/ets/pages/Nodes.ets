@@ -745,14 +745,14 @@ struct Nodes {
           .width('100%')
           .height(Height.hit)
           .fontSize(FontSize.bodySm)
-          .backgroundColor($r('app.color.accent_subtle'))
-          .fontColor($r('app.color.accent'))
+          .backgroundColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
           .onClick(() => {
             this.showImport = !this.showImport;
           })
       }
       .width('100%')
-      .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+      .padding({ left: Space.lg, right: Space.lg, top: Space.sm, bottom: Space.md })
     }
     .width('100%')
     .height('100%')

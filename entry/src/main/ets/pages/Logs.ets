@@ -338,15 +338,21 @@ struct Logs {
         .scrollBar(BarState.Off)
       }
 
-      Button(this.entries.length === 0 ? '导出为文本文件（空）' : '导出为文本文件')
-        .width('100%')
-        .height(Height.hit)
-        .fontSize(FontSize.bodySm)
-        .enabled(this.entries.length > 0)
-        .backgroundColor($r('app.color.accent'))
-        .fontColor($r('app.color.text_on_accent'))
-        .margin({ left: Space.lg, right: Space.lg, bottom: Space.lg })
-        .onClick(() => this.doExport())
+      // 底部动作条统一规格：外层 padding（左右 16 / 上 8 / 下 12）+ 内层按钮撑满。
+      // 早先这里是 width('100%') + margin：margin 加在 100% 宽度外侧，按钮被撑出屏幕、
+      // 两侧边距实际不生效，看起来"贴着屏幕边"，与其它页的底部条不一致。
+      Row() {
+        Button(this.entries.length === 0 ? '导出为文本文件（空）' : '导出为文本文件')
+          .width('100%')
+          .height(Height.hit)
+          .fontSize(FontSize.bodySm)
+          .enabled(this.entries.length > 0)
+          .backgroundColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
+          .onClick(() => this.doExport())
+      }
+      .width('100%')
+      .padding({ left: Space.lg, right: Space.lg, top: Space.sm, bottom: Space.md })
     }
     .width('100%')
     .height('100%')
