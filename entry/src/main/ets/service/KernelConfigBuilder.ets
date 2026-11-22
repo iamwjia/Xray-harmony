@@ -22,12 +22,16 @@ export class KernelConfigBuilder {
    * 本地 SOCKS 入站。
    * 传了口令就启用 password 鉴权：loopback 在同设备内是共享的，
    * 无鉴权等于给本机所有应用开了一个走用户节点的出网口。
+   *
+   * **必须开 udp**：数据面接上以后，tun 里的 UDP 流量（QUIC、DNS）只能通过
+   * SOCKS5 的 UDP ASSOCIATE 出去。关着的话表现是「网页能开、部分应用不正常」，
+   * 用户看到的是"这软件一半好用"，排查成本极高。
    */
   private static buildInbound(socksPort: number, socksUser: string, socksPass: string): string {
     const settings: string = (socksPass.length > 0)
       ? '{"auth":"password","accounts":[{"user":' + KernelConfigBuilder.esc(socksUser) +
-        ',"pass":' + KernelConfigBuilder.esc(socksPass) + '}],"udp":false}'
-      : '{"auth":"noauth","udp":false}';
+        ',"pass":' + KernelConfigBuilder.esc(socksPass) + '}],"udp":true}'
+      : '{"auth":"noauth","udp":true}';
     return '{"tag":"socks-in","listen":"127.0.0.1","port":' + socksPort.toString() +
       ',"protocol":"socks","settings":' + settings + '}';
   }
