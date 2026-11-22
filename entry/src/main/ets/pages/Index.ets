@@ -302,7 +302,7 @@ struct Index {
       Row({ space: Space.sm }) {
         Text('当前节点')
           .fontSize(FontSize.body)
-          .fontColor($r('app.color.text_secondary'))
+          .fontColor($r('app.color.text_secondary')).maxLines(1)
         Text(this.nodeName)
           .fontSize(FontSize.body)
           .fontWeight(FontWeight.Medium)
@@ -430,7 +430,7 @@ struct Index {
         .height(24)
         .textAlign(TextAlign.Center)
         .backgroundColor($r('app.color.accent'))
-        .borderRadius(Radius.pill)
+        .borderRadius(Radius.pill).lineHeight(LineHeight.caption)
       Text(text)
         .fontSize(FontSize.bodySm)
         .lineHeight(LineHeight.bodySm)

@@ -85,7 +85,7 @@ export struct NodeRow {
         if (enabled) {
           action();
         }
-      })
+      }).lineHeight(LineHeight.bodySm)
   }
 
   build() {

@@ -163,11 +163,11 @@ struct Settings {
           .width('100%')
           .padding(10)
           .backgroundColor($r('app.color.warning_subtle'))
-          .borderRadius(Radius.panel)
+          .borderRadius(Radius.panel).lineHeight(LineHeight.bodySm)
       }
 
       Column({ space: 8 }) {
-        Text('日志级别').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
+        Text('日志级别').fontSize(FontSize.body).fontWeight(FontWeight.Medium).maxLines(1)
         Row({ space: 8 }) {
           ForEach(this.levels, (lv: string) => {
             Button(lv).fontSize(FontSize.bodySm)
@@ -184,7 +184,7 @@ struct Settings {
       .borderRadius(Radius.panel)
 
       Column({ space: 8 }) {
-        Text('分流模式').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
+        Text('分流模式').fontSize(FontSize.body).fontWeight(FontWeight.Medium).maxLines(1)
         Row({ space: 8 }) {
           Button('全局').fontSize(FontSize.bodySm)
             .backgroundColor(this.routingMode === RoutingMode.GLOBAL ? $r('app.color.accent') : $r('app.color.bg_chip'))
@@ -200,13 +200,13 @@ struct Settings {
             .onClick(() => this.setRouting(RoutingMode.DIRECT))
         }
         Text('规则：国内域名/IP 与内网直连，其余走代理（依赖下方 geo 资源；资源不可用时降级为仅内网直连）')
-          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('自定义规则').fontSize(FontSize.bodySm)
+            Text('自定义规则').fontSize(FontSize.bodySm).maxLines(1)
             Text(`已启用 ${this.ruleCount} 条；先于内置国内直连规则匹配`)
-              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
@@ -221,9 +221,9 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('运行日志').fontSize(FontSize.bodySm)
+            Text('运行日志').fontSize(FontSize.bodySm).maxLines(1)
             Text('查看应用内日志并导出（已脱敏）；出问题时用这个代替连电脑抓 hilog')
-              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
@@ -238,9 +238,9 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
-            Text('开源许可').fontSize(FontSize.bodySm)
+            Text('开源许可').fontSize(FontSize.bodySm).maxLines(1)
             Text('第三方组件、MPL-2.0 义务、商标归属与源码获取方式')
-              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
@@ -259,10 +259,10 @@ struct Settings {
       .backgroundColor($r('app.color.bg_surface_alt'))
       .borderRadius(Radius.panel)
       Column({ space: 4 }) {
-        Text('关于').fontSize(FontSize.body).fontWeight(FontWeight.Medium)
-        Text('Tunnelix · 骨架版本').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
-        Text('内核：libXray v26.7.28（libxray.so）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
-        Text(`分流资源：${this.geoLabel}`).fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary'))
+        Text('关于').fontSize(FontSize.body).fontWeight(FontWeight.Medium).maxLines(1)
+        Text('Tunnelix · 骨架版本').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).lineHeight(LineHeight.bodySm)
+        Text('内核：libXray v26.7.28（libxray.so）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).lineHeight(LineHeight.bodySm)
+        Text(`分流资源：${this.geoLabel}`).fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).lineHeight(LineHeight.bodySm)
         Row({ space: 8 }) {
           Button(this.geoBusy ? '更新中…' : '联网更新（约 25 MB）')
             .fontSize(FontSize.bodySm)
@@ -275,11 +275,11 @@ struct Settings {
             .onClick(() => this.doGeoImport())
         }
         if (this.geoMsg.length > 0) {
-          Text(this.geoMsg).fontSize(FontSize.caption).fontColor($r('app.color.accent'))
+          Text(this.geoMsg).fontSize(FontSize.caption).fontColor($r('app.color.accent')).lineHeight(LineHeight.caption)
         }
         Text('说明：内置资源为 v2fly 官方构建。只有点上面按钮才会联网；访问不了 GitHub 时，' +
           '可自行下载 geoip.dat + geosite.dat（或含两者的 zip）后用「从本地文件导入」，全程不联网。')
-          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
@@ -290,10 +290,10 @@ struct Settings {
       Column({ space: 4 }) {
         Text('开发者选项')
           .fontSize(FontSize.body)
-          .fontWeight(FontWeight.Medium)
+          .fontWeight(FontWeight.Medium).maxLines(1)
         Text('失败路径探针、内核与应用状态。正常使用不需要进来。')
           .fontSize(FontSize.bodySm)
-          .fontColor($r('app.color.text_tertiary'))
+          .fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.bodySm)
         Button('打开开发者面板')
           .fontSize(FontSize.bodySm)
           .width('100%')

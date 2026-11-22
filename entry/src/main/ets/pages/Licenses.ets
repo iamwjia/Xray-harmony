@@ -81,7 +81,7 @@ struct Licenses {
           ForEach(this.components, (c: Component) => {
             Column({ space: 3 }) {
               Row({ space: 6 }) {
-                Text(c.name).fontSize(FontSize.bodySm).fontWeight(FontWeight.Medium)
+                Text(c.name).fontSize(FontSize.bodySm).fontWeight(FontWeight.Medium).lineHeight(LineHeight.bodySm)
                 Text(c.license)
                   .fontSize(FontSize.fontChip)
                   .lineHeight(LineHeight.fontChip)
@@ -177,6 +177,6 @@ struct Licenses {
   @Builder
   section(title: string) {
     Text(title).fontSize(FontSize.body).fontWeight(FontWeight.Medium)
-      .width('100%').margin({ top: 6 })
+      .width('100%').margin({ top: 6 }).lineHeight(LineHeight.body)
   }
 }

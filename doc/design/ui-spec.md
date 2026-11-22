@@ -217,6 +217,7 @@
 - **⚠ 机器归零 ≠ 语义达标（2026-11-22 实测教训）**：把 `fontSize(10)`/`11` 全换成 `FontSize.fontChip` 也能让"字面量 = 0"的脚本全绿，但 `fontChip` 是**标签档**，正文用它就是违规。`fontChip` 的用途白名单只有两种：① 标签 chip（分组/许可证标签）；② 徽标内数字。**任何多行、正文、元信息 Text 使用 `fontChip` 即违规**。判定见 §11.8 第 18 项。
 - **行高与字号的关系**：`lineHeight ≥ 1.4 × fontSize` 是正文默认；`< 1.4×` 只允许用于**单行标题 / 标签**（`title-md` 16/22 = 1.38、`font_chip` 11/16 = 1.45 均合规）。**多行正文低于 1.4× 即违规**。
 - **每一处 `fontSize` 必须显式配 `lineHeight`**（对应表里的值）。这是"零处 lineHeight"的正面修正。
+- **"可换行"= 未设 `maxLines` 或 `maxLines > 1`**：这类 `Text` 必须显式 `lineHeight`。**不写 `maxLines` 才是默认多行**，所以"只在 maxLines≠1 的地方查"会漏掉最常见的一类——这是 A-04 的机器可执行化口径（§11.8 第 19 项）。
 - 可换行文本必须 `maxLines` + `textOverflow({overflow: TextOverflow.Ellipsis})`，禁止依赖默认裁切。
 
 ### 3.3 间距 / 圆角 / 描边 / 高度
@@ -1307,6 +1308,13 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
                         · 违规：多行正文、说明、元信息（2026-11-22 实测：Licenses 7 段正文、
                           Logs 的 level/time、DevPanel 说明文字都曾被换成 fontChip 来"让脚本变绿")
                         · 配套：该 Text 必须有 `maxLines(1)`，标签 chip 还要 `maxWidth 60`
+19) 可换行 Text 必须带行高（A-04 的可执行化）
+                        · 判定：**未设 `maxLines`（默认可换行）或 `maxLines > 1`** 的 `Text`
+                          ⇒ 该属性链内必须有 `lineHeight(`
+                        · 注意：只在"有 maxLines 的地方"查会漏——**不写 maxLines 才是默认多行**
+                        · 排除：单字符图标字形（`\u2713` 等）、徽标数字、chip 内 ≤4 字标签
+                        · 实现要点：不要用单行正则；按括号配平定位 `Text(` 的结束，
+                          再向后连续消费 `.method(...)` 属性链，在链内查 `lineHeight`
 ```
 
 ### 11.9 示范 → 其余页面的复用约定

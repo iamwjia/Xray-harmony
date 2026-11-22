@@ -68,7 +68,7 @@ export struct PageHeader {
           Text(this.actionGlyph)
             .fontSize(IconSize.md)
             .fontColor($r('app.color.accent'))
-            .accessibilityLevel('no')
+            .accessibilityLevel('no').lineHeight(LineHeight.bodySm)
         }
         .width(Height.hit)
         .height(Height.hit)

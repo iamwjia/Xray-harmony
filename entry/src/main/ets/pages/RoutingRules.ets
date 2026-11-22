@@ -122,15 +122,15 @@ struct RoutingRules {
           .onClick(() => {
             router.back();
           })
-        Text('自定义分流规则').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1)
-        Text(`已启用 ${this.enabledCount()} 条`).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+        Text('自定义分流规则').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1).maxLines(1)
+        Text(`已启用 ${this.enabledCount()} 条`).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
       }
       .width('100%')
 
       Text('优先级：这里列出的规则**先于**内置的国内直连规则匹配，顺序即优先级。')
-        .fontSize(FontSize.caption).fontColor($r('app.color.text_secondary')).width('100%')
+        .fontSize(FontSize.caption).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.caption)
       Text('注意：分流模式为「全局」时，这些规则不生效（全局=全部走代理）。')
-        .fontSize(FontSize.caption).fontColor($r('app.color.warning')).width('100%')
+        .fontSize(FontSize.caption).fontColor($r('app.color.warning')).width('100%').lineHeight(LineHeight.caption)
 
       // 新增表单
       Column({ space: 8 }) {
@@ -166,7 +166,7 @@ struct RoutingRules {
         }
         .width('100%')
 
-        Text(this.matches[this.matchIdx].hint).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).width('100%')
+        Text(this.matches[this.matchIdx].hint).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).width('100%').lineHeight(LineHeight.caption)
       }
       .width('100%')
       .padding(10)
@@ -174,12 +174,12 @@ struct RoutingRules {
       .borderRadius(8)
 
       if (this.msg.length > 0) {
-        Text(this.msg).fontSize(FontSize.caption).fontColor($r('app.color.accent')).width('100%')
+        Text(this.msg).fontSize(FontSize.caption).fontColor($r('app.color.accent')).width('100%').lineHeight(LineHeight.caption)
       }
 
       if (this.rules.length === 0) {
         Text('还没有自定义规则。不添加时，规则模式使用内置的国内直连 + 内网直连。')
-          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).width('100%')
+          .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).width('100%').lineHeight(LineHeight.caption)
       }
 
       List({ space: 8 }) {
@@ -188,20 +188,20 @@ struct RoutingRules {
             Row({ space: 8 }) {
               Column({ space: 2 }) {
                 Text(r.pattern).fontSize(FontSize.body)
-                  .fontColor(r.enabled ? $r('app.color.text_primary') : $r('app.color.text_tertiary'))
+                  .fontColor(r.enabled ? $r('app.color.text_primary') : $r('app.color.text_tertiary')).lineHeight(LineHeight.body)
                 Text(`${r.matchType === 'ip' ? 'IP' : '域名'} · ${this.actionLabel(r.action)}` +
                   (r.enabled ? '' : ' · 已禁用'))
-                  .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
+                  .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
               Text(r.enabled ? '禁用' : '启用')
                 .fontSize(FontSize.bodySm).fontColor($r('app.color.accent'))
-                .onClick(() => this.doToggle(r.id))
+                .onClick(() => this.doToggle(r.id)).lineHeight(LineHeight.bodySm)
               Text('删除')
                 .fontSize(FontSize.bodySm).fontColor($r('app.color.danger'))
-                .onClick(() => this.doDelete(r.id))
+                .onClick(() => this.doDelete(r.id)).maxLines(1)
             }
             .width('100%')
             .padding(12)

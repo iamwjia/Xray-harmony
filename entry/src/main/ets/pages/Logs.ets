@@ -157,7 +157,7 @@ struct Logs {
       .onClick(() => {
         this.filter = value;
         this.reload();
-      })
+      }).lineHeight(LineHeight.bodySm)
   }
 
   build() {
@@ -302,6 +302,6 @@ struct Logs {
       .textAlign(TextAlign.Center)
       .onClick(() => {
         action();
-      })
+      }).lineHeight(LineHeight.bodySm)
   }
 }

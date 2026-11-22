@@ -33,6 +33,9 @@ try {
     if ($LASTEXITCODE -ne 0) { $failures += 'config-builder.test.js' }
     & $node 'tests\socks-last-endpoint.test.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'socks-last-endpoint.test.js' }
+    # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
+    & $node 'scripts\check-text-style.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }
 } finally { Pop-Location }
 
 # 2) 编译：arm64 是发布目标，顺带做 ArkTS 全量类型检查

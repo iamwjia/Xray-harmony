@@ -363,7 +363,7 @@ struct Nodes {
       .accessibilityText(active ? `${label}，当前筛选` : label)
       .onClick(() => {
         action();
-      })
+      }).lineHeight(LineHeight.bodySm)
   }
 
   @Builder

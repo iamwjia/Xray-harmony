@@ -244,36 +244,36 @@ api failed: ${err.code} ${err.message}`;
           .onClick(() => {
             router.back();
           })
-        Text('开发者面板（PoC 探针）').fontSize(FontSize.titleMd).fontWeight(FontWeight.Bold).layoutWeight(1)
+        Text('开发者面板（PoC 探针）').fontSize(FontSize.titleMd).fontWeight(FontWeight.Bold).layoutWeight(1).lineHeight(LineHeight.titleMd)
       }
       .width('100%')
 
       Scroll() {
         Column({ space: 10 }) {
           Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
-          Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%')
+          Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('prebuilt_add(1,2)').onClick(() => this.runPrebuiltAdd()).width('100%')
-          Text(this.prebuiltAddResult).fontSize(FontSize.caption).width('100%')
+          Text(this.prebuiltAddResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('启动 VpnExtensionAbility（仅代码）').onClick(() => this.runVpnExt()).width('100%')
-          Text(this.vpnExtResult).fontSize(FontSize.caption).width('100%')
+          Text(this.vpnExtResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('Go CGoPing()').onClick(() => this.runCGoPing()).width('100%')
-          Text(this.cgoPingResult).fontSize(FontSize.caption).width('100%')
+          Text(this.cgoPingResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('加载 libxray + CGoInvoke').onClick(() => this.runCGoInvoke()).width('100%')
-          Text(this.cgoInvokeResult).fontSize(FontSize.caption).width('100%')
+          Text(this.cgoInvokeResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('libxray xrayVersion').onClick(() => this.runXrayVersion()).width('100%')
-          Text(this.xrayVersionResult).fontSize(FontSize.caption).width('100%')
+          Text(this.xrayVersionResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Button('经内核 SOCKS + 出口 IP 对比').onClick(() => this.runSocksProbe()).width('100%')
-          Text(this.socksProbeResult).fontSize(FontSize.caption).width('100%')
+          Text(this.socksProbeResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           // E15 Step 1：真测 TCP + HTTP。不用 ping 代替——ICMP 通不代表端口通。
           Button('探测宿主 10.0.2.2:8000').onClick(() => this.runHostProbe()).width('100%')
-          Text(this.hostProbeResult).fontSize(FontSize.caption).width('100%')
+          Text(this.hostProbeResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
