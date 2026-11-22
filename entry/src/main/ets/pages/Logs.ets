@@ -35,7 +35,7 @@ struct Logs {
   /** 下拉刷新中：与节点/订阅页同一套手势，不再单独放刷新按钮 */
   @State refreshing: boolean = false;
   /** 空串 = 全部级别 */
-  @State filter: string = '';
+  @State filter: string = LogLevel.DEBUG;
   @State msg: string = '';
   /** 写入级别（控制"记不记"，与上面的"筛不筛"是两件事，必须分开说明） */
   @State writeLevel: string = 'INFO';
@@ -45,9 +45,10 @@ struct Logs {
   private cfg: ConfigService = ConfigService.getInstance();
 
   private chips: LevelChip[] = [
-    // 语义：全部 = 不筛；其余 = "该级别及以上"。
-    // 所以不需要 DEBUG 选项——"DEBUG 及以上"就是全部，留着是两个等价项。
-    { label: '全部', value: '' },
+    // 与"写入级别"同一套词、同一套语义（该级别及以上）。
+    // 不写"全部"：写入级别里没有这个词，筛选里多一个词就等于两套术语；
+    // 而 DEBUG 阈值本身就等于全部，选它不会漏掉任何一条。
+    { label: 'DEBUG', value: LogLevel.DEBUG },
     { label: 'INFO', value: LogLevel.INFO },
     { label: 'WARN', value: LogLevel.WARN },
     { label: 'ERROR', value: LogLevel.ERROR }
@@ -78,10 +79,6 @@ struct Logs {
   private reload(): void {
     const all: LogEntry[] = Logger.getEntries();
     this.allCount = all.length;
-    if (this.filter.length === 0) {
-      this.entries = all;
-      return;
-    }
     // 阈值匹配（该级别及以上）：与"写入级别"同一套直觉。
     // 精确匹配时选 INFO 只能看到 INFO，用户会以为 WARN/ERROR 丢了。
     const min: number = Logs.rank(this.filter);
@@ -238,9 +235,9 @@ struct Logs {
         PageHeader({
           title: '运行日志',
           // 筛选时写"筛选后/总数"：只写一个数字会让人以为日志被清掉了
-          countText: this.filter.length > 0
-            ? `${this.entries.length} / ${this.allCount} 条`
-            : `${this.entries.length} 条`,
+          countText: this.filter === LogLevel.DEBUG
+            ? `${this.entries.length} 条`
+            : `${this.entries.length} / ${this.allCount} 条`,
           onBack: () => {
             router.back();
           }
@@ -249,7 +246,8 @@ struct Logs {
       .width('100%')
 
       Column({ space: Space.xs }) {
-        Text('内容在写入时已脱敏（UUID / 分享链接 / 密码类字段替换为 ****）。上限 500 条，超出丢弃最旧。')
+        Text('这里只显示应用内缓冲（上限 500 条，超出丢弃最旧）；'
+            + '系统 hilog 需连电脑用 hdc 查看。内容写入时已脱敏（UUID / 分享链接 / 密码类字段替换为 ****）。')
           .fontSize(FontSize.caption)
           .lineHeight(LineHeight.caption)
           .fontColor($r('app.color.text_tertiary'))

@@ -282,6 +282,42 @@ struct Backup {
     });
   }
 
+  /**
+   * 恢复前二次确认。
+   * 恢复是"只增不删"，但它会把一批节点/订阅/规则并进本机，事后只能逐条删——没有撤销。
+   * 属于"难撤销"一类，值得一次确认。
+   */
+  private confirmImport(): void {
+    if (this.importText.length === 0) {
+      this.setImportMsg('请先选择备份文件', 1);
+      return;
+    }
+    if (this.importPass.length === 0) {
+      this.setImportMsg('请输入备份口令', 1);
+      return;
+    }
+    AlertDialog.show({
+      title: '从备份恢复',
+      message: '将把备份文件里的节点、订阅与规则合并到本机：\n' +
+        '• 已存在的不重复添加；\n' +
+        '• 不删除本机任何现有数据；\n' +
+        '• 不改本机的分流模式与日志级别。\n\n' +
+        '合并后若要撤回，只能逐条手动删除。继续吗？',
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '开始恢复',
+        action: () => {
+          this.doImport();
+        }
+      }
+    });
+  }
+
   private doImport(): void {
     if (this.importText.length === 0) {
       this.setImportMsg('请先选择备份文件', 1);
@@ -551,7 +587,7 @@ struct Backup {
               .backgroundColor(this.canImport() ? $r('app.color.accent') : $r('app.color.bg_chip'))
               .fontColor(this.canImport() ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
               .enabled(this.canImport())
-              .onClick(() => this.doImport())
+              .onClick(() => this.confirmImport())
 
             if (this.importDetails.length > 0) {
               Button(this.showDetails ? '收起明细' : `查看明细（${this.importDetails.length} 条）`,
