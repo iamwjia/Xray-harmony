@@ -2,7 +2,7 @@
 
 > HarmonyOS NEXT 上的 Xray 代理客户端 —— 基于开源 Xray-core，目标是把「能用」做成「普通人能用」。
 
-**当前状态：文档阶段已完成，PoC 实验尚未开始。仓库内没有实现代码。**
+**当前状态：实现已进入可运行阶段（存储 / 节点 / 订阅 / 备份 / 分流配置 / 9 个页面均已落地），数据面卡在一个需真机才能验证的系统错误码上。完整清单见 [`doc/status.md`](doc/status.md)。**
 
 ---
 
@@ -26,9 +26,9 @@
 | 需求 | ✅ 完成 | [`doc/requirements.md`](doc/requirements.md) — FR-01~39、NFR-01~13 |
 | 设计 | ✅ 完成 | [`doc/design.md`](doc/design.md) — D-01~35、四层架构、拓扑决策树 |
 | 风险与计划 | ✅ 完成 | [`doc/risks-and-roadmap.md`](doc/risks-and-roadmap.md) — P-01~31、R-01~15、门禁体系 |
-| **PoC 执行包** | ✅ 完成（**待执行**） | [`doc/poc/`](doc/poc/) — 一页执行清单 + 四份实验包 |
-| **PoC 实验** | ⏳ **未开始** | 需要真机 + 人力，约 **5~6.5 周** |
-| 实现开发 | ⛔ 未开始 | **等 PoC 结论**，不在未知地基上盖楼 |
+| **PoC 执行包** | ✅ 完成（**已执行**） | [`doc/poc/`](doc/poc/) — PC0~PC18，含实验结论与被推翻结论的记录 |
+| **数据面打通** | ⏸ **卡在系统授权** | 内核可在扩展进程启动；`VpnConnection.create()` 返回 **202**（`Non-system applications use system APIs`），需真机验证 |
+| 实现开发 | 🟡 进行中 | 四层架构落地：首页 / 节点 / 编辑 / 分流 / 日志 / 许可 / 订阅 / 备份 / 开发者面板 共 9 页；见 [`doc/status.md`](doc/status.md) |
 
 ---
 
