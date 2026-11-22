@@ -34,8 +34,21 @@ export class SocksEndpoint {
   authEnabled: boolean = true;
 }
 
+/** 当前代理端点的只读快照：给 Logs 页显示"最近一次代理地址"用 */
+export class LastEndpoint {
+  host: string = '';
+  port: number = 0;
+}
+
 export class SocksGuard {
   private static current: SocksEndpoint | null = null;
+  /**
+   * 最近一次的端点快照（只读用途）。
+   *
+   * 刻意**不**在断开时清空：用户报障往往发生在断开之后，"断了就查不到"等于把线索删掉。
+   * 只活在进程内存里——不写盘、不进日志缓冲、不参与端口轮换决策；进程死亡自然为空。
+   */
+  private static last: LastEndpoint | null = null;
 
   /** 生成新的一组端口 + 口令（每次连接内核前调用） */
   static rotate(): SocksEndpoint {
@@ -45,9 +58,32 @@ export class SocksGuard {
     ep.password = SocksGuard.randomHex(SECRET_HEX_LEN);
     ep.authEnabled = true;
     SocksGuard.current = ep;
+    // 绑定成功即记下快照：断开后 Logs 仍要能读到"最近一次用过哪个地址"
+    const snap: LastEndpoint = new LastEndpoint();
+    snap.host = '127.0.0.1';
+    snap.port = ep.port;
+    SocksGuard.last = snap;
     // 只记录端口：口令进日志就等于没有口令
     Logger.info(`socks endpoint rotated: 127.0.0.1:${ep.port} (auth=password)`);
     return ep;
+  }
+
+  /**
+   * 最近一次的代理端点（只读、进程内）。
+   *
+   * 返回**副本**：调用方改了返回值也影响不到 SocksGuard 内部状态；
+   * 本次启动从未连接时返回 null（Logs 页据此显示第三态）。
+   * 幂等：连续调用返回等值快照，不改变任何状态。
+   */
+  static lastEndpoint(): LastEndpoint | null {
+    const cur: LastEndpoint | null = SocksGuard.last;
+    if (cur === null) {
+      return null;
+    }
+    const copy: LastEndpoint = new LastEndpoint();
+    copy.host = cur.host;
+    copy.port = cur.port;
+    return copy;
   }
 
   private static randomUint32(): number {

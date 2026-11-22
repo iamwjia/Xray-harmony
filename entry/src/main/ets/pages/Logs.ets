@@ -1,7 +1,12 @@
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { fileIo, picker } from '@kit.CoreFileKit';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { LogEntry, LogLevel, Logger } from '../platform/Logger';
+import { LastEndpoint, SocksGuard } from '../service/SocksGuard';
+import { KernelService } from '../service/KernelService';
 import { common } from '@kit.AbilityKit';
+import { PageHeader } from '../components/PageHeader';
+import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
  * pages/Logs.ets — 运行日志查看与导出
@@ -53,6 +58,38 @@ struct Logs {
     this.entries = out;
   }
 
+  /**
+   * 代理端点的三态文案。
+   * 关键是第二态：**已断开但仍显示最近一次的地址**——用户报障几乎都发生在断开之后，
+   * 那时候查不到端口，等于把唯一的线索删掉。
+   */
+  private endpointText(): string {
+    const ep: LastEndpoint | null = SocksGuard.lastEndpoint();
+    if (ep === null) {
+      return '暂无代理地址记录（本次启动未连接过）';
+    }
+    if (KernelService.getInstance().isRunning()) {
+      return `当前代理地址 ${ep.host}:${ep.port}`;
+    }
+    return `最近一次代理地址 ${ep.host}:${ep.port}（已断开）`;
+  }
+
+  /** 复制：内容严格等于 host:port，不带括号与说明文字 */
+  private copyEndpoint(): void {
+    const ep: LastEndpoint | null = SocksGuard.lastEndpoint();
+    if (ep === null) {
+      return;
+    }
+    const text: string = `${ep.host}:${ep.port}`;
+    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
+    pasteboard.getSystemPasteboard().setData(data).then(() => {
+      promptAction.showToast({ message: '已复制', duration: 1500 });
+    }).catch((e: Object) => {
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.msg = `复制失败：${m}`;
+    });
+  }
+
   /** 导出：让用户选保存位置，而不是应用自己往公共目录写 */
   private doExport(): void {
     if (this.entries.length === 0) {
@@ -89,90 +126,182 @@ struct Logs {
     });
   }
 
-  private levelColor(level: string): string {
+  private levelColor(level: string): Resource {
     if (level === LogLevel.ERROR) {
-      return '#C62828';
+      return $r('app.color.danger');
     }
     if (level === LogLevel.WARN) {
-      return '#EF6C00';
+      return $r('app.color.warning');
     }
     if (level === LogLevel.DEBUG) {
-      return '#888888';
+      return $r('app.color.text_tertiary');
     }
-    return '#2E7D32';
+    return $r('app.color.success');
+  }
+
+  @Builder
+  chip(label: string, value: string) {
+    Text(label)
+      .height(Height.hit)
+      .padding({ left: Space.lg, right: Space.lg })
+      .fontSize(FontSize.bodySm)
+      .fontColor(this.filter === value
+        ? $r('app.color.text_on_accent')
+        : $r('app.color.text_secondary'))
+      .backgroundColor(this.filter === value
+        ? $r('app.color.accent')
+        : $r('app.color.bg_chip'))
+      .borderRadius(Radius.pill)
+      .textAlign(TextAlign.Center)
+      .accessibilityText(this.filter === value ? `${label}，当前筛选` : label)
+      .onClick(() => {
+        this.filter = value;
+        this.reload();
+      })
   }
 
   build() {
-    Column({ space: 10 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(12)
-          .onClick(() => {
+    Column({ space: 0 }) {
+      Column() {
+        PageHeader({
+          title: '运行日志',
+          countText: `${this.entries.length} 条`,
+          onBack: () => {
             router.back();
-          })
-        Text('运行日志').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
-        Text(`${this.entries.length} 条`).fontSize(11).fontColor('#999999')
+          }
+        })
       }
       .width('100%')
 
-      Text('内容在写入时已脱敏（UUID / 分享链接 / 密码类字段替换为 ****）。上限 500 条，超出丢弃最旧。')
-        .fontSize(10).fontColor('#999999').width('100%')
+      Column({ space: Space.xs }) {
+        Text('内容在写入时已脱敏（UUID / 分享链接 / 密码类字段替换为 ****）。上限 500 条，超出丢弃最旧。')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
 
-      Row({ space: 6 }) {
-        ForEach(this.chips, (c: LevelChip) => {
-          Button(c.label).fontSize(11)
-            .backgroundColor(this.filter === c.value ? '#1976D2' : '#E0E0E0')
-            .fontColor(this.filter === c.value ? '#FFFFFF' : '#333333')
-            .onClick(() => {
-              this.filter = c.value;
-              this.reload();
-            })
-        }, (c: LevelChip) => c.label)
-        Blank()
-        Button('刷新').fontSize(11).onClick(() => this.reload())
-        Button('清空').fontSize(11)
-          .backgroundColor('#8D6E63')
-          .onClick(() => {
+        // 诊断行：层级低于标题与筛选，但端口必须可读、可复制
+        Text(this.endpointText())
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+          .accessibilityText(`${this.endpointText()}，长按可复制`)
+          .gesture(
+            LongPressGesture({ repeat: false, duration: 500 })
+              .onAction(() => {
+                this.copyEndpoint();
+              })
+          )
+      }
+      .width('100%')
+      .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+
+      Scroll() {
+        Row({ space: Space.sm }) {
+          ForEach(this.chips, (c: LevelChip) => {
+            this.chip(c.label, c.value)
+          }, (c: LevelChip) => c.label)
+          this.actionChip('刷新', () => this.reload())
+          this.actionChip('清空', () => {
             Logger.clear();
             this.reload();
             this.msg = '已清空缓冲（hilog 中的历史不受影响）';
           })
+        }
+        .padding({ left: Space.lg, right: Space.lg })
       }
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
       .width('100%')
+      .padding({ bottom: Space.sm })
 
       if (this.msg.length > 0) {
-        Text(this.msg).fontSize(11).fontColor('#1976D2').width('100%')
+        Text(this.msg)
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.accent'))
+          .width('100%')
+          .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
       }
 
       if (this.entries.length === 0) {
-        Text('暂无日志。触发一次连接或节点操作后再来看。')
-          .fontSize(11).fontColor('#999999').width('100%')
-      }
-
-      List({ space: 4 }) {
-        ForEach(this.entries, (e: LogEntry) => {
-          ListItem() {
-            Column({ space: 2 }) {
-              Row({ space: 6 }) {
-                Text(e.level).fontSize(10).fontColor(this.levelColor(e.level))
-                Text(e.time).fontSize(10).fontColor('#999999')
+        Column({ space: Space.sm }) {
+          Text('暂无日志')
+            .fontSize(FontSize.titleMd)
+            .lineHeight(LineHeight.titleMd)
+            .fontColor($r('app.color.text_secondary'))
+          Text('触发一次连接或节点操作后再来看')
+            .fontSize(FontSize.bodySm)
+            .lineHeight(LineHeight.bodySm)
+            .fontColor($r('app.color.text_tertiary'))
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+      } else {
+        List({ space: Space.xs }) {
+          ForEach(this.entries, (e: LogEntry) => {
+            ListItem() {
+              Column({ space: Space.xxs }) {
+                Row({ space: Space.xs }) {
+                  Text(e.level)
+                    .fontSize(FontSize.fontChip)
+                    .lineHeight(LineHeight.fontChip)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(this.levelColor(e.level))
+                  Text(e.time)
+                    .fontSize(FontSize.fontChip)
+                    .lineHeight(LineHeight.fontChip)
+                    .fontColor($r('app.color.text_tertiary'))
+                }
+                Text(e.msg)
+                  .fontSize(FontSize.caption)
+                  .lineHeight(LineHeight.caption)
+                  .fontColor($r('app.color.text_primary'))
+                  .width('100%')
               }
-              Text(e.msg).fontSize(11).fontColor('#333333')
+              .alignItems(HorizontalAlign.Start)
+              .width('100%')
+              .padding(Space.sm)
+              .backgroundColor($r('app.color.bg_surface_alt'))
+              .borderRadius(Radius.chip)
             }
-            .alignItems(HorizontalAlign.Start)
-            .width('100%')
-            .padding(8)
-            .backgroundColor('#FAFAFA')
-            .borderRadius(6)
-          }
-        }, (e: LogEntry) => `${e.time}-${e.level}-${e.msg.length}`)
+          }, (e: LogEntry) => `${e.time}-${e.level}-${e.msg.length}`)
+        }
+        .layoutWeight(1)
+        .width('100%')
+        .padding({ left: Space.lg, right: Space.lg })
+        .scrollBar(BarState.Off)
       }
-      .layoutWeight(1)
-      .width('100%')
 
-      Button('导出为文本文件').width('100%').onClick(() => this.doExport())
+      Button(this.entries.length === 0 ? '导出为文本文件（空）' : '导出为文本文件')
+        .width('100%')
+        .height(Height.hit)
+        .fontSize(FontSize.bodySm)
+        .enabled(this.entries.length > 0)
+        .backgroundColor($r('app.color.accent'))
+        .fontColor($r('app.color.text_on_accent'))
+        .margin({ left: Space.lg, right: Space.lg, bottom: Space.lg })
+        .onClick(() => this.doExport())
     }
     .width('100%')
     .height('100%')
-    .padding(16)
+    .backgroundColor($r('app.color.bg_canvas'))
+  }
+
+  @Builder
+  actionChip(label: string, action: () => void) {
+    Text(label)
+      .height(Height.hit)
+      .padding({ left: Space.lg, right: Space.lg })
+      .fontSize(FontSize.bodySm)
+      .fontColor($r('app.color.text_primary'))
+      .backgroundColor($r('app.color.bg_chip'))
+      .borderRadius(Radius.pill)
+      .textAlign(TextAlign.Center)
+      .onClick(() => {
+        action();
+      })
   }
 }

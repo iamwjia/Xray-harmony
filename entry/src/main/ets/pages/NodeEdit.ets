@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
+import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
 
@@ -251,120 +252,120 @@ struct NodeEdit {
   build() {
     Column({ space: 12 }) {
       Row({ space: 8 }) {
-        Button('返回').fontSize(12)
+        Button('返回').fontSize(FontSize.bodySm)
           .onClick(() => {
             router.back();
           })
-        Text('编辑节点').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
+        Text('编辑节点').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1)
       }
       .width('100%')
 
       Scroll() {
         Column({ space: 10 }) {
-          Text('名称').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.name }).fontSize(12)
+          Text('名称').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.name }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.name = v;
             })
 
-          Text('服务器地址').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.address }).fontSize(12)
+          Text('服务器地址').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.address }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.address = v;
             })
 
-          Text('端口').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.port }).fontSize(12).type(InputType.Number)
+          Text('端口').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.port }).fontSize(FontSize.bodySm).type(InputType.Number)
             .onChange((v: string) => {
               this.port = v;
             })
 
-          Text('协议').fontSize(12).fontColor('#666666').width('100%')
+          Text('协议').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
           Row({ space: 6 }) {
             ForEach(this.protos, (p: ProtoOption) => {
-              Button(p.label).fontSize(11)
-                .backgroundColor(p.value === this.protocol ? '#1976D2' : '#E0E0E0')
-                .fontColor(p.value === this.protocol ? '#FFFFFF' : '#333333')
+              Button(p.label).fontSize(FontSize.caption)
+                .backgroundColor(p.value === this.protocol ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(p.value === this.protocol ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {
                   this.protocol = p.value;
                 })
             }, (p: ProtoOption) => p.value)
           }.width('100%')
 
-          Text('传输').fontSize(12).fontColor('#666666').width('100%')
+          Text('传输').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
           Row({ space: 6 }) {
             ForEach(this.transports, (t: TransportOption, i: number) => {
-              Button(t.label).fontSize(11)
-                .backgroundColor(i === this.transportIdx ? '#1976D2' : '#E0E0E0')
-                .fontColor(i === this.transportIdx ? '#FFFFFF' : '#333333')
+              Button(t.label).fontSize(FontSize.caption)
+                .backgroundColor(i === this.transportIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(i === this.transportIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {
                   this.transportIdx = i;
                 })
             }, (t: TransportOption) => t.label)
           }.width('100%')
 
-          Text('安全').fontSize(12).fontColor('#666666').width('100%')
+          Text('安全').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
           Row({ space: 6 }) {
             ForEach(this.securities, (s: SecurityOption, i: number) => {
-              Button(s.label).fontSize(11)
-                .backgroundColor(i === this.securityIdx ? '#1976D2' : '#E0E0E0')
-                .fontColor(i === this.securityIdx ? '#FFFFFF' : '#333333')
+              Button(s.label).fontSize(FontSize.caption)
+                .backgroundColor(i === this.securityIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(i === this.securityIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {
                   this.securityIdx = i;
                 })
             }, (s: SecurityOption) => s.label)
           }.width('100%')
 
-          Text('SNI / serverName').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.serverName }).fontSize(12)
+          Text('SNI / serverName').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.serverName }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.serverName = v;
             })
 
-          Text('WS 路径').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.wsPath }).fontSize(12)
+          Text('WS 路径').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.wsPath }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.wsPath = v;
             })
 
-          Text('WS Host').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.wsHost }).fontSize(12)
+          Text('WS Host').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.wsHost }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.wsHost = v;
             })
 
-          Text('gRPC 服务名').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.grpcService }).fontSize(12)
+          Text('gRPC 服务名').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.grpcService }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.grpcService = v;
             })
 
-          Text('flow（vless 可选）').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.flow }).fontSize(12)
+          Text('flow（vless 可选）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.flow }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.flow = v;
             })
 
           // REALITY 参数：缺 publicKey 时握手必然失败，且内核不会在 parse 阶段报错
-          Text('REALITY 公钥 publicKey（pbk）').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.publicKey }).fontSize(12)
+          Text('REALITY 公钥 publicKey（pbk）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.publicKey }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.publicKey = v;
             })
 
-          Text('REALITY shortId（sid，可空）').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.shortId }).fontSize(12)
+          Text('REALITY shortId（sid，可空）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.shortId }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.shortId = v;
             })
 
-          Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.fingerprint }).fontSize(12)
+          Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.fingerprint }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.fingerprint = v;
             })
 
-          Text('分组（选已有，或直接输入新组名）').fontSize(12).fontColor('#666666').width('100%')
+          Text('分组（选已有，或直接输入新组名）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
           if (this.groupOptions.length > 1) {
             Select(this.groupOptions)
               .selected(this.groupSelectIdx)
@@ -376,30 +377,30 @@ struct NodeEdit {
                 this.group = index === 0 ? '' : value;
               })
           }
-          TextInput({ text: $$this.group, placeholder: '输入新组名会覆盖上面的选择' }).fontSize(12)
+          TextInput({ text: $$this.group, placeholder: '输入新组名会覆盖上面的选择' }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.group = v;
             })
 
-          Text('备注').fontSize(12).fontColor('#666666').width('100%')
-          TextInput({ text: $$this.remark }).fontSize(12)
+          Text('备注').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
+          TextInput({ text: $$this.remark }).fontSize(FontSize.bodySm)
             .onChange((v: string) => {
               this.remark = v;
             })
 
           Column({ space: 4 }) {
-            Text('凭据（UUID / 密码）').fontSize(12).fontColor('#666666').width('100%')
+            Text('凭据（UUID / 密码）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%')
             TextInput({ placeholder: '留空表示不修改；填写则覆盖安全存储中的凭据', text: this.credentialInput })
-              .fontSize(12)
+              .fontSize(FontSize.bodySm)
               .type(InputType.Password)
               .onChange((v: string) => {
                 this.credentialInput = v;
               })
-            Text('凭据不会显示明文；修改后需重新连接生效。').fontSize(10).fontColor('#999999')
+            Text('凭据不会显示明文；修改后需重新连接生效。').fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary'))
           }.width('100%')
 
           if (this.saveMsg.length > 0) {
-            Text(this.saveMsg).fontSize(12).fontColor('#C62828').width('100%')
+            Text(this.saveMsg).fontSize(FontSize.bodySm).fontColor($r('app.color.danger')).width('100%')
           }
         }
         .width('100%')

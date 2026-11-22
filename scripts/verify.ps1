@@ -31,6 +31,8 @@ Push-Location $repoRoot
 try {
     & $node 'tests\config-builder.test.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'config-builder.test.js' }
+    & $node 'tests\socks-last-endpoint.test.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'socks-last-endpoint.test.js' }
 } finally { Pop-Location }
 
 # 2) 编译：arm64 是发布目标，顺带做 ArkTS 全量类型检查
