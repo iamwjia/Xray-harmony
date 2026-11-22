@@ -57,8 +57,30 @@ export class KernelConfigBuilder {
     // 且能避免"用户加了一条 block 规则、配置却因缺少出站而启动失败"。
     const block: string = '{"tag":"block","protocol":"blackhole"}';
     const routing: string = KernelConfigBuilder.buildRouting(routingMode, geoReady, rules);
+    const dns: string = KernelConfigBuilder.buildDns(routingMode);
     return '{"log":{"loglevel":"warning"},"inbounds":[' + inbound + '],"outbounds":[' +
-      proxy + ',' + direct + ',' + block + ']' + routing + '}';
+      proxy + ',' + direct + ',' + block + ']' + dns + routing + '}';
+  }
+
+  /**
+   * DNS 配置：让域名解析走隧道，而不是在设备上偷偷解析。
+   *
+   * 为什么要单独写它：分流规则里大量用了域名（`geosite:cn`、用户自定义域名）。
+   * 如果解析发生在设备上，“哪些域名被查询”本身就是泄露——即使流量
+   * 后续走了代理，DNS 也已经把你要访问什么告诉了本地网络。
+   *
+   * 两个取舍：
+   *   1. 查询策略固定 **UseIP**：避免同一域名同时拿回 IPv6 导致后续走不通；
+   *   2. 解析器给两个（1.1.1.1 / 223.5.5.5）：只给一个外国解析器会让国内域名变慢，
+   *      只给一个国内解析器又会对被污染域名返回错误结果。
+   *
+   * 直连模式不生成 dns 段：那个模式下用户就是要本机直连，随便改解析路径反而是擅自作主。
+   */
+  private static buildDns(mode: RoutingMode): string {
+    if (mode === RoutingMode.DIRECT) {
+      return '';
+    }
+    return ',"dns":{"tag":"dns-in","queryStrategy":"UseIP","servers":["1.1.1.1","223.5.5.5"]}';
   }
 
   /**
@@ -75,14 +97,24 @@ export class KernelConfigBuilder {
    * `geosite:cn` 阶段直接启动失败，而不是"规则不生效"。
    */
   private static buildRouting(mode: RoutingMode, geoReady: boolean, userRules: RoutingRule[]): string {
+    // DNS 规则放在函数内部：这个函数体会被测试整段抽出来执行（跑的是真代码），
+    // 引用类静态方法会在抽取环境里找不到定义。
+    const dnsRule = '{"type":"field","network":"tcp,udp","port":"53","outboundTag":"proxy"}';
     if (mode === RoutingMode.DIRECT) {
       return ',"routing":{"rules":[{"type":"field","network":"tcp,udp","outboundTag":"direct"}]}';
     }
     if (mode === RoutingMode.GLOBAL) {
-      // 全局模式语义 = 全部走代理；此时用户规则不生效（界面上需要说明，否则会被当成 bug）
-      return '';
+      // 全局模式语义 = 全部走代理；此时用户规则不生效（界面上需要说明，否则会被当成 bug）。
+      // 但 DNS 必须说：否则“全局代理”只管流量、不管查询，域名仍在本机被解析。
+      // 写成完整字面量而不拼变量：这一条会被测试单独求值（不带函数上下文）。
+      // 与 RULE 段里那条保持一致，测试里有一条断言专门盯着它们相等。
+      return ',"routing":{"rules":[{"type":"field","network":"tcp,udp","port":"53","outboundTag":"proxy"}]}';
     }
     const parts: string[] = [];
+
+    // 0) DNS 走隧道：必须在最前面。否则会被 `geosite:cn` 之类的规则先命中，
+    //    变成“国内域名的 DNS 走直连”——那正是要避免的泄露。
+    parts.push(dnsRule);
 
     // 1) 用户自定义规则
     for (let i = 0; i < userRules.length; i++) {

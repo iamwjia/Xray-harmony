@@ -114,7 +114,11 @@ console.log('[DIRECT]');
 console.log('[GLOBAL]');
 {
   const cfg = JSON.parse('{"outbounds":[]' + buildRouting(ROUTING_MODE.GLOBAL, true, []) + '}');
-  check('GLOBAL 不生成 routing 段', cfg.routing === undefined);
+  // 语义变更（2026-11-22）：全局模式之前不生成 routing，结果是“全部流量走代理、
+  // 但 DNS 仍在本机解析”——域名仍会泄露。现在固定带一条 53 → proxy。
+  check('GLOBAL 只带一条 DNS 规则', cfg.routing.rules.length === 1, JSON.stringify(cfg.routing));
+  check('GLOBAL 的 DNS 走代理', cfg.routing.rules[0].outboundTag === 'proxy' &&
+    cfg.routing.rules[0].port === '53');
 }
 
 console.log('[RULE]');
@@ -127,15 +131,17 @@ console.log('[RULE]');
   ];
   const cfg = JSON.parse('{"outbounds":[]' + buildRouting(ROUTING_MODE.RULE, true, userRules) + '}');
   const rules = cfg.routing.rules;
-  // 期望顺序：user(example.org) / user(10.1.0.0/16) / geosite / geoip+lan
-  check('规则条数 = 4（2 条自定义 + geosite + geoip）', rules.length === 4, rules.length);
-  check('第一条是用户规则（必须先匹配）', rules[0].domain && rules[0].domain[0] === 'example.org');
-  check('启用的 block 规则保留', rules[1].ip && rules[1].ip[0] === '10.1.0.0/16' && rules[1].outboundTag === 'block');
+  // 期望顺序：DNS / user(example.org) / user(10.1.0.0/16) / geosite / geoip+lan
+  // DNS 必须排第一：否则国内域名的查询会被 geosite 先命中成直连
+  check('规则条数 = 5（DNS + 2 条自定义 + geosite + geoip）', rules.length === 5, rules.length);
+  check('第一条是 DNS 走代理', rules[0].port === '53' && rules[0].outboundTag === 'proxy');
+  check('第二条是用户规则（必须在 geo 之前）', rules[1].domain && rules[1].domain[0] === 'example.org');
+  check('启用的 block 规则保留', rules[2].ip && rules[2].ip[0] === '10.1.0.0/16' && rules[2].outboundTag === 'block');
   check('禁用的规则被跳过', !JSON.stringify(rules).includes('disabled.example'));
   check('空模式被跳过', !JSON.stringify(rules).includes('"domain":[""]'));
-  check('geosite:cn 在用户规则之后', JSON.stringify(rules[2]).includes('geosite:cn'));
-  check('geoip:cn 与内网网段在最后', JSON.stringify(rules[3]).includes('geoip:cn') &&
-    JSON.stringify(rules[3]).includes('192.168.0.0/16'));
+  check('geosite:cn 在用户规则之后', JSON.stringify(rules[3]).includes('geosite:cn'));
+  check('geoip:cn 与内网网段在最后', JSON.stringify(rules[4]).includes('geoip:cn') &&
+    JSON.stringify(rules[4]).includes('192.168.0.0/16'));
   check('RULE 使用 IPIfNonMatch', cfg.routing.domainStrategy === 'IPIfNonMatch');
 }
 
@@ -143,7 +149,9 @@ console.log('[RULE · geo 资源缺失时应降级]');
 {
   const cfg = JSON.parse('{"outbounds":[]' + buildRouting(ROUTING_MODE.RULE, false, []) + '}');
   const rules = cfg.routing.rules;
-  check('降级后只有一条内网直连规则', rules.length === 1, rules.length);
+  // 降级时 DNS 规则仍在：它不依赖 geo 资源，且它正是防泄露的那一条
+  check('降级后为 DNS + 内网直连两条', rules.length === 2, rules.length);
+  check('降级后内网直连仍在最后', rules[1].outboundTag === 'direct');
   check('降级后不再引用 geosite/geoip（否则内核启动即失败）',
     !JSON.stringify(cfg).includes('geosite:') && !JSON.stringify(cfg).includes('geoip:'));
 }
