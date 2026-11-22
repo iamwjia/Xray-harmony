@@ -1,9 +1,10 @@
-import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { ConfigService } from '../service/ConfigService';
 import { GeoAssets } from '../service/GeoAssets';
 import { KvStore } from '../platform/KvStore';
+import { ThemeMode, ThemeStore } from '../platform/ThemeStore';
 import nativeEntry from 'libentry.so';
 
 /** 启动时从应用进程发一次 TCP+HTTP 到宿主（诊断用，默认关闭）。 */
@@ -15,6 +16,7 @@ const TAG: string = 'XVPN_BOOT';
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'onCreate bundle=%{public}s', this.context.abilityInfo.bundleName);
+
 
     // geo 资源必须在**任何 runXrayFromJson 之前**解好并挂上：
     // RULE 模式的 geosite:cn / geoip:cn 是在实例创建时解析的，缺资源就是启动失败。
@@ -58,6 +60,19 @@ export default class EntryAbility extends UIAbility {
       // 异常文本可能来自第三方，用 private 打：现在文案是我们自己的，但这不变量保不住
       hilog.error(DOMAIN, TAG, 'credential migration at startup failed: %{private}s', msg);
     });
+
+    // 外观偏好必须在这里套用：onCreate 阶段窗口还没建，setColorMode 会被随后的
+    // 窗口配置覆盖（实测：值已落盘、重启后仍是浅色）。放在 loadContent 之前，
+    // 首帧就是用户选的那套配色，不会先闪一下浅色。
+    const themeMode: string = ThemeStore.get();
+    let cm: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+    if (themeMode === ThemeMode.LIGHT) {
+      cm = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+    } else if (themeMode === ThemeMode.DARK) {
+      cm = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+    }
+    this.context.getApplicationContext().setColorMode(cm);
+    hilog.info(DOMAIN, TAG, 'applied at window stage: theme=%{public}s', themeMode);
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {

@@ -3,7 +3,7 @@ import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common
 import { PageHeader } from '../components/PageHeader';
 import { vpnExtension } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Want, common, ConfigurationConstant } from '@kit.AbilityKit';
+import { Want, common } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
@@ -119,18 +119,6 @@ struct DevPanel {
       return;
     }
     await VpnController.start('com.tunnelix.app', 'MyVpnExtAbility', built.session);
-  }
-
-  /** mode: 0=浅色 1=深色 -1=跟随系统 */
-  private setColorMode(mode: number): void {
-    const ctx = getContext(this) as common.UIAbilityContext;
-    let m: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
-    if (mode === 0) {
-      m = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
-    } else if (mode === 1) {
-      m = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
-    }
-    ctx.getApplicationContext().setColorMode(m);
   }
 
   private runNapiHello(): void {
@@ -315,42 +303,8 @@ api failed: ${err.code} ${err.message}`;
 
       Scroll() {
         Column({ space: Space.sm }) {
-          // 深浅色对照：系统设置里改主题要来回跳，QA 时没法逐页比对两套资源。
-          // 这里直接调 setColorMode，改完以后所有页面立刻按另一套 color.json 解析。
-          Text('外观（仅调试用；改完所有页面立刻切换资源）')
-            .fontSize(FontSize.bodySm)
-            .lineHeight(LineHeight.bodySm)
-            .fontColor($r('app.color.text_secondary'))
-            .width('100%')
-          Row({ space: Space.sm }) {
-            Button('浅色')
-              .layoutWeight(1)
-              .fontSize(FontSize.bodySm)
-              .onClick(() => this.setColorMode(0))
-            Button('深色')
-              .layoutWeight(1)
-              .fontSize(FontSize.bodySm)
-              .onClick(() => this.setColorMode(1))
-            Button('跟随系统')
-              .layoutWeight(1)
-              .fontSize(FontSize.bodySm)
-              .backgroundColor($r('app.color.bg_chip'))
-              .fontColor($r('app.color.text_primary'))
-              .onClick(() => this.setColorMode(-1))
-          }
-          .width('100%')
-
-          // 流量统计要等内核 Stats 接通才有真数据（现在卡系统授权）。演示开关只为了
-          // 让首页那块布局有数字可看；打开后界面上会挂「演示数据」标记。
-          Button(this.trafficDemoOn ? '关闭流量演示数据' : '开启流量演示数据')
-            .width('100%')
-            .backgroundColor($r('app.color.bg_chip'))
-            .fontColor($r('app.color.text_primary'))
-            .onClick(() => {
-              DemoFlags.setTrafficDemo(!this.trafficDemoOn);
-              this.trafficDemoOn = DemoFlags.trafficDemo();
-            })
-
+          // 外观（浅色/深色/跟随系统）已移到「设置 → 外观」：
+          // 主题是用户功能，留在调试页会变成第二个入口，两处迟早不一致。
           Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
           Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 

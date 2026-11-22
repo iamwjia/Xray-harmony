@@ -7,6 +7,8 @@ import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
 import { EntryRow, Glyph } from '../components/Glyph';
 import { SubscriptionService } from '../service/SubscriptionService';
+import { ThemeMode, ThemeStore } from '../platform/ThemeStore';
+import { ConfigurationConstant } from '@kit.AbilityKit';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
@@ -42,6 +44,8 @@ struct Settings {
   @State ruleCount: number = 0;
   /** 订阅条数（入口行右侧直接显示，不用点进去数） */
   @State subCount: number = 0;
+  /** 外观偏好：system / light / dark（用户功能，不该藏在开发者面板里） */
+  @State themeMode: string = ThemeMode.SYSTEM;
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -100,6 +104,23 @@ struct Settings {
     this.autoUpdateSubs = this.cfg.getConfig().settings.autoUpdateSubs;
     this.autoUpdateHours = this.cfg.getConfig().settings.autoUpdateHours;
     this.persistError = ok ? '' : this.cfg.getPersistError();
+  }
+
+  /** 切换外观：立即套用 + 落盘，下次启动由 EntryAbility 在首帧前读取 */
+  private setTheme(mode: string): void {
+    const ok: boolean = ThemeStore.set(mode);
+    this.themeMode = ThemeStore.get();
+    let cm: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+    if (mode === ThemeMode.LIGHT) {
+      cm = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+    } else if (mode === ThemeMode.DARK) {
+      cm = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+    }
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.getApplicationContext().setColorMode(cm);
+    if (!ok) {
+      this.persistError = '外观偏好保存失败，下次启动会回到跟随系统';
+    }
   }
 
   private nav(url: string, what: string): void {
@@ -421,6 +442,41 @@ struct Settings {
         }
         .width('100%')
         .padding({ top: Space.xs, bottom: Space.xs })
+        .backgroundColor($r('app.color.bg_surface_alt'))
+        .borderRadius(Radius.panel)
+
+        Text('外观')
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+          .padding({ left: Space.xs })
+        Column({ space: Space.sm }) {
+          Row({ space: Space.sm }) {
+            ForEach([ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK], (m: string) => {
+              Button(ThemeStore.label(m), { type: ButtonType.Capsule })
+                .layoutWeight(1)
+                .padding({ left: 0, right: 0 })
+                .height(Height.hit)
+                .fontSize(FontSize.bodySm)
+                .backgroundColor(this.themeMode === m ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(this.themeMode === m
+                  ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+                .onClick(() => {
+                  this.setTheme(m);
+                })
+            }, (m: string) => m)
+          }
+          .width('100%')
+
+          Text('跟随系统时，界面随系统深浅色切换；选浅色/深色则固定，不受系统设置影响。')
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.text_tertiary'))
+            .width('100%')
+        }
+        .width('100%')
+        .padding(Space.md)
         .backgroundColor($r('app.color.bg_surface_alt'))
         .borderRadius(Radius.panel)
 
