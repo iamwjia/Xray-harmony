@@ -1,5 +1,6 @@
-import { router } from '@kit.ArkUI';
-import { ConnectionView, ConnState, ConnectionViewModel } from '../viewmodel/ConnectionViewModel';
+import { router, promptAction } from '@kit.ArkUI';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { ConnectionView, ConnState, ConnectionViewModel, StatusTone } from '../viewmodel/ConnectionViewModel';
 import { ConfigService } from '../service/ConfigService';
 import { KernelService, KernelError } from '../service/KernelService';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
@@ -7,6 +8,7 @@ import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 import { GeoAssets } from '../service/GeoAssets';
 import { XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
+import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
@@ -27,6 +29,8 @@ struct Index {
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
   @State socksInfo: string = '';
+  /** 只放 host:port：长按复制的内容必须精确等于它，带括号或说明就等于又把实现细节粘回去了 */
+  @State socksPortText: string = '';
   /** 首次连接的一次性明示是否正在显示 */
   @State showNotice: boolean = false;
   /** 凭据迁移失败提示 */
@@ -46,17 +50,48 @@ struct Index {
   }
 
   private refreshAll(): void {
-    this.view = this.vm.deriveView();
-    this.stateTag = this.vm.getState().toString();
     const n: XrayNode | null = this.cfg.getSelectedNode();
+    // 只把展示字符串交给 viewmodel：节点名优先，退到 host:port（不传 port/mode 这类实现字段）
+    const label: string = n === null ? '' : (n.name.length > 0 ? n.name : `${n.address}:${n.port}`);
+    this.view = this.vm.deriveView(label);
+    this.stateTag = this.vm.getState().toString();
     this.nodeName = n === null ? '（未选择）' : n.name;
     // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
     this.migrationWarning = this.cfg.getMigrationError();
   }
 
-  private isIdleOrError(): boolean {
-    const st: ConnState = this.vm.getState();
+  /** 语义色调 → 资源色（页面是唯一知道"哪个令牌对应哪种状态"的地方） */
+  private toneColor(): Resource {
+    const t: StatusTone = this.view.tone;
+    if (t === StatusTone.OK) {
+      return $r('app.color.status_connected');
+    }
+    if (t === StatusTone.PENDING) {
+      return $r('app.color.status_connecting');
+    }
+    if (t === StatusTone.ERROR) {
+      return $r('app.color.status_error');
+    }
+    return $r('app.color.status_disconnected');
+  }
+
+  /** 长按复制代理地址：内容严格等于 host:port，不带括号与说明 */
+  private copyProxyAddress(): void {
+    if (this.socksPortText.length === 0) {
+      return;
+    }
+    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.socksPortText);
+    pasteboard.getSystemPasteboard().setData(data).then(() => {
+      promptAction.showToast({ message: '已复制', duration: 1500 });
+    }).catch((e: Object) => {
+      const msg: string = e instanceof Error ? e.message : String(e);
+      Logger.warn(`copy proxy address failed: ${msg}`);
+      promptAction.showToast({ message: '复制失败', duration: 1500 });
+    });
+  }
+
+  private isIdleOrError(): boolean {    const st: ConnState = this.vm.getState();
     return st === ConnState.DISCONNECTED || st === ConnState.ERROR;
   }
 
@@ -106,13 +141,15 @@ struct Index {
     }
 
     const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
-    // 每次连接轮换本地 SOCKS 端口与口令（loopback 同设备共享，不能免鉴权）
+    // 每次连接轮换本机代理端口与口令（loopback 同设备共享，不能免鉴权）
     const ep: SocksEndpoint = SocksGuard.rotate();
     const cfgJson: string = sel === null
       ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)
       : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password, credential,
         GeoAssets.isReady(), this.cfg.getRules());
-    this.socksInfo = `本地 SOCKS 127.0.0.1:${ep.port}（已启用口令鉴权）`;
+    // 用户看不懂协议名，但端口是报障时唯一能自证的线索 —— 换词不删信息
+    this.socksInfo = `本机代理地址 127.0.0.1:${ep.port}`;
+    this.socksPortText = `127.0.0.1:${ep.port}`;
 
     try {
       await this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS);
@@ -181,8 +218,16 @@ struct Index {
   build() {
     Stack() {
       Column({ space: 16 }) {
-      Text('Tunnelix').fontSize(24).fontWeight(FontWeight.Bold)
-      Text('内核直连驱动（socks + freedom，未接节点）').fontSize(12).fontColor('#999999')
+      Text('Tunnelix')
+        .fontSize(FontSize.display)
+        .lineHeight(LineHeight.display)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      // 定位语：不写实现细节（协议名/内核/未接节点都归状态行与日志）
+      Text('本地转发，规则由你定')
+        .fontSize(FontSize.bodySm)
+        .lineHeight(LineHeight.bodySm)
+        .fontColor($r('app.color.text_tertiary'))
 
       // 配置加载异常横幅：必须在 UI 可见（评审要求，不允许只写日志）
       if (this.configWarning.length > 0) {
@@ -208,25 +253,54 @@ struct Index {
 
       Column({ space: 8 }) {
         Row({ space: 6 }) {
-          Text(this.view.label).fontSize(22).fontColor(this.view.colorHex)
+          // 语义枚举 → 资源色：ViewModel 里不再有 hex，深色模式才有解
+          Text(this.view.label)
+            .fontSize(22)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.toneColor())
         }
-        Text(this.view.hint).fontSize(13).fontColor('#666666').textAlign(TextAlign.Center)
+        Text(this.view.hint)
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_secondary'))
+          .textAlign(TextAlign.Center)
         if (this.busyHint.length > 0) {
-          Text(this.busyHint).fontSize(11).fontColor('#1976D2')
+          Text(this.busyHint)
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.accent'))
         }
-        Text(`state=${this.stateTag}`).fontSize(10).fontColor('#AAAAAA')
+        Text(`state=${this.stateTag}`)
+          .fontSize(FontSize.fontChip)
+          .lineHeight(LineHeight.fontChip)
+          .fontColor($r('app.color.text_tertiary'))
         if (this.socksInfo.length > 0) {
-          Text(this.socksInfo).fontSize(10).fontColor('#90A4AE')
+          // 诊断类信息：层级明确低于节点名/状态，但端口必须可读、可复制
+          Text(this.socksInfo)
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.text_tertiary'))
+            .accessibilityText(`${this.socksInfo}，长按可复制`)
+            .gesture(
+              LongPressGesture({ repeat: false, duration: 500 })
+                .onAction(() => {
+                  this.copyProxyAddress();
+                })
+            )
         }
         Button(this.buttonLabel())
           .enabled(this.view.canToggle)
-          .onClick(() => this.onToggle())
           .width('70%')
+          .height(Height.hit)
+          .fontSize(FontSize.bodyLg)
+          .backgroundColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
+          .onClick(() => this.onToggle())
       }
       .width('100%')
-      .padding(20)
-      .backgroundColor('#F5F5F5')
-      .borderRadius(12)
+      .padding(Space.lg)
+      .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.card)
 
       Row({ space: 8 }) {
         Text('当前节点').fontSize(14).fontColor('#666666')

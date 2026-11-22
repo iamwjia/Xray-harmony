@@ -6,6 +6,7 @@ import { Logger } from '../platform/Logger';
 import { NodeEditParams } from './NodeEdit';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
 import { NodeRow } from '../components/NodeRow';
+import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -273,56 +274,22 @@ struct Nodes {
 
   @Builder
   header() {
-    Row() {
-      Button({ type: ButtonType.Circle }) {
-        // 箭头用 U+2190 而不是 U+2039：‹ 是标点，视觉偏小，做图标会显得没对齐
-        Text('\u2190')
-          .fontSize(IconSize.md)
-          .fontColor($r('app.color.text_primary'))
-          .accessibilityLevel('no')
-      }
-      .width(Height.hit)
-      .height(Height.hit)
-      .backgroundColor(Color.Transparent)
-      .accessibilityText('返回')
-      .onClick(() => {
+    PageHeader({
+      title: '节点列表',
+      count: this.visibleNodes().length,
+      actionGlyph: this.showImport ? '\u00d7' : '+',
+      actionA11y: this.showImport ? '收起导入面板' : '导入节点或订阅',
+      onBack: () => {
         router.back();
-      })
-
-      Text('节点列表')
-        .fontSize(FontSize.titleLg)
-        .lineHeight(LineHeight.titleLg)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.text_primary'))
-        .layoutWeight(1)
-
-      Text(`${this.visibleNodes().length} 个`)
-        .fontSize(FontSize.caption)
-        .lineHeight(LineHeight.caption)
-        .fontColor($r('app.color.text_tertiary'))
-        .margin({ right: Space.sm })
-
-      Button({ type: ButtonType.Circle }) {
-        Text(this.showImport ? '\u00d7' : '+')
-          .fontSize(IconSize.md)
-          .fontColor($r('app.color.accent'))
-          .accessibilityLevel('no')
-      }
-      .width(Height.hit)
-      .height(Height.hit)
-      .backgroundColor(Color.Transparent)
-      .accessibilityText(this.showImport ? '收起导入面板' : '导入节点或订阅')
-      .onClick(() => {
+      },
+      onAction: () => {
         this.showImport = !this.showImport;
         if (!this.showImport) {
           this.importMsg = '';
           this.importLevel = 0;
         }
-      })
-    }
-    .width('100%')
-    .height(Height.header)
-    .padding({ left: Space.xs, right: Space.sm })
+      }
+    })
   }
 
   @Builder

@@ -897,7 +897,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | A-04 | 每处 `fontSize` 都有 `lineHeight` | 必须 | 抽查 8 页，缺 1 处即不通过 |
 | A-05 | 颜色不单独承载语义 | 必须 | 选中态=竖条+图标+字重；日志级别=色+文字；组件修改情况=色+文字 |
 | A-06 | 长文本不溢出、不裁字 | 必须 | 所有可换行文本有 `maxLines` + `TextOverflow.Ellipsis`，或 `maxLines` 足够 |
-| A-07 | 图标按钮有读屏标签 | 必须 | `accessibilityText()`：返回/更多/新增/关闭/选中 各一处 |
+| A-07 | 读屏标签：**子节点静音 + 行级整句** | 必须 | `accessibilityText()` 写在容器上（返回/更多/新增/关闭/整行）；行内文字与装饰字形全部 `accessibilityLevel('no')`；**禁止 `accessibilityGroup(true)`**（实测覆盖 `accessibilityText`）。**注：A-07 不可脚本判定**，见 §8.2 |
 | A-08 | 输入框聚焦可见 | 必须 | 聚焦时 2vp `focus_ring` 或 1.5→2vp 边界变化 |
 | A-09 | 键盘弹起不遮挡当前输入框与保存入口 | 必须 | 依次聚焦最后一个 `TextInput`，保存按钮仍完整可见 |
 | A-10 | 节点行四要素常驻 | 必须 | 协议、地址:端口、分组、选中态 **同时可见**；任何折叠方案若隐藏其中之一即不通过 |
@@ -924,6 +924,17 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | **空态** | `Nodes` 空列表、`Logs` 有空文案、`RoutingRules` 有空文案 ⇒ 3 处中 1 处缺失（`Nodes`） | ⚠️ 部分 | 必须改：A-11 |
 
 > 实查命令（可复核）：`grep -c "accessibility" entry/src/main/ets/**/*.ets`、`grep -c "lineHeight" …`、`grep -n "\.height(" …`
+
+### 8.2 可验证性边界（A-07 的验证方式必须写清，别写成"脚本可判定"）
+
+`accessibilityText` **不会出现在 `dumpLayout` 里**（属性为空）；`dumpLayout` 只能看到 `accessibilityGroup(true)` 模式下的**子节点拼接文本**——这也是 `9758e41` 那次能发现"group 吞掉 accessibilityText"的原因。
+
+因此 **A-07 只能两种方式验证**：
+
+1. **静态核对**（可在 CI 里跑）：容器上有 `accessibilityText`；行内所有文字/字形有 `accessibilityLevel('no')`；全仓 `accessibilityGroup` 命中 = 0（对列表行而言）。
+2. **真机开读屏复核**（人工，一次性）：逐行走一遍，必须听到「名称…协议…地址:端口…分组…已选中/未选中」。
+
+**不要**把 A-07 写成"脚本可判定"，也不要因为 `dumpLayout` 里"属性为空"就判定没写。
 
 ---
 
@@ -1145,6 +1156,11 @@ Row                                    // 命中区①：整行
 ├── .onClick(() => pick(id))                                   // = 选择
 ├── .accessibilityLevel('yes')
 ├── .accessibilityText(`${name}，${protocol}，${address}:${port}，${group||'未分组'}，${sel?'已选中':'未选中'}`)
+│     // ⚠ 子节点（name / 协议 / host / :port / chip / ⋯ / ✓）**全部 `.accessibilityLevel('no')`**
+│     //   且**禁止**在本行加 `.accessibilityGroup(true)`
+│     //   原因（9758e41 实测 dumpLayout）：group=true 时行文本变成"子节点拼接"，
+│     //   `accessibilityText` 不生效 → 「已选中」「未分组」两段直接丢失。
+│     //   两者只能取一个，取 group 就等于放弃读出选中态 ⇒ 取「子节点静音 + 行级整句」。
 │
 ├── Row()                              // ① 选中竖条
 │     .width(3).height(40).borderRadius(1.5).margin({right:9})
@@ -1237,7 +1253,7 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 | A-01 | 所有命中区 ≥44×44 | 导入按钮 44×44、溢出 44×44、chips 44、导入/添加按钮 44、返回 44×44、整行 ≥64 | ☐ |
 | A-03 | 无 10fp；11fp 仅 `font_chip` 档 | 分组 chip 从 10→**11（`font_chip` 档位定义）**；页内不得出现其他 11fp | ☐ |
 | A-05 | 颜色非唯一载体 | 选中 = 竖条（位置）+ checkmark（形态）+ w600（字重），去掉颜色仍可辨 | ☐ |
-| A-07 | 读屏标签 | 整行 `accessibilityText`、溢出按钮、导入按钮、每个 chip | ☐ |
+| A-07 | 读屏标签：**子节点静音 + 行级整句**（**禁止 `accessibilityGroup(true)`**） | 必须 | ①行根有 `accessibilityText`（含"已选中/未选中"、分组全名）；②行内所有文字/字形 `.accessibilityLevel('no')`；③**不得**出现 `accessibilityGroup(true)`——实测会覆盖 `accessibilityText`，把"已选中/未分组"吞掉 |
 | A-10 | 四要素常驻 | 协议、地址:端口、分组、选中态四者同时可见；**`:port` 单独 Text 恒不截断**（分组 chip 存在时只截 host） | ☐ |
 | A-11 | 空态 | 两处空态（无节点 / 分组为空）都有文案 + 动作 | ☐ |
 | A-13 | 字体放大 1.3× | 名称与元信息均 `maxLines(1)+Ellipsis`，不撑破行高 | ☐ |
@@ -1265,7 +1281,8 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
                         （必须由结果字段显式给 ok/warn/error 级别）
 13) 装饰字形隔离读屏     grep -c "accessibilityLevel('no')" ≥ 4          → 通过
                         （‹ × ⋯ ✓ 四处，否则读屏把字形当内容念）
-14) 行按整句播报         NodeRow 根上存在 `accessibilityGroup(true)`      → 存在
+14) 行整句播报         NodeRow 根有 accessibilityText + 根上**无** accessibilityGroup    → 通过
+                        （注意：accessibilityText 不进 dumpLayout，A-07 见 §8.2）
 15) 菜单可辨与禁用态     浮层有 1vp border_subtle；首/末项上移下移置灰    → 通过
 ```
 
@@ -1286,6 +1303,7 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 |---|---|---|
 | **用 `Text('\u2713')` / `Text('\u22ef')` 代替 `SymbolGlyph`** | **接受**（`sys.symbol.*` 名不保证可解析，缺资源=白块，比字形更糟） | ① 所有装饰字形必须 `.accessibilityLevel('no')`，否则读屏把「‹ × ⋯ ✓」当内容念（有标签却重复念，属 A-07 反向缺陷）；② 字形尺寸/字重进 Token（`IconSize.check=20` 已进，`✓` 用 `FontWeight.Bold` 补足视觉重量）；③ 系统字体放大 1.3× 后不得溢出 24vp 槽（A-13 复测）；④ `‹`（U+2039）是标点不是箭头，视觉偏小，需比其他图标大 2vp（22）才等重，或换 `←` |
 | **自定义 `@Builder` 菜单代替 `MenuItem`** | **接受**（`MenuItem` 无法只给"删除"上 `danger`） | ① 浮层必须加 **1vp `border_subtle` 描边**——本规格"不用阴影"，层级就靠描边+亮度差，否则深色下与背后卡片融成一片；② 首/末项的「上移/下移」必须置灰（`text_tertiary` + 不可点），现状两项恒可点且 `moveNode` 返回 false 后静默无反馈；③ 项高 44、`minWidth 160`、删除红——已符合，保持 |
+| **`accessibilityGroup(true)` 会覆盖 `accessibilityText`** | **采纳实测，规范改口**（9758e41）：行级整句 + 子节点静音，**禁止 group** | 证据：加 group 后 `dumpLayout` 行文本为子节点拼接 `PersistProbe, vless ·, persist.example.org, :443`，「已选中」「未分组」丢失；改子节点静音后行/子文本均为空，只剩行级 `accessibilityText` 一个来源。两者只能取一个，取 group = 放弃读出选中态 |
 | **方案 B（chip 降级纯文字）暂不启用** | **同意延后** | 触发条件写死：**出现 ≥5 字分组名且 host 被截到 <8 字符时**再启用；不到这一步不提前付代价 |
 
 ---

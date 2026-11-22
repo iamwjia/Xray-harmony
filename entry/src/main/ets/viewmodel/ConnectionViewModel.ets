@@ -18,11 +18,19 @@ export enum ConnState {
   ERROR = 'ERROR'
 }
 
+/** 语义色调：页面把它映射成 `$r('app.color.*')`，**不在 ViewModel 里写死色值** */
+export enum StatusTone {
+  MUTED = 'MUTED',
+  PENDING = 'PENDING',
+  OK = 'OK',
+  ERROR = 'ERROR'
+}
+
 /** UI 视图对象：由状态派生，页面只读它 */
 export class ConnectionView {
   label: string = '';
   hint: string = '';
-  colorHex: string = '#888888';
+  tone: StatusTone = StatusTone.MUTED;
   busy: boolean = false;
   canToggle: boolean = true;
 }
@@ -94,31 +102,38 @@ export class ConnectionViewModel {
     return ok;
   }
 
-  /** 状态 → 展示信息（UI 只读这个结果） */
-  deriveView(): ConnectionView {
+  /**
+   * 状态 → 展示信息（UI 只读这个结果）。
+   *
+   * `nodeLabel` 只接受**展示字符串**（节点名，缺省时由调用方给 host:port），
+   * 不接受 port / mode / socks 这类实现字段——签名里一旦有 port，
+   * 后面的人必然会在文案里拼出"…:1080 的 SOCKS"，文案规范会被从最底层绕过。
+   */
+  deriveView(nodeLabel: string = ''): ConnectionView {
     const v = new ConnectionView();
+    const hasNode: boolean = nodeLabel.length > 0;
     if (this.state === ConnState.DISCONNECTED) {
       v.label = '未连接';
-      v.hint = '点击开关启动内核（当前仅本地 SOCKS，未接节点）';
-      v.colorHex = '#888888';
+      v.hint = hasNode ? `已就绪：${nodeLabel}` : '当前仅在本机提供代理';
+      v.tone = StatusTone.MUTED;
       v.busy = false;
       v.canToggle = true;
     } else if (this.state === ConnState.CONNECTING) {
       v.label = '连接中…';
-      v.hint = '正在启动内核并确认状态（最多等待 8 秒）';
-      v.colorHex = '#FFA726';
+      v.hint = '正在建立连接…';
+      v.tone = StatusTone.PENDING;
       v.busy = true;
       v.canToggle = true;
     } else if (this.state === ConnState.CONNECTED) {
       v.label = '已连接';
-      v.hint = '内核已启动（本地 SOCKS 监听中，尚未接入节点）';
-      v.colorHex = '#2E7D32';
+      v.hint = hasNode ? `当前走 ${nodeLabel}` : '当前已连接（未选节点）';
+      v.tone = StatusTone.OK;
       v.busy = false;
       v.canToggle = true;
     } else {
       v.label = '连接异常';
       v.hint = this.lastError.length > 0 ? this.lastError : '未知错误';
-      v.colorHex = '#C62828';
+      v.tone = StatusTone.ERROR;
       v.busy = false;
       v.canToggle = true;
     }
