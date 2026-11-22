@@ -215,7 +215,7 @@ struct Index {
 
   build() {
     Stack() {
-      Column({ space: 16 }) {
+      Column({ space: Space.lg }) {
       Text('Tunnelix')
         .fontSize(FontSize.display)
         .lineHeight(LineHeight.display)
@@ -373,8 +373,12 @@ struct Index {
   @Builder
   noticeOverlay() {
     Column() {
-      Column({ space: 14 }) {
-        Text('连接前请先了解').fontSize(18).fontWeight(FontWeight.Bold)
+      Column({ space: Space.md }) {
+        Text('连接前请先了解')
+          .fontSize(FontSize.titleLg)
+          .lineHeight(LineHeight.titleLg)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
 
         this.noticeItem('1',
           '应用被系统或你手动终止时，代理会一起停止，设备流量将恢复直连——' +
