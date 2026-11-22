@@ -57,3 +57,11 @@ if(EXISTS "${XRAY_SO}")
 else()
     message(WARNING "M6: libxray.so NOT found at ${XRAY_SO}")
 endif()
+
+# --- 输出目录：故意与 hvigor 的"期望位置"错开 ---
+# 现象（2026-11-22）：hvigor 把 CMAKE_LIBRARY_OUTPUT_DIRECTORY 设成它自己的 obj 目录，
+# 随后又要把 libentry.so "硬链接/复制到期望位置"——期望位置就是同一个路径，
+# 于是出现 `Hard link from X to X failed` 与 `ENOENT copyfile X -> X`，构建必失败。
+# 让 CMake 先输出到构建目录下的 lib/，hvigor 再从那里搬到 obj/，两个路径不同即可。
+set_target_properties(entry PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")

@@ -33,6 +33,8 @@ export struct NodeRow {
   };
   onDelete: (id: string) => void = () => {
   };
+  onProbe: (id: string) => void = () => {
+  };
 
   private rowA11y(): string {
     const g: string = this.group.length > 0 ? this.group : '未分组';
@@ -55,6 +57,7 @@ export struct NodeRow {
   overflowMenu() {
     Column() {
       this.menuItem('编辑', false, true, () => this.onEdit(this.nodeId))
+      this.menuItem('测连通性', false, true, () => this.onProbe(this.nodeId))
       this.menuItem('上移', false, this.canMoveUp, () => this.onMove(this.nodeId, -1))
       this.menuItem('下移', false, this.canMoveDown, () => this.onMove(this.nodeId, 1))
       Divider().color($r('app.color.border_subtle'))

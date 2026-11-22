@@ -7,6 +7,7 @@ import { NodeEditParams } from './NodeEdit';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
 import { NodeRow } from '../components/NodeRow';
 import { PageHeader } from '../components/PageHeader';
+import { NodeProbe, ProbeResult } from '../service/NodeProbe';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -104,6 +105,35 @@ struct Nodes {
       }
     }
     return false;
+  }
+
+  /**
+   * 测一个节点的 TCP 可达性。
+   * 结果用提示条展示，不改动列表排序也不改选中态——这是一个"看一眼"的动作。
+   */
+  private probeNode(id: string): void {
+    let target: XrayNode | null = null;
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].id === id) {
+        target = this.nodes[i];
+        break;
+      }
+    }
+    if (target === null) {
+      return;
+    }
+    const node: XrayNode = target;
+    this.setNotice(`正在测「${node.name}」…`, 0);
+    NodeProbe.probe(node).then((r: ProbeResult) => {
+      if (r.ok) {
+        this.setNotice(`「${node.name}」可达：TCP 握手 ${r.ms} ms`, 0);
+      } else {
+        this.setNotice(`「${node.name}」不可达：${r.error}`, 2);
+      }
+    }).catch((e: Object) => {
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.setNotice(`测试失败：${m}`, 2);
+    });
   }
 
   private doMove(id: string, delta: number): void {    if (this.cfg.moveNode(id, delta)) {
@@ -463,6 +493,7 @@ struct Nodes {
                 onPick: (id: string) => this.pick(id),
                 onEdit: (id: string) => this.openEdit(id),
                 onMove: (id: string, delta: number) => this.doMove(id, delta),
+                onProbe: (id: string) => this.probeNode(id),
                 onDelete: (id: string) => this.confirmDeleteById(id)
               })
             }
