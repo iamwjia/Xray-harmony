@@ -46,12 +46,34 @@
 
 1. **设备加载验证**：合并 `.so` 能否在 OHOS 进程里被 dlopen、`Invoke` 是否照常工作。
    现状：只验证了"能构建"，没有验证"能运行"。
-2. **gvisor 的 `isSocketFD` 判定**：官方实现里该检查失败会 **`log.Fatal` 直接杀进程**
-   （不是返回 error）。openharmony 上需要补丁或绕过，否则表现是"一启动就死"。
+2. **`isSocketFD` 判定（已按源码核对，结论与设计文档不同）**：
+
+   设计文档记的是「该检查失败会 `log.Fatal` 直接杀进程，必须打 Fstat 补丁」。
+   对照当前使用的 gvisor 版本 `v0.0.0-20260701204157` 源码，这条**不成立**：
+
+   ```go
+   // pkg/tcpip/link/fdbased/endpoint.go:450
+   func isSocketFD(fd int) (bool, error) {
+       var stat unix.Stat_t
+       if err := unix.Fstat(fd, &stat); err != nil {
+           return false, fmt.Errorf("unix.Fstat(%v,...) failed: %v", fd, err)
+       }
+       return (stat.Mode & unix.S_IFSOCK) == unix.S_IFSOCK, nil
+   }
+   ```
+
+   - 它是**普通返回值**，不是 `log.Fatal`；调用点 `endpoint.go:305` 也只是把错误返回给上层；
+   - 对 tun fd 而言 `S_IFSOCK` 不成立 → 返回 `isSocket=false`，正是设备层期望的路径。
+
+   所以**本版本不需要 Fstat 补丁**。设计文档那条结论应视为「针对旧版本参考实现」，
+   待真机验证后再决定是否需要对文档做 superseded 标记。
+
+   仍需真机确认的只有一件事：`unix.Fstat` / `unix.SetNonblock` 在 OHOS 上是否正常返回。
+
 3. **转发实现**：`StartTun2Socks` 目前显式返回「未实现」，不伪装成功。要接线：
    tun fd → tun2socks 设备层 → loopback SOCKS（地址与口令来自运行期）。
-4. **SOCKS 必须开 UDP ASSOCIATE**：当前入站是 `udp:false`，否则 UDP（QUIC/DNS）
-   没有出口，表现为"网页能开、部分应用不正常"。
+4. **SOCKS UDP**：入站已改为 `udp:true`（配置层已验证内核接受），但 UDP ASSOCIATE
+   的实际转发仍需在数据面接好后验证。
 5. **扩展进程加载**：`.so` 要在 VPN 扩展进程加载，主应用的 `KernelService` 那套
    需要相应下移或做进程间协作，这是架构改动而不是小修改。
 
