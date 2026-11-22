@@ -19,6 +19,9 @@ export struct NodeRow {
   @Prop port: number = 0;
   @Prop group: string = '';
   @Prop selected: boolean = false;
+  /** 首/末行的"上移/下移"必须置灰，否则用户会一直点一个永远不会生效的项 */
+  @Prop canMoveUp: boolean = true;
+  @Prop canMoveDown: boolean = true;
   /** 分组 chip 里真正的"标签"，与行内文字同层但不抢宽度 */
   @Prop showGroupChip: boolean = true;
 
@@ -51,29 +54,37 @@ export struct NodeRow {
   @Builder
   overflowMenu() {
     Column() {
-      this.menuItem('编辑', false, () => this.onEdit(this.nodeId))
-      this.menuItem('上移', false, () => this.onMove(this.nodeId, -1))
-      this.menuItem('下移', false, () => this.onMove(this.nodeId, 1))
+      this.menuItem('编辑', false, true, () => this.onEdit(this.nodeId))
+      this.menuItem('上移', false, this.canMoveUp, () => this.onMove(this.nodeId, -1))
+      this.menuItem('下移', false, this.canMoveDown, () => this.onMove(this.nodeId, 1))
       Divider().color($r('app.color.border_subtle'))
-      this.menuItem('删除', true, () => this.onDelete(this.nodeId))
+      this.menuItem('删除', true, true, () => this.onDelete(this.nodeId))
     }
     .constraintSize({ minWidth: 160 })
     .padding({ top: Space.xs, bottom: Space.xs })
     .backgroundColor($r('app.color.bg_surface'))
     .borderRadius(Radius.panel)
+    // 自绘弹层没有系统阴影，深色下两个 bg_surface 会融成一片，必须描边
+    .border({ width: 1, color: $r('app.color.border_subtle') })
   }
 
   @Builder
-  menuItem(label: string, dangerous: boolean, action: () => void) {
+  menuItem(label: string, dangerous: boolean, enabled: boolean, action: () => void) {
     Text(label)
       .width('100%')
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       .fontSize(FontSize.bodySm)
-      .fontColor(dangerous ? $r('app.color.danger') : $r('app.color.text_primary'))
+      .fontColor(!enabled
+        ? $r('app.color.text_tertiary')
+        : (dangerous ? $r('app.color.danger') : $r('app.color.text_primary')))
       .textAlign(TextAlign.Start)
+      .enabled(enabled)
+      .accessibilityText(enabled ? label : `${label}（不可用）`)
       .onClick(() => {
-        action();
+        if (enabled) {
+          action();
+        }
       })
   }
 
@@ -94,6 +105,7 @@ export struct NodeRow {
             .fontSize(IconSize.check)
             .fontColor($r('app.color.accent'))
             .fontWeight(FontWeight.Bold)
+            .accessibilityLevel('no')
         } else {
           Row()
             .width(IconSize.sm)
@@ -117,17 +129,16 @@ export struct NodeRow {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
+          // 行级已经整句播报，子节点全部静音，否则读屏会把同一行念两遍
+          .accessibilityLevel('no')
 
         // 元信息行：host 可截断，**:port 独立且恒完整**（地址:端口是排障检索键，尾部不能被吃掉）
-        Row({ space: 6 }) {
-          Text(NodeRow.protocolShort(this.protocol))
+        Row({ space: Space.xs }) {
+          Text(`${NodeRow.protocolShort(this.protocol)} \u00b7`)
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
-          Text('\u00b7')
-            .fontSize(FontSize.caption)
-            .lineHeight(LineHeight.caption)
-            .fontColor($r('app.color.text_tertiary'))
+            .accessibilityLevel('no')
           Text(this.address)
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
@@ -135,11 +146,13 @@ export struct NodeRow {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
+            .accessibilityLevel('no')
           Text(`:${this.port}`)
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
             .maxLines(1)
+            .accessibilityLevel('no')
           if (this.showGroupChip && this.group.length > 0) {
             Text(this.group)
               .fontSize(FontSize.fontChip)
@@ -151,8 +164,8 @@ export struct NodeRow {
               .borderRadius(Radius.chip)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .constraintSize({ maxWidth: 96 })
-              .accessibilityText(this.group)
+              .constraintSize({ maxWidth: 60 })
+              .accessibilityLevel('no')
           }
         }
         .width('100%')
@@ -165,6 +178,7 @@ export struct NodeRow {
         Text('\u22ef')
           .fontSize(IconSize.md)
           .fontColor($r('app.color.text_secondary'))
+          .accessibilityLevel('no')
       }
       .width(Height.hit)
       .height(Height.hit)

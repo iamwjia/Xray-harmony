@@ -34,6 +34,12 @@ struct Nodes {
   @State importInput: string = '';
   @State busy: boolean = false;
   @State importMsg: string = '';
+  /**
+   * 提示级别由**结果字段**给出（0 信息 / 1 警告 / 2 错误），不靠文案子串匹配。
+   * 曾经按 `indexOf('失败')` 判色：一条"新增 3 条，失败 1 条"的部分成功整行变红，
+   * 而"已存在 2 条"这种正常结果又被判成警告——颜色跟着措辞漂，等于 UI 在说谎。
+   */
+  @State importLevel: number = 0;
 
   private cfg: ConfigService = ConfigService.getInstance();
 
@@ -88,10 +94,23 @@ struct Nodes {
     });
   }
 
-  private doMove(id: string, delta: number): void {
-    if (this.cfg.moveNode(id, delta)) {
-      this.reload();
+  /** 该节点能否按 delta 移动（首行不能上移、末行不能下移）——菜单项据此置灰 */
+  private canMove(id: string, delta: number): boolean {
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].id === id) {
+        const target: number = i + delta;
+        return target >= 0 && target < this.nodes.length;
+      }
     }
+    return false;
+  }
+
+  private doMove(id: string, delta: number): void {    if (this.cfg.moveNode(id, delta)) {
+      this.reload();
+      return;
+    }
+    // 失败必须可见：原来这里静默返回，用户点了「上移」没反应会以为是卡了
+    this.setNotice(delta < 0 ? '已在列表顶部' : '已在列表底部', 1);
   }
 
   /**
@@ -101,12 +120,12 @@ struct Nodes {
    */
   private doImportSubscription(url: string): void {
     this.busy = true;
-    this.importMsg = '正在拉取订阅…';
+    this.setNotice('正在拉取订阅…', 0);
     SubscriptionService.importFromUrl(url, '').then((r: SubscriptionImportResult) => {
       this.busy = false;
       this.reload();
       if (r.total === 0) {
-        this.importMsg = `订阅导入失败：${r.error.length > 0 ? r.error : '里面没有可识别的节点'}`;
+        this.setNotice(`订阅导入失败：${r.error.length > 0 ? r.error : '里面没有可识别的节点'}`, 2);
         return;
       }
       let msg: string = `订阅：解析 ${r.total} 条，新增 ${r.added} 条`;
@@ -120,14 +139,20 @@ struct Nodes {
       if (r.error.length > 0) {
         msg += `（首条错误：${r.error}）`;
       }
-      this.importMsg = msg;
+      // 部分失败才是警告；"新增 + 已存在"是正常结果，不该变色
+      this.setNotice(msg, r.failed > 0 ? 1 : 0);
       this.importInput = '';
       this.showImport = false;
     }).catch((e: Object) => {
       this.busy = false;
       const msg: string = e instanceof Error ? e.message : String(e);
-      this.importMsg = `订阅导入失败：${msg}`;
+      this.setNotice(`订阅导入失败：${msg}`, 2);
     });
+  }
+
+  private setNotice(msg: string, level: number): void {
+    this.importMsg = msg;
+    this.importLevel = level;
   }
 
   private pick(id: string): void {
@@ -173,10 +198,10 @@ struct Nodes {
   private doDelete(id: string): void {
     this.cfg.removeNode(id).then((ok: boolean) => {
       this.reload();
-      this.importMsg = ok ? '已删除节点（凭据一并清除）' : '删除失败，详见日志';
+      this.setNotice(ok ? '已删除节点（凭据一并清除）' : '删除失败，详见日志', ok ? 0 : 2);
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
-      this.importMsg = `删除失败：${msg}`;
+      this.setNotice(`删除失败：${msg}`, 2);
       Logger.error(`removeNode failed: ${msg}`);
     });
   }
@@ -187,7 +212,7 @@ struct Nodes {
   private doSmartImport(): void {
     const input: string = this.importInput.trim();
     if (input.length === 0) {
-      this.importMsg = '请先粘贴链接或订阅地址';
+      this.setNotice('请先粘贴链接或订阅地址', 1);
       return;
     }
     const lower: string = input.toLowerCase();
@@ -200,7 +225,7 @@ struct Nodes {
       this.doImportLink(input);
       return;
     }
-    this.importMsg = '无法识别：应以 vless:// vmess:// trojan:// ss:// 或 http(s):// 开头';
+    this.setNotice('无法识别：应以 vless:// vmess:// trojan:// ss:// 或 http(s):// 开头', 1);
   }
 
   /** 导入分享链接：解析成功后写入安全存储 + 节点表，并选中 */
@@ -210,7 +235,7 @@ struct Nodes {
       node = ShareLinkParser.parse(link);
     } catch (e) {
       const msg: string = e instanceof Error ? e.message : String(e);
-      this.importMsg = `导入失败：${msg}`;
+      this.setNotice(`导入失败：${msg}`, 2);
       Logger.warn(`import failed: ${msg}`);
       return;
     }
@@ -220,26 +245,27 @@ struct Nodes {
       this.busy = false;
       this.cfg.selectNode(node.id);
       this.reload();
-      this.importMsg = added
+      // 「节点已存在，已切换选中」是正常结果（重导入同一链接），不用警告色
+      this.setNotice(added
         ? `已导入：${node.name}（${node.protocol}）`
-        : `节点已存在，已切换选中：${node.name}`;
+        : `节点已存在，已切换选中：${node.name}`, 0);
       this.importInput = '';
       this.showImport = false;
       Logger.info(`import ok: ${node.protocol} @ ${node.address}:${node.port}`);
     }).catch((e: Object) => {
       this.busy = false;
       const msg: string = e instanceof Error ? e.message : String(e);
-      this.importMsg = `导入失败：凭据写入安全存储失败（${msg}）`;
+      this.setNotice(`导入失败：凭据写入安全存储失败（${msg}）`, 2);
       Logger.error(`import failed at secret store: ${msg}`);
     });
   }
-  /** 导入结果按严重程度分色：失败 → danger，部分成功 → warning，正常 → accent */
+
+  /** 分色只看级别，不看文案 —— 颜色跟着措辞走，迟早会说谎 */
   private importColor(): Resource {
-    const m: string = this.importMsg;
-    if (m.indexOf('失败') >= 0) {
+    if (this.importLevel === 2) {
       return $r('app.color.danger');
     }
-    if (m.indexOf('已存在') >= 0) {
+    if (this.importLevel === 1) {
       return $r('app.color.warning');
     }
     return $r('app.color.accent');
@@ -249,7 +275,11 @@ struct Nodes {
   header() {
     Row() {
       Button({ type: ButtonType.Circle }) {
-        Text('\u2039').fontSize(IconSize.md).fontColor($r('app.color.text_primary'))
+        // 箭头用 U+2190 而不是 U+2039：‹ 是标点，视觉偏小，做图标会显得没对齐
+        Text('\u2190')
+          .fontSize(IconSize.md)
+          .fontColor($r('app.color.text_primary'))
+          .accessibilityLevel('no')
       }
       .width(Height.hit)
       .height(Height.hit)
@@ -276,6 +306,7 @@ struct Nodes {
         Text(this.showImport ? '\u00d7' : '+')
           .fontSize(IconSize.md)
           .fontColor($r('app.color.accent'))
+          .accessibilityLevel('no')
       }
       .width(Height.hit)
       .height(Height.hit)
@@ -285,6 +316,7 @@ struct Nodes {
         this.showImport = !this.showImport;
         if (!this.showImport) {
           this.importMsg = '';
+          this.importLevel = 0;
         }
       })
     }
@@ -444,6 +476,8 @@ struct Nodes {
                 port: item.port,
                 group: item.group,
                 selected: item.id === this.selectedId,
+                canMoveUp: this.canMove(item.id, -1),
+                canMoveDown: this.canMove(item.id, 1),
                 onPick: (id: string) => this.pick(id),
                 onEdit: (id: string) => this.openEdit(id),
                 onMove: (id: string, delta: number) => this.doMove(id, delta),
