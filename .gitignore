@@ -36,7 +36,7 @@ __pycache__/
 .env.local
 *.local.json
 
-# OHOS Go ¹¤¾ßÁ´£¨±¾µØ×Ô¾Ù²úÎï£¬²»Èë¿â£»¿ÉËæÊ±É¾³ıÖØÀ´£©
+# OHOS Go å·¥å…·é“¾ï¼ˆæœ¬åœ°è‡ªä¸¾äº§ç‰©ï¼Œä¸å…¥åº“ï¼›å¯éšæ—¶åˆ é™¤é‡æ¥ï¼‰
 _toolchain/
 
 # HarmonyOS build outputs (E1 skeleton)
@@ -52,8 +52,8 @@ local.properties
 # rebuild with: scripts/build-prebuilt.ps1
 !entry/src/main/libs/**/*.so
 
-# Ìå»ı¹ı´óµÄÄÚºË²úÎï£¨¿ÉÓÉ toolchain/ ½Å±¾ÖØ½¨£¬²»Èë¿â£©
+# ä½“ç§¯è¿‡å¤§çš„å†…æ ¸äº§ç‰©ï¼ˆå¯ç”± toolchain/ è„šæœ¬é‡å»ºï¼Œä¸å…¥åº“ï¼‰
 entry/src/main/libs/**/libxray.so
 
-# ÁÙÊ±Ìá½»ĞÅÏ¢ÎÄ¼ş
+# ä¸´æ—¶æäº¤ä¿¡æ¯æ–‡ä»¶
 _commit_msg*.txt
