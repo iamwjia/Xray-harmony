@@ -170,14 +170,24 @@ AI 产出的每一个结论都必须有**可复核的证据**（源码行号 / �
 
 ## 10. 第三方代码与许可
 
-本仓库**不包含任何第三方源码**，调研用的参考实现均未入库（见 `.gitignore`）：
+本仓库**不包含任何第三方源码**（参考实现均未入库，见 `.gitignore`），但**分发包里包含第三方编译产物**。
+完整声明以 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) 为准，许可证原文在 [`doc/release/licenses/`](doc/release/licenses/)。
 
-| 组件 | 许可 | 我们的策略 |
-|---|---|---|
-| **Xray-core** | MPL-2.0（文件级 copyleft） | **零修改** + 动态链接分发，义务最小化（提供上游对应版本源码地址） |
-| **libXray** | MIT | 可复用，保留声明 |
-| **Hey** | **GPL-3.0（传染）** | **只借鉴思路，不复制代码** |
-| **v2rayNG** | GPL-3.0 | 仅作功能层参考，不入库 |
+| 组件 | 版本 | 许可 | 在分发包中的形态 |
+|---|---|---|---|
+| **Xray-core** | `v1.260327.1-0.20260728075948`（commit `5ca6f4b7d4dc`） | MPL-2.0 | 编译进 `libxray.so`，**零修改** |
+| **libXray** | `v26.7.28` | MIT | 同上（CGo 导出 `CGoInvoke`） |
+| **tun2socks** | `v2.7.0` | MIT | 同上（导出 `StartTun2Socks`，由 `toolchain/build-merged.ps1` 合并） |
+| **gVisor netstack** | `v0.0.0-20260701204157` | Apache-2.0 | 同上（tun2socks 的 TCP/IP 栈） |
+| **v2fly geoip / geosite** | 随发布构建 | 以上游发布页为准 | 应用沙箱内的数据文件，按原样分发 |
+| Hey / v2rayNG | — | GPL-3.0 | **只借鉴思路，不复制代码，不入库、不分发** |
+
+**MPL-2.0 义务的履行方式**：Xray-core 未被修改，因此无需公开自有代码；对应版本的源码地址
+（上游仓库 + commit）在 README、`THIRD-PARTY-NOTICES.md` 与应用内「设置 → 关于 → 开源许可」三处给出；
+许可证全文随仓库提供（`doc/release/licenses/`）。
+
+**构建可复现**：`toolchain/build-merged.ps1` 与 `_toolchain/merged/go.mod` 给出了合并库的完整依赖清单，
+可按脚本重建 `libxray.so`。
 
 ---
 

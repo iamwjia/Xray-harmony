@@ -27,8 +27,10 @@ interface Component {
 struct Licenses {
   private components: Component[] = [
     {
+      // 第三方清单以仓库根目录的 THIRD-PARTY-NOTICES.md 为准，这里只是摘要；
+      // 版本号必须与 _toolchain/merged/go.mod 一致，否则就是对着用户说了假话。
       name: 'Xray-core',
-      version: 'v1.260327.1（经 libXray 集成）',
+      version: 'v1.260327.1-0.20260728075948-5ca6f4b7d4dc',
       license: 'MPL-2.0',
       usage: '代理协议与出站实现（内核）',
       modified: '未修改，按上游构建产物集成'
@@ -42,14 +44,14 @@ struct Licenses {
     },
     {
       name: 'tun2socks',
-      version: 'v2 系列（规划集成）',
+      version: 'v2.7.0',
       license: 'MIT',
-      usage: 'tun 流量转发（尚未接入）',
-      modified: '未修改'
+      usage: 'tun fd → SOCKS5 转发（数据面）',
+      modified: '未修改，与内核编入同一产物'
     },
     {
       name: 'gVisor netstack',
-      version: '随 tun2socks 引入',
+      version: 'v0.0.0-20260701204157-69c2d17aea96',
       license: 'Apache-2.0',
       usage: '用户态 TCP/IP 协议栈',
       modified: '未修改'
@@ -117,7 +119,7 @@ struct Licenses {
             .fontColor($r('app.color.text_primary'))
             .width('100%')
           Text('• 上游源码：github.com/XTLS/Xray-core\n' +
-            '• 本应用对应版本：v1.260327.1（commit 80263da 构建链）\n' +
+            '• 本应用对应版本：commit 5ca6f4b7d4dc（v1.260327.1 构建链）\n' +
             '• 本应用未修改其源码，因此无需公开自有代码；' +
             '若日后修改，相应文件须以 MPL-2.0 公开')
             .fontSize(FontSize.bodySm)
@@ -150,8 +152,12 @@ struct Licenses {
             .width('100%')
 
           this.section('如何获取源码')
-          Text('本应用自身代码与其依赖清单公开在项目仓库中；内核部分请见上文的 Xray-core 上游地址。' +
-            '构建脚本随仓库提供，可按脚本复现内核与数据文件的生成过程。')
+          // "公开在项目仓库中"这种话说清楚才有用：MPL-2.0 §3.2 要的是**可获取的具体途径**，
+          // 不是"你去搜一下"。这里给仓库地址、第三方清单文件名和内核 commit。
+          Text('• 本应用仓库：github.com/iamwjia/Xray-harmony\n' +
+            '• 第三方组件与许可证全文：仓库根目录 THIRD-PARTY-NOTICES.md 与 doc/release/licenses/\n' +
+            '• 内核源码：见上文的 Xray-core 上游地址与对应 commit\n' +
+            '• 内核与数据文件的构建脚本随仓库提供，可按脚本复现')
             .fontSize(FontSize.bodySm)
             .lineHeight(LineHeight.bodySm)
             .fontColor($r('app.color.text_primary'))
