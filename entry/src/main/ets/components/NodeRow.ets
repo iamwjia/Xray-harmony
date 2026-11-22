@@ -24,6 +24,8 @@ export struct NodeRow {
   @State pressed: boolean = false;
   /** 抓手正在被拖动：加深颜色，给用户“我正在拖”的反馈 */
   @State dragging: boolean = false;
+  /** 行实际宽度：菜单弹层要与条目同宽 */
+  @State rowW: number = 0;
   @Prop canMoveUp: boolean = true;
   @Prop canMoveDown: boolean = true;
   /** 分组 chip 里真正的"标签"，与行内文字同层但不抢宽度 */
@@ -141,7 +143,7 @@ export struct NodeRow {
       Divider().color($r('app.color.border_subtle'))
       this.handleItem('删除', true, () => this.onDelete(this.nodeId))
     }
-    .width(180)
+    .width(this.rowW > 0 ? this.rowW : 300)
     .padding({ top: Space.xs, bottom: Space.xs })
     .backgroundColor($r('app.color.bg_surface'))
     .borderRadius(Radius.panel)
@@ -151,7 +153,7 @@ export struct NodeRow {
   @Builder
   handleItem(label: string, dangerous: boolean, action: () => void) {
     Text(label)
-      .width(180)
+      .width(this.rowW > 0 ? this.rowW : 300)
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       .fontSize(FontSize.bodyLg)
@@ -254,6 +256,9 @@ export struct NodeRow {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+      // 长按内容区 = 打操作菜单。挂在内容区而不是整行：抓手上的拖动是另一套手势，
+      // 若长按挂在整行，按住抓手拖动会先触发长按（此前实测过）。
+      .bindContextMenu(this.handleMenu, ResponseType.LongPress)
 
       // 测连通结果（只在本行测过之后出现）：直接贴在行上，不依赖顶部提示
       if (this.probeText.length > 0) {
@@ -312,6 +317,9 @@ export struct NodeRow {
       .accessibilityText('拖动排序')
     }
     .width('100%')
+    .onAreaChange((oldArea: Area, newArea: Area) => {
+      this.rowW = Number(newArea.width);
+    })
     .constraintSize({ minHeight: Height.row })
     .padding({ left: 0, right: Space.md, top: 10, bottom: 10 })
     .backgroundColor(this.pressed

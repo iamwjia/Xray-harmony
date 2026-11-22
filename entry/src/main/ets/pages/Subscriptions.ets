@@ -36,6 +36,8 @@ struct Subscriptions {
   @State refreshingAll: boolean = false;
   /** 按下中的行 id（为空 = 没有按下）：手机上需要可见反馈 */
   @State pressedId: string = '';
+  /** 行实际宽度：菜单弹层与条目同宽 */
+  @State rowW: number = 0;
   /** 添加订阅：输入面板是否展开 + 输入内容 + 进行中标记 */
   @State showAdd: boolean = false;
   @State addInput: string = '';
@@ -261,7 +263,7 @@ struct Subscriptions {
       Divider().color($r('app.color.border_subtle'))
       this.menuItem('删除', true, true, () => this.confirmRemove(rec))
     }
-    .width(MENU_WIDTH)
+    .width(this.rowW > 0 ? this.rowW : 300)
     .padding({ top: Space.xs, bottom: Space.xs })
     .backgroundColor($r('app.color.bg_surface'))
     .borderRadius(Radius.panel)
@@ -271,7 +273,7 @@ struct Subscriptions {
   @Builder
   menuItem(label: string, dangerous: boolean, enabled: boolean, action: () => void) {
     Text(label)
-      .width(MENU_WIDTH)
+      .width(this.rowW > 0 ? this.rowW : 300)
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       // 菜单项比正文大一档：弹层里只有几个词，13/14 看着偏小且难点
@@ -339,6 +341,10 @@ struct Subscriptions {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+      // 长按内容区 = 打操作菜单（与节点行同一套）；挂在内容区是因为抓手上有拖动手势
+      .bindContextMenu(() => {
+        this.overflowMenu(rec);
+      }, ResponseType.LongPress)
 
       // 与节点行一致：点抓手 = 操作选项，按住拖动 = 排序
       Column() {
@@ -373,6 +379,9 @@ struct Subscriptions {
       .accessibilityText('订阅操作与排序')
     }
     .width('100%')
+    .onAreaChange((oldArea: Area, newArea: Area) => {
+      this.rowW = Number(newArea.width);
+    })
     .constraintSize({ minHeight: Height.row })
     .padding({ left: 0, right: Space.md, top: Space.sm, bottom: Space.sm })
     .backgroundColor(this.pressedId === rec.id ? $r('app.color.bg_chip') : $r('app.color.bg_surface'))
