@@ -76,6 +76,19 @@ struct Index {
     this.refreshAll();
   }
 
+  /**
+   * 页面不可见就停表：1 秒一次的 setInterval 在后台继续跑，等于把"连接时长"这种
+   * 纯展示用的计时器变成持续耗电项；页面销毁时不清理还会留下一个持有 this 的定时器。
+   * 回到前台由 onPageShow → refreshAll → refreshStatusStrip 重新启动（幂等）。
+   */
+  onPageHide(): void {
+    this.stopTick();
+  }
+
+  aboutToDisappear(): void {
+    this.stopTick();
+  }
+
   private refreshAll(): void {
     const n: XrayNode | null = this.cfg.getSelectedNode();
     // 只把展示字符串交给 viewmodel：节点名优先，退到 host:port（不传 port/mode 这类实现字段）
@@ -107,11 +120,14 @@ struct Index {
     const connected: boolean = this.vm.getState() === ConnState.CONNECTED;
     if (connected) {
       if (this.connectedAt === 0) {
+        // 新的一次连接：计时起点归零，演示流量也归零
         this.connectedAt = Date.now();
         this.demoDown = 0;
         this.demoUp = 0;
-        this.startTick();
       }
+      // 无条件调用（startTick 自身幂等）：否则"页面隐藏时停了表、回来时 connectedAt 仍 >0"
+      // 会让计时器永远不再启动，连接时长停在隐藏那一刻。
+      this.startTick();
     } else if (this.connectedAt !== 0) {
       this.connectedAt = 0;
       this.uptimeText = '';

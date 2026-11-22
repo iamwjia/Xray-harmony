@@ -141,6 +141,17 @@ export struct Glyph {
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
         Line().width(24).height(24).startPoint([16, 15]).endPoint([19, 12])
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'unlock') {
+        // 解密并恢复：开口的锁——锁梁右侧断开，表示"已经开了"。
+        // 与 key（口令）区分：key 是"你有钥匙"，unlock 是"门已经开了"，此处是后者。
+        Rect().width(12).height(9).radius(2).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 6, y: 12 })
+        Line().width(24).height(24).startPoint([9, 12]).endPoint([9, 6])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([9, 6]).endPoint([14, 6])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Circle().width(3).height(3).fill(this.color).position({ x: 10.5, y: 15 })
       } else if (this.kind === 'check') {
         // 保存/提交：对勾。为什么不是磁盘图标——18vp 下磁盘的"方框 + 顶部凹口"
         // 两个细节会糊成一坨；对勾两笔，最小尺寸下也认得出，且没有隐喻歧义。

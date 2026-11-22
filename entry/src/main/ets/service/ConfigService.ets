@@ -442,7 +442,12 @@ export class ConfigService {
     }
 
     const alias: string = SecretStore.aliasForNode(updated.id);
+    // 旧凭据先读出来：put 是"覆盖"语义，节点表写失败时如果不把旧值写回去，
+    // 用户会看到"保存失败"，但磁盘上的凭据其实已经被换掉了——下次连接拿旧配置配新凭据，
+    // 报错原因和真实原因无关，排查成本极高。所以回滚必须连密钥一起回滚。
+    let oldSecret: string | null = null;
     if (newCredential.length > 0) {
+      oldSecret = await SecretStore.get(alias);
       if (!await SecretStore.put(alias, newCredential)) {
         Logger.error(`updateNode: secret store put failed for ${updated.id}`);
         return false;
@@ -454,6 +459,13 @@ export class ConfigService {
     cfg.nodes.splice(idx, 1, updated);
     if (!NodeStore.save(cfg.nodes)) {
       cfg.nodes.splice(idx, 1, prev);
+      // 凭据回滚：尽力而为，失败只记警告（此时节点表已是旧值，界面不会说谎，
+      // 但磁盘上的凭据可能已被替换——这一点必须留在日志里，不能假装没发生）
+      if (oldSecret !== null) {
+        if (!await SecretStore.put(alias, oldSecret)) {
+          Logger.error(`updateNode rollback: secret restore failed for ${updated.id}, credential may be replaced`);
+        }
+      }
       Logger.error(`updateNode failed to persist, rolled back: ${updated.id}`);
       return false;
     }

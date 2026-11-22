@@ -65,6 +65,15 @@ struct NodeEdit {
   @State transportIdx: number = 0;
   /** 传输类型下拉选项：5 项在 360vp 下已经贴边，再加就放不下了 */
   @State transportOptions: SelectOption[] = [];
+  /**
+   * 协议/安全也走下拉，不再用等宽按钮组。
+   * 原因不是"按钮不好看"，是**宽度**：4 等分后每格在 360vp 手机上只有约 70vp，
+   * `shadowsocks` 放不下（只能靠 minFontSize 缩到 11 或截断）；下拉的弹层宽度
+   * 按内容算（optionWidth FIT_TRIGGER），名称多长都完整显示，加协议也不用改布局。
+   */
+  @State protocolIdx: number = 0;
+  @State protocolOptions: SelectOption[] = [];
+  @State securityOptions: SelectOption[] = [];
   /** 高级设置默认收起：SNI/WS/gRPC/flow/REALITY 这些只在特定组合下才用得到 */
   @State showAdvanced: boolean = false;
   @State securityIdx: number = 0;
@@ -79,7 +88,8 @@ struct NodeEdit {
     { label: 'vless', value: 'vless' },
     { label: 'vmess', value: 'vmess' },
     { label: 'trojan', value: 'trojan' },
-    { label: 'ss', value: 'shadowsocks' }
+    // 下拉里没有宽度压力，写全称；节点行的小色标仍按短名显示（那里才是真放不下）
+    { label: 'shadowsocks', value: 'shadowsocks' }
   ];
   private transports: TransportOption[] = [
     { label: 'TCP', value: TransportKind.TCP },
@@ -123,6 +133,9 @@ struct NodeEdit {
     this.remark = node.remark;
     this.transportOptions = this.buildTransportOptions();
     this.transportIdx = this.indexOfTransport(node.transport);
+    this.protocolOptions = this.buildProtocolOptions();
+    this.protocolIdx = this.indexOfProtocol(node.protocol);
+    this.securityOptions = this.buildSecurityOptions();
     this.securityIdx = this.indexOfSecurity(node.security);
     this.reloadGroups();
   }
@@ -139,6 +152,31 @@ struct NodeEdit {
       opts.push({ value: this.transports[i].label } as SelectOption);
     }
     return opts;
+  }
+
+  private buildProtocolOptions(): SelectOption[] {
+    const opts: SelectOption[] = [];
+    for (let i = 0; i < this.protos.length; i++) {
+      opts.push({ value: this.protos[i].label } as SelectOption);
+    }
+    return opts;
+  }
+
+  private buildSecurityOptions(): SelectOption[] {
+    const opts: SelectOption[] = [];
+    for (let i = 0; i < this.securities.length; i++) {
+      opts.push({ value: this.securities[i].label } as SelectOption);
+    }
+    return opts;
+  }
+
+  private indexOfProtocol(p: string): number {
+    for (let i = 0; i < this.protos.length; i++) {
+      if (this.protos[i].value === p) {
+        return i;
+      }
+    }
+    return 0;
   }
 
   private reloadGroups(): void {
@@ -320,31 +358,22 @@ struct NodeEdit {
             })
 
           Text('协议').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          Row({ space: 6 }) {
-            ForEach(this.protos, (p: ProtoOption) => {
-              // 字号取 body(14) 而不是 caption(13)：`vless`/`vmess`/`trojan` 全是小写拉丁，
-              // 没有升部字母的 x-height 只有字号的五成，同字号下比中文明显小一档
-              // （用户原话"看起来比其他都小"，第一反应怀疑是大小写——确实是）。
-              // 4 等分再塞 `shadowsocks` 在窄屏会挤：用 minFontSize 兜底自动缩，而不是省略号截断。
-              Button({ type: ButtonType.Capsule }) {
-                Text(p.label)
-                  .fontSize(FontSize.body)
-                  .maxFontSize(FontSize.body)
-                  .minFontSize(11)
-                  .maxLines(1)
-                  .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(p.value === this.protocol ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
-              }
-              .layoutWeight(1)
-              .height(Height.hit)
-              .padding({ left: 0, right: 0 })
-              .backgroundColor(p.value === this.protocol ? $r('app.color.accent') : $r('app.color.bg_chip'))
-              .onClick(() => {
-                this.protocol = p.value;
-              })
-            }, (p: ProtoOption) => p.value)
-          }.width('100%')
+          // 下拉而不是 4 个等宽按钮：给定宽度下 `shadowsocks` 已经放不下，
+          // 而协议还会继续增加；下拉的弹层按 trigger 宽度展开，名称长度不再影响布局。
+          Select(this.protocolOptions)
+            .selected(this.protocolIdx)
+            .value(this.protos[this.protocolIdx].label)
+            .font({ size: FontSize.body })
+            .width('100%')
+            .height(Height.input)
+            .backgroundColor($r('app.color.bg_chip'))
+            .borderRadius(Radius.panel)
+            .border({ width: 1, color: $r('app.color.border_input') })
+            .optionWidth(OptionWidthMode.FIT_TRIGGER)
+            .onSelect((index: number) => {
+              this.protocolIdx = index;
+              this.protocol = this.protos[index].value;
+            })
 
           Text('传输').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           // 传输用下拉而不是按钮组：5 项等宽时 HTTP2/mKCP 已经贴边，
@@ -365,29 +394,21 @@ struct NodeEdit {
             })
 
           Text('安全').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          Row({ space: 6 }) {
-            ForEach(this.securities, (s: SecurityOption, i: number) => {
-              // 与协议组同规格：`REALITY` 全大写但 `tls` 小写，混排时同一档字号会一大一小，
-              // 统一 body(14) + Medium 后两组按钮的视觉重量才对得上。
-              Button({ type: ButtonType.Capsule }) {
-                Text(s.label)
-                  .fontSize(FontSize.body)
-                  .maxFontSize(FontSize.body)
-                  .minFontSize(11)
-                  .maxLines(1)
-                  .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(i === this.securityIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
-              }
-              .layoutWeight(1)
-              .height(Height.hit)
-              .padding({ left: 0, right: 0 })
-              .backgroundColor(i === this.securityIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
-              .onClick(() => {
-                this.securityIdx = i;
-              })
-            }, (s: SecurityOption) => s.label)
-          }.width('100%')
+          // 与协议同形态：同一张表单里两个选项字段不能一个下拉、一个按钮组，
+          // 否则用户会试三次才确认"这个也能点"。
+          Select(this.securityOptions)
+            .selected(this.securityIdx)
+            .value(this.securities[this.securityIdx].label)
+            .font({ size: FontSize.body })
+            .width('100%')
+            .height(Height.input)
+            .backgroundColor($r('app.color.bg_chip'))
+            .borderRadius(Radius.panel)
+            .border({ width: 1, color: $r('app.color.border_input') })
+            .optionWidth(OptionWidthMode.FIT_TRIGGER)
+            .onSelect((index: number) => {
+              this.securityIdx = index;
+            })
 
           // 高级设置：SNI / WS 细节 / gRPC 服务名 / flow / REALITY 参数 / uTLS 指纹。
           // 这些字段只在特定协议组合下才需要，日常导入的节点多数已带好默认值，

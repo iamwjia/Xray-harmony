@@ -224,6 +224,13 @@ export class ConfigBundle {
       result.error = '文件内容无法解析（可能已损坏）';
       return result;
     }
+    // 解出来的是明文 JSON，但**结构不保证**：手改过的文件、别家工具拼出来的文件都可能缺字段。
+    // 不校验就直接 payload.nodes.length 会抛 TypeError，用户看到的是
+    // "恢复失败：Cannot read property 'length' of undefined"——等于没告诉他哪里坏了。
+    if (payload === null || !Array.isArray(payload.nodes) || !Array.isArray(payload.rules)) {
+      result.error = '文件内容结构不完整（缺少节点表或规则表）';
+      return result;
+    }
 
     const cfg: ConfigService = ConfigService.getInstance();
     for (let i = 0; i < payload.nodes.length; i++) {

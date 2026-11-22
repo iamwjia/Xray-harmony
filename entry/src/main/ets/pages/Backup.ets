@@ -583,14 +583,18 @@ struct Backup {
                 this.doImport();
               })
 
-            Button(this.importing ? '恢复中…' : '解密并恢复')
-              .width('100%')
-              .height(Height.hit)
-              .fontSize(FontSize.bodySm)
-              .backgroundColor(this.canImport() ? $r('app.color.accent') : $r('app.color.bg_chip'))
-              .fontColor(this.canImport() ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-              .enabled(this.canImport())
-              .onClick(() => this.confirmImport())
+            // 本页唯一的主操作：开口锁图标（unlock）——与上面口令框的 key（钥匙）区分开，
+            // 一个说"你有钥匙"，一个说"门开了、数据要进来了"。
+            IconButton({
+              kind: 'unlock',
+              label: this.importing ? '恢复中…' : '解密并恢复',
+              variant: 'primary',
+              enabledState: this.canImport(),
+              labelSize: FontSize.bodyLg,
+              labelLine: LineHeight.bodyLg,
+              a11yLabel: this.canImport() ? '解密并恢复' : '解密并恢复（请先选择文件并输入口令）',
+              onTap: () => this.confirmImport()
+            })
 
             if (this.importDetails.length > 0) {
               Button(this.showDetails ? '收起明细' : `查看明细（${this.importDetails.length} 条）`,

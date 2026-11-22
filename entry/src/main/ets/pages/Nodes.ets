@@ -605,6 +605,24 @@ struct Nodes {
     return `${rec.ms} ms`;
   }
 
+  /**
+   * 这一行的结果级别：0 成功 / 2 失败。
+   *
+   * 为什么不能直接用页面上的 probeResultLevel：那是"本页最近一次探针"的级别，
+   * 一旦拿它去给所有行上色，就会出现 **B 行存着「32 ms」却被染成红色**（因为刚测的 A 行失败）。
+   * 颜色必须跟着这一行自己的结果走，否则就是在说假话。
+   */
+  private probeLevelFor(id: string): number {
+    if (id === this.probeResultId && this.probeResultText.length > 0) {
+      return this.probeResultLevel;
+    }
+    const rec: ProbeRecord | null = ProbeStore.get(id);
+    if (rec === null) {
+      return 0;
+    }
+    return rec.ok ? 0 : 2;
+  }
+
   private closeSwipe(): void {
     // 执行完动作就收起露出的操作，否则列表会留着一排开着的行。
     // 这一版 SDK 的 Scroller 没有 closeAllSwipeActions，只能靠重建行来复位滑动状态。
@@ -760,7 +778,7 @@ struct Nodes {
                 onDelete: (id: string) => this.confirmDeleteById(id),
                 onCopyLink: (id: string) => this.copyShareLink(id),
                 probeText: this.probeTextFor(item.id),
-                probeLevel: this.probeResultLevel
+                probeLevel: this.probeLevelFor(item.id)
                 })
               }
               .width('100%')
