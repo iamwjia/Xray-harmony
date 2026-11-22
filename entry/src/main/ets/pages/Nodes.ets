@@ -462,6 +462,8 @@ struct Nodes {
         .textAlign(TextAlign.Center)
       if (this.groupFilter.length > 0) {
         Button('查看全部')
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor($r('app.color.text_primary'))
           .height(Height.hit)
           .padding({ left: Space.lg, right: Space.lg })
           .fontSize(FontSize.bodySm)

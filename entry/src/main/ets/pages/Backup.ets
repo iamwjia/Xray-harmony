@@ -435,6 +435,8 @@ struct Backup {
 
             Row({ space: Space.sm }) {
               Button('随机生成')
+              .backgroundColor($r('app.color.bg_chip'))
+              .fontColor($r('app.color.text_primary'))
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
@@ -442,6 +444,8 @@ struct Backup {
                 .fontColor($r('app.color.text_primary'))
                 .onClick(() => this.generatePassphrase())
               Button('复制口令')
+              .backgroundColor($r('app.color.bg_chip'))
+              .fontColor($r('app.color.text_primary'))
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)

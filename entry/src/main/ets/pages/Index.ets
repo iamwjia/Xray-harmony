@@ -369,6 +369,33 @@ struct Index {
   }
 
   /** 按钮文案：ERROR 态明确给出「重试」，而不是让用户猜「连接」还能不能再点 */
+  /** 大色块底色：低饱和浅底 + 左侧实色状态条，避免整块高饱和色抢走所有注意力 */
+  private toneBg(): Resource {
+    const t: StatusTone = this.view.tone;
+    if (t === StatusTone.OK) {
+      return $r('app.color.success_subtle');
+    }
+    if (t === StatusTone.PENDING) {
+      return $r('app.color.warning_subtle');
+    }
+    if (t === StatusTone.ERROR) {
+      return $r('app.color.danger_subtle');
+    }
+    return $r('app.color.bg_surface');
+  }
+
+  /** 块内那句"点了会发生什么"：状态大字已经有了，这里只写动作，不重复状态 */
+  private blockActionText(): string {
+    const st: ConnState = this.vm.getState();
+    if (st === ConnState.ERROR) {
+      return '点此重试';
+    }
+    if (st === ConnState.DISCONNECTED) {
+      return '点此连接';
+    }
+    return this.view.busy ? '点此取消' : '点此断开';
+  }
+
   private buttonLabel(): string {
     const st: ConnState = this.vm.getState();
     if (st === ConnState.ERROR) {
@@ -436,63 +463,84 @@ struct Index {
           .borderRadius(Radius.panel)
       }
 
-      Column({ space: Space.sm }) {
-        Row({ space: Space.xs }) {
-          // 语义枚举 → 资源色：ViewModel 里不再有 hex，深色模式才有解
+      // 状态与操作合成一块：色块本身就是状态指示器，整块可点即"连接/断开"。
+      // 原来"大字说未连接 + 下面再来一个连接按钮"，同一件事说了两遍，还多一次寻址。
+      Row() {
+        // 左侧状态条：靠位置+形状也能读到状态，颜色不是唯一载体
+        Column()
+          .width(8)
+          .height(148)
+          .backgroundColor(this.toneColor())
+
+        Column({ space: Space.xs }) {
           Text(this.view.label)
             .fontSize(FontSize.display)
             .lineHeight(LineHeight.display)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.toneColor())
-        }
-        Text(this.view.hint)
-          .fontSize(FontSize.bodySm)
-          .lineHeight(LineHeight.bodySm)
-          .fontColor($r('app.color.text_secondary'))
-          .textAlign(TextAlign.Center)
-        if (this.busyHint.length > 0) {
-          Text(this.busyHint)
-            .fontSize(FontSize.caption)
-            .lineHeight(LineHeight.caption)
-            .fontColor($r('app.color.accent'))
-        }
-        if (this.socksInfo.length > 0) {
-          // 诊断类信息：层级明确低于节点名/状态，但端口必须可读、可复制
-          Text(this.socksInfo)
+          if (this.uptimeText.length > 0) {
+            Text(`已连接 ${this.uptimeText}`)
+              .fontSize(FontSize.bodySm)
+              .lineHeight(LineHeight.bodySm)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          Text(this.view.hint)
+            .fontSize(FontSize.bodySm)
+            .lineHeight(LineHeight.bodySm)
+            .fontColor($r('app.color.text_secondary'))
+            .textAlign(TextAlign.Center)
+          if (this.busyHint.length > 0) {
+            Text(this.busyHint)
+              .fontSize(FontSize.caption)
+              .lineHeight(LineHeight.caption)
+              .fontColor($r('app.color.accent'))
+          }
+          Text(this.blockActionText())
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
-            .accessibilityText(`${this.socksInfo}，长按可复制`)
-            .gesture(
-              LongPressGesture({ repeat: false, duration: 500 })
-                .onAction(() => {
-                  this.copyProxyAddress();
-                })
-            )
         }
-        if (this.vpnLine.length > 0) {
-          Text(this.vpnLine)
-            .fontSize(FontSize.caption)
-            .lineHeight(LineHeight.caption)
-            .fontColor(this.vpnLineLevel === 2
-              ? $r('app.color.danger')
-              : (this.vpnLineLevel === 1 ? $r('app.color.warning') : $r('app.color.text_secondary')))
-            .textAlign(TextAlign.Center)
-            .width('100%')
-        }
-        Button(this.buttonLabel())
-          .enabled(this.view.canToggle)
-          .width('70%')
-          .height(Height.hit)
-          .fontSize(FontSize.bodyLg)
-          .backgroundColor($r('app.color.accent'))
-          .fontColor($r('app.color.text_on_accent'))
-          .onClick(() => this.onToggle())
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Center)
+        .justifyContent(FlexAlign.Center)
+        .padding({ top: Space.lg, bottom: Space.lg, left: Space.md, right: Space.md })
       }
       .width('100%')
-      .padding(Space.lg)
-      .backgroundColor($r('app.color.bg_surface_alt'))
+      .height(148)
+      .backgroundColor(this.toneBg())
       .borderRadius(Radius.card)
+      .border({ width: 1, color: $r('app.color.border_subtle') })
+      .onClick(() => {
+        this.onToggle();
+      })
+      .accessibilityText(`${this.view.label}，${this.blockActionText()}`)
+
+      // 诊断信息放在色块之外：压在色块里会被状态色抢掉，且长按复制的命中区会与整块点击打架
+      if (this.socksInfo.length > 0) {
+        Text(this.socksInfo)
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .accessibilityText(`${this.socksInfo}，长按可复制`)
+          .gesture(
+            LongPressGesture({ repeat: false, duration: 500 })
+              .onAction(() => {
+                this.copyProxyAddress();
+              })
+          )
+      }
+      if (this.vpnLine.length > 0) {
+        Text(this.vpnLine)
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor(this.vpnLineLevel === 2
+            ? $r('app.color.danger')
+            : (this.vpnLineLevel === 1 ? $r('app.color.warning') : $r('app.color.text_secondary')))
+          .textAlign(TextAlign.Center)
+          .width('100%')
+      }
 
       Row({ space: Space.sm }) {
         Text('当前节点')
@@ -506,6 +554,8 @@ struct Index {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
         Button('更换')
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor($r('app.color.text_primary'))
           .fontSize(FontSize.bodySm)
           .height(Height.hit)
           .backgroundColor($r('app.color.bg_chip'))
@@ -526,20 +576,6 @@ struct Index {
       // "连了多久""走了多少流量""上次为什么没连上"。
       Column({ space: Space.sm }) {
         Row({ space: Space.md }) {
-          Column({ space: 2 }) {
-            Text('已连接')
-              .fontSize(FontSize.caption)
-              .lineHeight(LineHeight.caption)
-              .fontColor($r('app.color.text_tertiary'))
-            Text(this.uptimeText.length > 0 ? this.uptimeText : '—')
-              .fontSize(FontSize.titleMd)
-              .lineHeight(LineHeight.titleMd)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary'))
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-
           Column({ space: 2 }) {
             Row({ space: Space.xs }) {
               Text('上下行')
