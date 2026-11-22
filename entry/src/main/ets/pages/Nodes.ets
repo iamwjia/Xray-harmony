@@ -481,16 +481,13 @@ struct Nodes {
         .fontColor($r('app.color.text_secondary'))
       Text(this.groupFilter.length > 0
         ? `「${this.groupFilter}」里的节点都被移走了`
-        : '点下方「＋ 导入」，粘贴分享链接或订阅地址')
+        : '点下方「导入」，粘贴分享链接或订阅地址')
         .fontSize(FontSize.bodySm)
         .lineHeight(LineHeight.bodySm)
         .fontColor($r('app.color.text_tertiary'))
         .textAlign(TextAlign.Center)
       if (this.groupFilter.length > 0) {
         Button('查看全部')
-          .backgroundColor($r('app.color.bg_surface'))
-          .fontColor($r('app.color.accent'))
-          .border({ width: 1, color: $r('app.color.accent') })
           .height(Height.hit)
           .padding({ left: Space.lg, right: Space.lg })
           .fontSize(FontSize.bodySm)

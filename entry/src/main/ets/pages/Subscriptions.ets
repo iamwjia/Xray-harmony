@@ -425,7 +425,7 @@ struct Subscriptions {
         .fontSize(FontSize.titleMd)
         .lineHeight(LineHeight.titleMd)
         .fontColor($r('app.color.text_secondary'))
-      Text('点击下方「＋ 添加订阅地址」粘贴 http(s) 订阅地址即可')
+      Text('点下方「添加」，粘贴 http(s) 订阅地址即可')
         .fontSize(FontSize.bodySm)
         .lineHeight(LineHeight.bodySm)
         .fontColor($r('app.color.text_tertiary'))

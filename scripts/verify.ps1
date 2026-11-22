@@ -42,6 +42,9 @@ try {
     # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
     & $node 'scripts\check-text-style.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }
+    # 文案闸门：空态里「点下方『X』」的 X 必须等于同页真实按钮文字（按钮改名后引用极易脱钩）
+    & $node 'scripts\check-copy.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'check-copy' }
     # 安全扫描：硬编码凭据 / 明文端点 / 绕过脱敏的日志 / unsafe C 函数
     & $node 'scripts\security-scan.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'security-scan' }

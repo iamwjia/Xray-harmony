@@ -408,7 +408,7 @@ struct Settings {
             Row({ space: Space.sm }) {
               // 联网更新与从本地导入是**等价的两个来源**，不是主次关系：
               // 一蓝一灰会让人以为"本地导入只是兜底方案"，实际取决于用户能不能连外网。
-              // 与「从本地导入」同款描边：两者是等价来源，必须同形同级
+              // 与「本地导入」同款描边：两者是等价来源，必须同形同级
               Button(this.geoBusy ? '更新中…' : '联网更新')
                 .layoutWeight(1)
                 .height(Height.hit)
@@ -418,7 +418,7 @@ struct Settings {
                 .border({ width: 1, color: !this.geoBusy ? $r('app.color.accent') : $r('app.color.border_subtle') })
                 .enabled(!this.geoBusy)
                 .onClick(() => this.confirmGeoUpdate())
-              Button('从本地导入')
+              Button('本地导入')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
@@ -438,7 +438,7 @@ struct Settings {
                 .width('100%')
             }
             Text('内置资源为 v2fly 官方构建。只有点「联网更新」才会联网（约 25 MB）；' +
-              '访问不了 GitHub 时，可自行下载 geoip.dat + geosite.dat 后用「从本地导入」。')
+              '访问不了 GitHub 时，可自行下载 geoip.dat + geosite.dat 后用「本地导入」。')
               .fontSize(FontSize.caption)
               .lineHeight(LineHeight.caption)
               .fontColor($r('app.color.text_tertiary'))

@@ -321,14 +321,27 @@ struct NodeEdit {
           Text('协议').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           Row({ space: 6 }) {
             ForEach(this.protos, (p: ProtoOption) => {
-              Button(p.label).fontSize(FontSize.caption)
-                .layoutWeight(1)
-                .padding({ left: 0, right: 0 })
-                .backgroundColor(p.value === this.protocol ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(p.value === this.protocol ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
-                .onClick(() => {
-                  this.protocol = p.value;
-                })
+              // 字号取 body(14) 而不是 caption(13)：`vless`/`vmess`/`trojan` 全是小写拉丁，
+              // 没有升部字母的 x-height 只有字号的五成，同字号下比中文明显小一档
+              // （用户原话"看起来比其他都小"，第一反应怀疑是大小写——确实是）。
+              // 4 等分再塞 `shadowsocks` 在窄屏会挤：用 minFontSize 兜底自动缩，而不是省略号截断。
+              Button({ type: ButtonType.Capsule }) {
+                Text(p.label)
+                  .fontSize(FontSize.body)
+                  .maxFontSize(FontSize.body)
+                  .minFontSize(11)
+                  .maxLines(1)
+                  .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(p.value === this.protocol ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
+              }
+              .layoutWeight(1)
+              .height(Height.hit)
+              .padding({ left: 0, right: 0 })
+              .backgroundColor(p.value === this.protocol ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .onClick(() => {
+                this.protocol = p.value;
+              })
             }, (p: ProtoOption) => p.value)
           }.width('100%')
 
@@ -353,14 +366,25 @@ struct NodeEdit {
           Text('安全').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           Row({ space: 6 }) {
             ForEach(this.securities, (s: SecurityOption, i: number) => {
-              Button(s.label).fontSize(FontSize.caption)
-                .layoutWeight(1)
-                .padding({ left: 0, right: 0 })
-                .backgroundColor(i === this.securityIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(i === this.securityIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
-                .onClick(() => {
-                  this.securityIdx = i;
-                })
+              // 与协议组同规格：`REALITY` 全大写但 `tls` 小写，混排时同一档字号会一大一小，
+              // 统一 body(14) + Medium 后两组按钮的视觉重量才对得上。
+              Button({ type: ButtonType.Capsule }) {
+                Text(s.label)
+                  .fontSize(FontSize.body)
+                  .maxFontSize(FontSize.body)
+                  .minFontSize(11)
+                  .maxLines(1)
+                  .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(i === this.securityIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
+              }
+              .layoutWeight(1)
+              .height(Height.hit)
+              .padding({ left: 0, right: 0 })
+              .backgroundColor(i === this.securityIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .onClick(() => {
+                this.securityIdx = i;
+              })
             }, (s: SecurityOption) => s.label)
           }.width('100%')
 

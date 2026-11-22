@@ -543,7 +543,7 @@ struct Backup {
             this.section('从备份恢复', '恢复只增不删，也不改本机的分流模式与日志级别')
             IconButton({
               kind: 'import-file',
-              label: this.importName.length > 0 ? '重新选择文件' : '选择备份文件',
+              label: this.importName.length > 0 ? '重新选择' : '选择文件',
               variant: 'outline',
               enabledState: true,
               onTap: () => this.pickImportFile()
