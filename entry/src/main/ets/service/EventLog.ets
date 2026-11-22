@@ -11,6 +11,8 @@ export class AppEvent {
   ts: number = 0;
   /** 0 信息 / 1 警告 / 2 错误 */
   level: number = 0;
+  /** 相同事件在短时间内重复时的计数（≥1）；首页显示成 `文案 ×N` */
+  count: number = 1;
   text: string = '';
 }
 
@@ -51,6 +53,7 @@ export class EventLog {
         e.ts = src[i].ts;
         e.level = src[i].level;
         e.text = src[i].text;
+        e.count = src[i].count === undefined || src[i].count < 1 ? 1 : src[i].count;
         list.push(e);
       }
       EventLog.cache = list;
@@ -68,8 +71,19 @@ export class EventLog {
       return;
     }
     const list: AppEvent[] = EventLog.load().slice();
+    // 同一句话在一分钟内反复出现（例如连点几次连接）合并成一条 ×N：
+    // 事件区只有三行，被同一句失败占满等于什么都没说。
+    const now: number = Date.now();
+    if (list.length > 0 && list[0].text === text && now - list[0].ts <= 60000) {
+      list[0].ts = now;
+      list[0].count = list[0].count + 1;
+      EventLog.cache = list;
+      const merged: EventFile = { schema: SCHEMA, events: list };
+      KvStore.write(KEY, JSON.stringify(merged));
+      return;
+    }
     const e: AppEvent = new AppEvent();
-    e.ts = Date.now();
+    e.ts = now;
     e.level = level;
     e.text = text;
     list.unshift(e);

@@ -31,6 +31,8 @@ struct Subscriptions {
   @State msgLevel: number = 0;
   /** 过期订阅数；>0 时在顶部给一个「全部更新」入口 */
   @State staleCount: number = 0;
+  /** 自动更新间隔（小时）：过期文案要用真实阈值，不能写死"7 天" */
+  @State autoUpdateHours: number = 24;
   @State refreshingAll: boolean = false;
   /** 按下中的行 id（为空 = 没有按下）：手机上需要可见反馈 */
   @State pressedId: string = '';
@@ -144,6 +146,7 @@ struct Subscriptions {
 
   private reload(): void {
     this.subs = SubscriptionService.listSubscriptions().slice();
+    this.autoUpdateHours = ConfigService.getInstance().getConfig().settings.autoUpdateHours;
   }
 
   private setNotice(text: string, level: number): void {
@@ -311,7 +314,7 @@ struct Subscriptions {
           .accessibilityLevel('no')
 
         Row({ space: Space.xs }) {
-          Text(this.busyId === rec.id ? '更新中…' : `${rec.nodeCount} 个节点`)
+          Text(this.busyId === rec.id ? '更新中…' : `上次导入 ${rec.nodeCount} 个`)
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
@@ -321,7 +324,9 @@ struct Subscriptions {
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
             .accessibilityLevel('no')
-          Text(this.isStale(rec) ? '超过 7 天未更新' : this.updatedText(rec))
+          Text(this.isStale(rec)
+            ? `超过${Subscriptions.intervalText(this.autoUpdateHours)}未更新`
+            : this.updatedText(rec))
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor(this.isStale(rec) ? $r('app.color.warning') : $r('app.color.text_tertiary'))

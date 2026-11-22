@@ -598,8 +598,10 @@ struct Index {
           .fontSize(FontSize.bodySm)
           .height(Height.hit)
           .enabled(!this.view.busy)
-          .backgroundColor(this.view.busy ? $r('app.color.bg_chip') : $r('app.color.accent_subtle'))
-          .fontColor(this.view.busy ? $r('app.color.text_tertiary') : $r('app.color.accent'))
+          // 次级按钮只有一种长相：浅底 + 主文字色；不可操作时字降为三级灰。
+          // 上一版这里是"浅蓝底 + 主色字"，等于给一个按钮单独开了套皮肤。
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor(this.view.busy ? $r('app.color.text_tertiary') : $r('app.color.text_primary'))
           .onClick(() => {
             router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
               Logger.error(`nav Nodes failed: ${e.message}`);
@@ -653,7 +655,7 @@ struct Index {
                 .fontSize(FontSize.caption)
                 .lineHeight(LineHeight.caption)
                 .fontColor($r('app.color.text_tertiary'))
-              Text(e.text)
+              Text(e.count > 1 ? `${e.text} ×${e.count}` : e.text)
                 .fontSize(FontSize.caption)
                 .lineHeight(LineHeight.caption)
                 .fontColor(e.level === 2

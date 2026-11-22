@@ -29,6 +29,8 @@ interface LevelChip {
 @Component
 struct Logs {
   @State entries: LogEntry[] = [];
+  /** 缓冲里的总数（未筛选）；筛选时与 entries.length 一起显示 */
+  @State allCount: number = 0;
   /** 空串 = 全部级别 */
   @State filter: string = '';
   @State msg: string = '';
@@ -59,6 +61,7 @@ struct Logs {
 
   private reload(): void {
     const all: LogEntry[] = Logger.getEntries();
+    this.allCount = all.length;
     if (this.filter.length === 0) {
       this.entries = all;
       return;
@@ -178,7 +181,10 @@ struct Logs {
       Column() {
         PageHeader({
           title: '运行日志',
-          countText: `${this.entries.length} 条`,
+          // 筛选时写"筛选后/总数"：只写一个数字会让人以为日志被清掉了
+          countText: this.filter.length > 0
+            ? `${this.entries.length} / ${this.allCount} 条`
+            : `${this.entries.length} 条`,
           onBack: () => {
             router.back();
           }

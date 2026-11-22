@@ -342,7 +342,10 @@ struct Nodes {
   header() {
     PageHeader({
       title: '节点列表',
-      countText: `${this.visibleNodes().length} 个`,
+      // 筛选时写"筛选后 / 总数"：只写筛选后的数，用户会以为节点丢了
+      countText: this.groupFilter.length > 0
+        ? `${this.visibleNodes().length} / ${this.nodes.length} 个`
+        : `${this.nodes.length} 个`,
       actionGlyph: this.showImport ? '\u00d7' : '+',
       actionA11y: this.showImport ? '收起导入面板' : '导入节点或订阅',
       onBack: () => {
