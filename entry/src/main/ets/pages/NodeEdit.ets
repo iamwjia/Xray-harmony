@@ -35,6 +35,9 @@ interface SecurityOption {
   value: SecurityKind;
 }
 
+/** 分组下拉里的"新建"项：选中它就展开输入框 */
+const NEW_GROUP_LABEL: string = '＋ 新建分组…';
+
 @Entry
 @Component
 struct NodeEdit {
@@ -53,6 +56,8 @@ struct NodeEdit {
   @State group: string = '';
   @State groupOptions: SelectOption[] = [];
   @State groupSelectIdx: number = 0;
+  /** 是否正在新建分组：只有选了「新建分组…」才显示输入框 */
+  @State editingNewGroup: boolean = false;
   @State remark: string = '';
   /** 留空 = 不修改凭据 */
   @State credentialInput: string = '';
@@ -141,12 +146,20 @@ struct NodeEdit {
     for (let i = 0; i < list.length; i++) {
       opts.push({ value: list[i] } as SelectOption);
     }
+    // 末项固定是"新建"：把"输入新组名"变成一个选项，而不是永远摊着一个输入框
+    opts.push({ value: NEW_GROUP_LABEL } as SelectOption);
     this.groupOptions = opts;
     this.groupSelectIdx = 0;
+    this.editingNewGroup = false;
     for (let i = 0; i < list.length; i++) {
       if (list[i] === this.group) {
         this.groupSelectIdx = i + 1;
       }
+    }
+    // 当前组名不在已有列表里（例如从分享链接带来的自定义组）：直接进"新建"态并回填
+    if (this.group.length > 0 && this.groupSelectIdx === 0) {
+      this.groupSelectIdx = opts.length - 1;
+      this.editingNewGroup = true;
     }
   }
 
@@ -430,24 +443,38 @@ struct NodeEdit {
               })
           }
 
-          Text('分组（选已有，或直接输入新组名）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          if (this.groupOptions.length > 1) {
-            Select(this.groupOptions)
-              .selected(this.groupSelectIdx)
-              .value(this.groupSelectIdx === 0 ? '（不分组）' : this.group)
-              .font({ size: 12 })
-              .width('100%')
-              .optionWidth(OptionWidthMode.FIT_TRIGGER)
-              .onSelect((index: number, value: string) => {
-                this.groupSelectIdx = index;
-                this.group = index === 0 ? '' : value;
-              })
-          }
-          TextInput({ text: $$this.group, placeholder: '输入新组名会覆盖上面的选择' }).fontSize(FontSize.bodySm)
+          Text('分组').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+          Select(this.groupOptions)
+            .selected(this.groupSelectIdx)
+            .value(this.editingNewGroup
+              ? NEW_GROUP_LABEL
+              : (this.groupSelectIdx === 0 ? '（不分组）' : this.group))
+            .font({ size: FontSize.bodySm })
+            .width('100%')
+            .height(Height.input)
+            .backgroundColor($r('app.color.bg_chip'))
+            .borderRadius(Radius.panel)
             .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.group = v;
+            .optionWidth(OptionWidthMode.FIT_TRIGGER)
+            .onSelect((index: number, value: string) => {
+              if (index === this.groupOptions.length - 1) {
+                // 选了"新建"：展开输入框，等用户起名
+                this.editingNewGroup = true;
+                this.group = '';
+                return;
+              }
+              this.editingNewGroup = false;
+              this.groupSelectIdx = index;
+              this.group = index === 0 ? '' : value;
             })
+          if (this.editingNewGroup) {
+            TextInput({ placeholder: '输入新分组名称', text: $$this.group })
+              .fontSize(FontSize.bodySm)
+              .height(Height.input)
+              .backgroundColor($r('app.color.bg_chip'))
+              .borderRadius(Radius.panel)
+              .border({ width: 1, color: $r('app.color.border_input') })
+          }
 
           Text('备注').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.remark }).fontSize(FontSize.bodySm)

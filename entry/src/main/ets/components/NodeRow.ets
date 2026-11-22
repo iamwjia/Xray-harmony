@@ -134,6 +134,24 @@ export struct NodeRow {
     return i === 2 ? $r('app.color.group_c_bg') : $r('app.color.group_a_bg');
   }
 
+  /**
+   * 长按用的菜单体：**不带背景/圆角/描边**。
+   * bindContextMenu 的系统容器自己画了这些，再叠一层就会出现"两层描边"（用户实测反馈）。
+   * 抓手那个菜单走 bindMenu（自绘弹层），仍需自带背景，两者不能共用一个 builder。
+   */
+  @Builder
+  contextMenuBody() {
+    Column() {
+      this.handleItem('编辑', false, () => this.onEdit(this.nodeId))
+      this.handleItem('复制分享链接', false, () => this.onCopyLink(this.nodeId))
+      this.handleItem('测连通性', false, () => this.onProbe(this.nodeId))
+      Divider().color($r('app.color.border_subtle'))
+      this.handleItem('删除', true, () => this.onDelete(this.nodeId))
+    }
+    .width(this.rowW > 0 ? this.rowW : 300)
+    .padding({ top: Space.xs, bottom: Space.xs })
+  }
+
   @Builder
   handleMenu() {
     Column() {
@@ -258,7 +276,7 @@ export struct NodeRow {
       .layoutWeight(1)
       // 长按内容区 = 打操作菜单。挂在内容区而不是整行：抓手上的拖动是另一套手势，
       // 若长按挂在整行，按住抓手拖动会先触发长按（此前实测过）。
-      .bindContextMenu(this.handleMenu, ResponseType.LongPress)
+      .bindContextMenu(this.contextMenuBody, ResponseType.LongPress)
 
       // 测连通结果（只在本行测过之后出现）：直接贴在行上，不依赖顶部提示
       if (this.probeText.length > 0) {

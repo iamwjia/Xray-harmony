@@ -256,6 +256,22 @@ struct Subscriptions {
     });
   }
 
+  /**
+   * 长按用的菜单体：不带背景/圆角/描边。
+   * bindContextMenu 的系统容器自带这些，再叠一层会出现两层描边。
+   * 抓手那个菜单走 bindMenu（自绘），仍需要自带背景，两者不能共用。
+   */
+  @Builder
+  contextMenuBody(rec: SubRecord) {
+    Column() {
+      this.menuItem('立即更新', false, this.busyId !== rec.id, () => this.doRefresh(rec))
+      Divider().color($r('app.color.border_subtle'))
+      this.menuItem('删除', true, true, () => this.confirmRemove(rec))
+    }
+    .width(this.rowW > 0 ? this.rowW : 300)
+    .padding({ top: Space.xs, bottom: Space.xs })
+  }
+
   @Builder
   overflowMenu(rec: SubRecord) {
     Column() {
@@ -343,7 +359,7 @@ struct Subscriptions {
       .layoutWeight(1)
       // 长按内容区 = 打操作菜单（与节点行同一套）；挂在内容区是因为抓手上有拖动手势
       .bindContextMenu(() => {
-        this.overflowMenu(rec);
+        this.contextMenuBody(rec);
       }, ResponseType.LongPress)
 
       // 与节点行一致：点抓手 = 操作选项，按住拖动 = 排序
