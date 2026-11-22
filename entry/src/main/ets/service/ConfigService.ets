@@ -4,6 +4,7 @@ import { SecretStore } from '../platform/SecretStore';
 import { NodeStore, NodeLoadResult } from './NodeStore';
 import { SettingsStore, SettingsSnapshot } from './SettingsStore';
 import { RulesStore } from './RulesStore';
+import { SubRecord, SubscriptionStore } from './SubscriptionStore';
 
 /**
  * service/ConfigService.ets — 配置读写服务（应用服务层）
@@ -177,6 +178,71 @@ export class ConfigService {
     }
     Logger.info('onboarding notice acknowledged by user');
     return true;
+  }
+
+  /**
+   * 清空全部本机数据。
+   *
+   * 这是不可恢复操作，所以这里只做一件事——干净地删，并把删了什么**数出来**：
+   *   1. 节点表、自定义规则、订阅表；
+   *   2. 每个节点凭据与每个订阅 URL 的 Asset Store 条目（**先计数再删**，
+   *      否则删完就不知道原来有几条，只能报一句“已清空”）；
+   *   3. 设置回到默认（含「首次连接明示」标志——数据都没了，明示就该重新出现）。
+   *
+   * 意外情况下（单条凭据删不掉）：不中断整体清理，但把失败条数回报给 UI，
+   * 不装作全部成功。
+   */
+  async clearAllData(): Promise<ClearResult> {
+    const res = new ClearResult();
+    const nodes: XrayNode[] = this.config.nodes;
+    const subs: SubRecord[] = SubscriptionStore.load() === null ? [] : SubscriptionStore.load() as SubRecord[];
+
+    // 1) 先清凭据：节点差异化后就找不到对应别名了
+    for (let i = 0; i < nodes.length; i++) {
+      const alias: string = nodes[i].credentialRef;
+      if (alias.length === 0) {
+        continue;
+      }
+      res.nodeSecrets++;
+      const ok: boolean = await SecretStore.remove(alias);
+      if (!ok) {
+        res.secretFailures++;
+      }
+    }
+    for (let i = 0; i < subs.length; i++) {
+      if (subs[i].urlRef.length === 0) {
+        continue;
+      }
+      res.subUrls++;
+      const ok: boolean = await SecretStore.remove(subs[i].urlRef);
+      if (!ok) {
+        res.secretFailures++;
+      }
+    }
+
+    res.nodes = nodes.length;
+    res.subscriptions = subs.length;
+    res.rules = this.config.rules.length;
+
+    // 2) 存储层清空（逐个写空比“删键”安全：不依赖存储实现是否有删键能力）
+    NodeStore.save([]);
+    RulesStore.save([]);
+    SubscriptionStore.save([]);
+    SettingsStore.save(RoutingMode.RULE as string, 'INFO', false);
+
+    // 3) 内存回到默认，并通知 UI 重取
+    this.config = createDefaultConfig();
+    this.loadFailed = false;
+    this.rawTextOnLoadFailure = '';
+    this.overwriteConfirmed = false;
+    this.persistError = '';
+    this.pendingCredentialMigration = false;
+    this.migrationError = '';
+    Logger.setMinLevel(this.config.settings.logLevel);
+    this.bumpRev();
+    Logger.info(`clearAllData: nodes=${res.nodes} rules=${res.rules} subs=${res.subscriptions} ` +
+      `secrets(node=${res.nodeSecrets} sub=${res.subUrls}) failures=${res.secretFailures}`);
+    return res;
   }
 
   static getInstance(): ConfigService {
@@ -668,4 +734,15 @@ export class ConfigService {
     Logger.info('save: persistence not implemented yet (skeleton)');
     return false;
   }
+}
+
+/** 清空结果：UI 靠这些数字告诉用户“真正删了什么” */
+export class ClearResult {
+  nodes: number = 0;
+  rules: number = 0;
+  subscriptions: number = 0;
+  nodeSecrets: number = 0;
+  subUrls: number = 0;
+  /** 安全存储里没删干净的条数；>0 时 UI 必须提醒 */
+  secretFailures: number = 0;
 }

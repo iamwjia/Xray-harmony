@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { ConfigService } from '../service/ConfigService';
+import { ClearResult, ConfigService } from '../service/ConfigService';
 import { RoutingMode } from '../model/AppConfig';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelService } from '../service/KernelService';
@@ -19,6 +19,10 @@ struct Settings {
   @State routingMode: RoutingMode = RoutingMode.RULE;
   /** 设置写盘失败提示（不允许"看着改了其实没存"） */
   @State persistError: string = '';
+  /** 清空数据：进行中标记与结果提示（0 信息 / 2 错误） */
+  @State clearing: boolean = false;
+  @State clearMsg: string = '';
+  @State clearMsgLevel: number = 0;
   /** geo 资源版本（未就绪时明确显示"不可用"，不要显示空串让人以为正常） */
   @State geoLabel: string = '';
   /** geo 手动更新状态 */
@@ -137,6 +141,62 @@ struct Settings {
     }).catch((e: Object) => {
       const msg: string = e instanceof Error ? e.message : String(e);
       this.geoMsg = `导入失败：${msg}（已保留原有规则）`;
+    });
+  }
+
+  /**
+   * 清空前的确认。
+   * 弹窗里直接把“会删什么”列出来，不写“确认清空吗？”这种只会被习惯性点掉的句子。
+   */
+  private confirmClearAll(): void {
+    AlertDialog.show({
+      title: '清空所有数据',
+      message: '将删除：\n' +
+        '• 全部节点及其保存的凭据（UUID / 密码 / 密钥）\n' +
+        '• 自定义分流规则\n' +
+        '• 订阅记录与保存的订阅地址\n' +
+        '• 设置（分流模式、日志级别、首次连接明示标志）\n\n' +
+        '不会删：已导出的备份文件、geo 数据。\n' +
+        '此操作不可恢复。',
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '确认清空',
+        fontColor: $r('app.color.danger'),
+        action: () => {
+          this.doClearAll();
+        }
+      }
+    });
+  }
+
+  private doClearAll(): void {
+    this.clearing = true;
+    this.clearMsgLevel = 0;
+    this.clearMsg = '正在清理…';
+    this.cfg.clearAllData().then((r: ClearResult) => {
+      this.clearing = false;
+      let text: string = `已清空：节点 ${r.nodes} 个、规则 ${r.rules} 条、订阅 ${r.subscriptions} 个`;
+      if (r.nodeSecrets + r.subUrls > 0) {
+        text += `，并清理了 ${r.nodeSecrets + r.subUrls} 条凭据`;
+      }
+      if (r.secretFailures > 0) {
+        text += `。注意：${r.secretFailures} 条凭据没能从安全存储中删除，详见日志`;
+        this.clearMsgLevel = 2;
+      }
+      this.clearMsg = text;
+      this.refreshRuleCount();
+      this.routingMode = this.cfg.getConfig().settings.routingMode;
+      this.logLevel = this.cfg.getLogLevel();
+    }).catch((e: Object) => {
+      this.clearing = false;
+      this.clearMsgLevel = 2;
+      const m: string = e instanceof Error ? e.message : String(e);
+      this.clearMsg = `清空失败：${m}`;
     });
   }
 
@@ -341,6 +401,40 @@ struct Settings {
       .alignItems(HorizontalAlign.Start)
       .padding(Space.md)
       .backgroundColor($r('app.color.bg_surface_alt'))
+      .borderRadius(Radius.panel)
+
+      // 危险区域：放在最底部，且必须写清"删掉什么、留什么"
+      Column({ space: 4 }) {
+        Text('危险操作')
+          .fontSize(FontSize.body)
+          .fontWeight(FontWeight.Medium).maxLines(1)
+          .fontColor($r('app.color.danger'))
+        Text('清空会删除：全部节点、节点凭据、自定义规则、订阅记录、设置。' +
+          '内核文件与 geo 数据不受影响；操作不可恢复，建议先做一次备份。')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_secondary'))
+        Button(this.clearing ? '清理中…' : '清空所有数据')
+          .fontSize(FontSize.bodySm)
+          .width('100%')
+          .height(Height.hit)
+          .backgroundColor($r('app.color.danger_subtle'))
+          .fontColor($r('app.color.danger'))
+          .enabled(!this.clearing)
+          .onClick(() => this.confirmClearAll())
+        if (this.clearMsg.length > 0) {
+          Text(this.clearMsg)
+            .fontSize(FontSize.bodySm)
+            .lineHeight(LineHeight.bodySm)
+            .fontColor(this.clearMsgLevel === 2 ? $r('app.color.danger') : $r('app.color.accent'))
+            .width('100%')
+            .accessibilityText(`清空结果：${this.clearMsg}`)
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .padding(Space.md)
+      .backgroundColor($r('app.color.danger_subtle'))
       .borderRadius(Radius.panel)
       }
       .width('100%')
