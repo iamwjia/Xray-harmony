@@ -198,15 +198,19 @@ struct Logs {
 
   @Builder
   textAction(label: string, action: () => void) {
-    Text(label)
+    // 用 Button 而不是 Text：Text 只有 onClick，按下没有任何反馈，
+    // 在触摸屏上就是"点了没反应"。这里用透明底胶囊，保留"文字动作"的轻量感，
+    // 但拿回系统按钮的按下态与 44 命中高。
+    Button(label, { type: ButtonType.Capsule })
+      .height(Height.hit)
+      .padding({ left: Space.md, right: Space.md })
       .fontSize(FontSize.bodySm)
-      .lineHeight(LineHeight.bodySm)
       .fontColor($r('app.color.accent'))
-      .padding({ left: Space.sm, right: Space.sm, top: Space.xs, bottom: Space.xs })
+      .backgroundColor(Color.Transparent)
+      .accessibilityText(label)
       .onClick(() => {
         action();
       })
-      .accessibilityText(label)
   }
 
   @Builder
@@ -339,7 +343,15 @@ struct Logs {
         // 混在同一排胶囊里会出现 6 个宽窄不一的块，用户会问"为什么大小不一样"
         // 保留一个显式的「刷新」入口：下拉刷新在模拟器上注入手势不生效（hilog 无记录），
         // 真机能否触发需人眼确认；在确认之前，不能只留一个"可能不工作"的手势。
-        this.textAction('刷新', () => this.reload())
+        this.textAction('刷新', () => {
+          // 点按钮与下拉走同一个状态：Refresh 的指示器会转起来，
+          // 否则"点刷新"在数据没变化时看起来像什么都没发生。
+          this.refreshing = true;
+          this.reload();
+          setTimeout(() => {
+            this.refreshing = false;
+          }, 400);
+        })
         this.textAction('清空', () => {
           this.confirmClear();
         })
