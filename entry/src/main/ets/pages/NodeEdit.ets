@@ -59,6 +59,8 @@ struct NodeEdit {
   @State transportIdx: number = 0;
   /** 传输类型下拉选项：5 项在 360vp 下已经贴边，再加就放不下了 */
   @State transportOptions: SelectOption[] = [];
+  /** 高级设置默认收起：SNI/WS/gRPC/flow/REALITY 这些只在特定组合下才用得到 */
+  @State showAdvanced: boolean = false;
   @State securityIdx: number = 0;
   @State saveMsg: string = '';
   @State saving: boolean = false;
@@ -177,6 +179,15 @@ struct NodeEdit {
   }
 
   /** 校验：宁可拒绝保存，也不要存一个"看起来能用但连不上"的节点 */
+  /** 必填项是否齐（地址 + 合法端口）。名称留空是允许的，会自动用地址:端口 */
+  private requiredFilled(): boolean {
+    if (this.address.trim().length === 0) {
+      return false;
+    }
+    const p: number = Number.parseInt(this.port, 10);
+    return !Number.isNaN(p) && p >= 1 && p <= 65535;
+  }
+
   private validate(): string {
     if (this.name.trim().length === 0) {
       return '名称不能为空';
@@ -273,21 +284,21 @@ struct NodeEdit {
 
       Scroll() {
         Column({ space: 10 }) {
-          Text('名称').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+          Text('名称（可留空，自动用地址:端口）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.name }).fontSize(FontSize.bodySm)
             .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.name = v;
             })
 
-          Text('服务器地址').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+          Text('服务器地址 *').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.address }).fontSize(FontSize.bodySm)
             .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.address = v;
             })
 
-          Text('端口').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+          Text('端口 *').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.port }).fontSize(FontSize.bodySm).type(InputType.Number)
             .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
@@ -321,6 +332,7 @@ struct NodeEdit {
             .backgroundColor($r('app.color.bg_chip'))
             .borderRadius(Radius.panel)
             .border({ width: 1, color: $r('app.color.border_input') })
+            .optionWidth(OptionWidthMode.FIT_TRIGGER)
             .onSelect((index: number, value: string) => {
               this.transportIdx = index;
             })
@@ -339,62 +351,84 @@ struct NodeEdit {
             }, (s: SecurityOption) => s.label)
           }.width('100%')
 
-          Text('SNI / serverName').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          TextInput({ text: $$this.serverName }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.serverName = v;
-            })
+          // 高级设置：SNI / WS 细节 / gRPC 服务名 / flow / REALITY 参数 / uTLS 指纹。
+          // 这些字段只在特定协议组合下才需要，日常导入的节点多数已带好默认值，
+          // 全部摊在首屏会让"改个端口"变成一次长滚动。
+          Row({ space: Space.xs }) {
+            Text(this.showAdvanced ? '收起高级设置' : '高级设置（SNI / 传输细节 / REALITY 参数）')
+              .fontSize(FontSize.bodySm)
+              .lineHeight(LineHeight.bodySm)
+              .fontColor($r('app.color.accent'))
+            Text(this.showAdvanced ? '\u2039' : '\u203a')
+              .fontSize(FontSize.bodySm)
+              .lineHeight(LineHeight.bodySm)
+              .fontColor($r('app.color.accent'))
+          }
+          .width('100%')
+          .height(Height.hit)
+          .onClick(() => {
+            this.showAdvanced = !this.showAdvanced;
+          })
+          .accessibilityText(this.showAdvanced ? '收起高级设置' : '展开高级设置')
 
-          Text('WS 路径').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          TextInput({ text: $$this.wsPath }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.wsPath = v;
-            })
+          if (this.showAdvanced) {
+            Text('SNI / serverName').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
+            TextInput({ text: $$this.serverName }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.serverName = v;
+              })
 
-          Text('WS Host').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          TextInput({ text: $$this.wsHost }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.wsHost = v;
-            })
+            Text('WS 路径').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+            TextInput({ text: $$this.wsPath }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.wsPath = v;
+              })
 
-          Text('gRPC 服务名').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
-          TextInput({ text: $$this.grpcService }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.grpcService = v;
-            })
+            Text('WS Host').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+            TextInput({ text: $$this.wsHost }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.wsHost = v;
+              })
 
-          Text('flow（vless 可选）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          TextInput({ text: $$this.flow }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.flow = v;
-            })
+            Text('gRPC 服务名').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
+            TextInput({ text: $$this.grpcService }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.grpcService = v;
+              })
 
-          // REALITY 参数：缺 publicKey 时握手必然失败，且内核不会在 parse 阶段报错
-          Text('REALITY 公钥 publicKey（pbk）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          TextInput({ text: $$this.publicKey }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.publicKey = v;
-            })
+            Text('flow（vless 可选）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
+            TextInput({ text: $$this.flow }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.flow = v;
+              })
 
-          Text('REALITY shortId（sid，可空）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          TextInput({ text: $$this.shortId }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.shortId = v;
-            })
+            // REALITY 参数：缺 publicKey 时握手必然失败，且内核不会在 parse 阶段报错
+            Text('REALITY 公钥 publicKey（pbk）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
+            TextInput({ text: $$this.publicKey }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.publicKey = v;
+              })
 
-          Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
-          TextInput({ text: $$this.fingerprint }).fontSize(FontSize.bodySm)
-            .border({ width: 1, color: $r('app.color.border_input') })
-            .onChange((v: string) => {
-              this.fingerprint = v;
-            })
+            Text('REALITY shortId（sid，可空）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
+            TextInput({ text: $$this.shortId }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.shortId = v;
+              })
+
+            Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
+            TextInput({ text: $$this.fingerprint }).fontSize(FontSize.bodySm)
+              .border({ width: 1, color: $r('app.color.border_input') })
+              .onChange((v: string) => {
+                this.fingerprint = v;
+              })
+          }
 
           Text('分组（选已有，或直接输入新组名）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           if (this.groupOptions.length > 1) {
@@ -403,6 +437,7 @@ struct NodeEdit {
               .value(this.groupSelectIdx === 0 ? '（不分组）' : this.group)
               .font({ size: 12 })
               .width('100%')
+              .optionWidth(OptionWidthMode.FIT_TRIGGER)
               .onSelect((index: number, value: string) => {
                 this.groupSelectIdx = index;
                 this.group = index === 0 ? '' : value;
@@ -452,7 +487,8 @@ struct NodeEdit {
         .fontSize(FontSize.bodyLg)
         .backgroundColor(!this.saving && this.existed ? $r('app.color.accent') : $r('app.color.bg_chip'))
         .fontColor(!this.saving && this.existed ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-        .enabled(!this.saving && this.existed)
+        .enabled(!this.saving && this.existed && this.requiredFilled())
+        .accessibilityText(this.requiredFilled() ? '保存' : '保存（请先填写地址与端口）')
         .onClick(() => this.doSave())
     }
     .width('100%')
