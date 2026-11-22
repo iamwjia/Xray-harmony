@@ -45,10 +45,9 @@ struct Logs {
   private cfg: ConfigService = ConfigService.getInstance();
 
   private chips: LevelChip[] = [
-    // 全部 = 不限级别（显示所有已记录的）；DEBUG/INFO/WARN/ERROR 才是按级别筛。
-    // 之前漏了 DEBUG：写入级别设成 DEBUG 时能记下 DEBUG 条目，筛选里却选不到。
+    // 语义：全部 = 不筛；其余 = "该级别及以上"。
+    // 所以不需要 DEBUG 选项——"DEBUG 及以上"就是全部，留着是两个等价项。
     { label: '全部', value: '' },
-    { label: 'DEBUG', value: LogLevel.DEBUG },
     { label: 'INFO', value: LogLevel.INFO },
     { label: 'WARN', value: LogLevel.WARN },
     { label: 'ERROR', value: LogLevel.ERROR }
@@ -65,6 +64,17 @@ struct Logs {
     this.levelPersistError = ok ? '' : this.cfg.getPersistError();
   }
 
+  /** 级别权重：用于"该级别及以上"的筛选 */
+  private static rank(level: string): number {
+    if (level === LogLevel.DEBUG) {
+      return 0;
+    }
+    if (level === LogLevel.INFO) {
+      return 1;
+    }
+    return level === LogLevel.WARN ? 2 : 3;
+  }
+
   private reload(): void {
     const all: LogEntry[] = Logger.getEntries();
     this.allCount = all.length;
@@ -72,9 +82,12 @@ struct Logs {
       this.entries = all;
       return;
     }
+    // 阈值匹配（该级别及以上）：与"写入级别"同一套直觉。
+    // 精确匹配时选 INFO 只能看到 INFO，用户会以为 WARN/ERROR 丢了。
+    const min: number = Logs.rank(this.filter);
     const out: LogEntry[] = [];
     for (let i = 0; i < all.length; i++) {
-      if (all[i].level === this.filter) {
+      if (Logs.rank(all[i].level) >= min) {
         out.push(all[i]);
       }
     }
@@ -114,6 +127,30 @@ struct Logs {
   }
 
   /** 导出：让用户选保存位置，而不是应用自己往公共目录写 */
+  /** 清空前的确认：日志是排障凭据，误点一次就没了 */
+  private confirmClear(): void {
+    AlertDialog.show({
+      title: '清空运行日志',
+      message: '将删除应用内缓冲的全部日志（当前 ' + this.allCount + ' 条）。\n\n' +
+        '不会删除：hilog 中的系统日志、已导出的文本文件。\n此操作不可恢复。',
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '确认清空',
+        fontColor: $r('app.color.danger'),
+        action: () => {
+          Logger.clear();
+          this.reload();
+          this.msg = '已清空缓冲（hilog 中的历史不受影响）';
+        }
+      }
+    });
+  }
+
   private doExport(): void {
     if (this.entries.length === 0) {
       this.msg = '当前没有可导出的日志';
@@ -295,17 +332,18 @@ struct Logs {
           .lineHeight(LineHeight.bodySm)
           .fontColor($r('app.color.text_primary'))
           .maxLines(1)
-        Text('只影响显示，不改写入')
+        Text('该级别及以上；只影响显示，不改写入')
           .fontSize(FontSize.caption)
           .lineHeight(LineHeight.caption)
           .fontColor($r('app.color.text_tertiary'))
           .layoutWeight(1)
         // 动作放标题行右侧：它们是"刷新/清空"，与"筛选项"不是一类，
         // 混在同一排胶囊里会出现 6 个宽窄不一的块，用户会问"为什么大小不一样"
+        // 保留一个显式的「刷新」入口：下拉刷新在模拟器上注入手势不生效（hilog 无记录），
+        // 真机能否触发需人眼确认；在确认之前，不能只留一个"可能不工作"的手势。
+        this.textAction('刷新', () => this.reload())
         this.textAction('清空', () => {
-          Logger.clear();
-          this.reload();
-          this.msg = '已清空缓冲（hilog 中的历史不受影响）';
+          this.confirmClear();
         })
       }
       .width('100%')
@@ -395,6 +433,7 @@ struct Logs {
         .layoutWeight(1)
         .width('100%')
         .onRefreshing(() => {
+          Logger.info('logs pull-refresh');
           this.reload();
           setTimeout(() => {
             this.refreshing = false;
