@@ -7,6 +7,7 @@ import { fileUri } from '@kit.CoreFileKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { PageHeader } from '../components/PageHeader';
+import { Glyph, IconButton } from '../components/Glyph';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { BundleImportResult, ConfigBundle, ImportDetail } from '../service/ConfigBundle';
 import { BundleCrypto } from '../platform/BundleCrypto';
@@ -417,30 +418,27 @@ struct Backup {
                 this.doExport();
               })
             Row({ space: Space.sm }) {
-              Button(this.exporting ? '生成中…' : '导出并分享')
-                .layoutWeight(1)
-                .height(Height.hit)
-                .fontSize(FontSize.bodySm)
-                // 与「导出到文件」同款描边：两者是同一目的的两条路径，
-                // 差别只是"本机有没有分享面板"，不是"哪条更推荐"。
-                // 一实一描会让用户以为分享才是正规路径、存文件是降级方案。
-                .backgroundColor($r('app.color.bg_surface'))
-                .fontColor(this.canExport() ? $r('app.color.accent') : $r('app.color.text_tertiary'))
-                .border({
-                  width: 1,
-                  color: this.canExport() ? $r('app.color.accent') : $r('app.color.border_subtle')
+              Column() {
+                IconButton({
+                  kind: 'export',
+                  label: this.exporting ? '生成中…' : '导出并分享',
+                  variant: 'outline',
+                  enabledState: this.canExport(),
+                  onTap: () => this.doExportAndShare()
                 })
-                .enabled(this.canExport())
-                .onClick(() => this.doExportAndShare())
-              Button('导出到文件')
-                .layoutWeight(1)
-                .height(Height.hit)
-                .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_surface'))
-                .fontColor(this.canExport() ? $r('app.color.accent') : $r('app.color.text_tertiary'))
-                .border({ width: 1, color: this.canExport() ? $r('app.color.accent') : $r('app.color.border_subtle') })
-                .enabled(this.canExport())
-                .onClick(() => this.doExport())
+              }
+              .layoutWeight(1)
+
+              Column() {
+                IconButton({
+                  kind: 'export',
+                  label: '导出到文件',
+                  variant: 'outline',
+                  enabledState: this.canExport(),
+                  onTap: () => this.doExport()
+                })
+              }
+              .layoutWeight(1)
             }
             .width('100%')
 
@@ -456,29 +454,27 @@ struct Backup {
               // 口令相关的三个动作（随机 / 复制 / 导出）都属于"可选路径"，一律描边；
               // 实心主色只留给「解密并恢复」这种不可替代的执行点。
               // "浅底"留给选项组与"取消/收起"，不再掺进来。
-              Button('随机口令')
-                .layoutWeight(1)
-                .height(Height.hit)
-                .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_surface'))
-                .fontColor($r('app.color.accent'))
-                .border({ width: 1, color: $r('app.color.accent') })
-                .onClick(() => this.generatePassphrase())
-              // 「复制口令」在没口令时无事可做：禁用比"点了没反应"诚实。
-              Button('复制口令')
-                .layoutWeight(1)
-                .height(Height.hit)
-                .fontSize(FontSize.bodySm)
-                .enabled(this.exportPass.length > 0)
-                .backgroundColor($r('app.color.bg_surface'))
-                .fontColor(this.exportPass.length > 0
-                  ? $r('app.color.accent') : $r('app.color.text_tertiary'))
-                .border({
-                  width: 1,
-                  color: this.exportPass.length > 0
-                    ? $r('app.color.accent') : $r('app.color.border_subtle')
+              Column() {
+                IconButton({
+                  kind: 'key',
+                  label: '随机口令',
+                  variant: 'outline',
+                  enabledState: true,
+                  onTap: () => this.generatePassphrase()
                 })
-                .onClick(() => this.copyPassphrase())
+              }
+              .layoutWeight(1)
+
+              Column() {
+                IconButton({
+                  kind: 'copy',
+                  label: '复制口令',
+                  variant: 'outline',
+                  enabledState: this.exportPass.length > 0,
+                  onTap: () => this.copyPassphrase()
+                })
+              }
+              .layoutWeight(1)
             }
             .width('100%')
 
@@ -507,15 +503,13 @@ struct Backup {
           // ---------- 导入 ----------
           Column({ space: Space.sm }) {
             this.section('从备份恢复', '恢复只增不删，也不改本机的分流模式与日志级别')
-            Button(this.importName.length > 0 ? '重新选择文件' : '选择备份文件')
-              .width('100%')
-              .height(Height.hit)
-              .fontSize(FontSize.bodySm)
-              // 与「导出到文件」同款描边：都是"选一个本地文件"这类次级动作
-              .backgroundColor($r('app.color.bg_surface'))
-              .fontColor($r('app.color.accent'))
-              .border({ width: 1, color: $r('app.color.accent') })
-              .onClick(() => this.pickImportFile())
+            IconButton({
+              kind: 'import-file',
+              label: this.importName.length > 0 ? '重新选择文件' : '选择备份文件',
+              variant: 'outline',
+              enabledState: true,
+              onTap: () => this.pickImportFile()
+            })
 
             if (this.importName.length > 0) {
               Text(this.importName)

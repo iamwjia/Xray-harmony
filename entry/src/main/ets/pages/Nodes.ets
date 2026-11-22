@@ -8,7 +8,7 @@ import { SubscriptionImportResult, SubscriptionService } from '../service/Subscr
 import { NodeRow } from '../components/NodeRow';
 import { PageHeader } from '../components/PageHeader';
 import { NodeProbe, ProbeResult } from '../service/NodeProbe';
-import { Glyph } from '../components/Glyph';
+import { Glyph, IconButton } from '../components/Glyph';
 import { ShareLinkBuilder } from '../service/ShareLinkBuilder';
 import { SecretStore } from '../platform/SecretStore';
 import { pasteboard } from '@kit.BasicServicesKit';
@@ -804,16 +804,14 @@ struct Nodes {
       // 单手可达：顶栏那个「+」在屏幕顶端右侧，单手拿手机时很难够到。
       // 底部再给一个同样入口（大命中区），两个入口指向同一个导入面板。
       Row() {
-        Button(this.showImport ? '收起' : '＋ 导入')
-          .accessibilityText('导入节点或订阅地址')
-          .width('100%')
-          .height(Height.hit)
-          .fontSize(FontSize.bodySm)
-          .backgroundColor($r('app.color.accent'))
-          .fontColor($r('app.color.text_on_accent'))
-          .onClick(() => {
+        IconButton({
+          kind: this.showImport ? 'import-file' : 'import-file',
+          label: this.showImport ? '收起' : '导入',
+          variant: 'primary',
+          onTap: () => {
             this.showImport = !this.showImport;
-          })
+          }
+        })
       }
       .width('100%')
       .padding({ left: Space.lg, right: Space.lg, top: Space.sm, bottom: Space.md })

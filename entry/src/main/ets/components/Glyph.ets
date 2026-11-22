@@ -71,6 +71,56 @@ export struct Glyph {
         Rect().width(12).height(13).radius(2).fill(Color.Transparent)
           .stroke(this.color).strokeWidth(2)
           .position({ x: 6, y: 7 })
+      } else if (this.kind === 'export') {
+        // 导出：向外的箭头 + 底座（离开本机）
+        Line().width(24).height(24).startPoint([12, 15]).endPoint([12, 4])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([7, 9]).endPoint([12, 4])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([17, 9]).endPoint([12, 4])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([4, 19]).endPoint([20, 19])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'import-file') {
+        // 导入：向内的箭头 + 底座（进入本机）——与 export 成对，方向相反
+        Line().width(24).height(24).startPoint([12, 4]).endPoint([12, 15])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([7, 10]).endPoint([12, 15])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([17, 10]).endPoint([12, 15])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([4, 20]).endPoint([20, 20])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'plus') {
+        Line().width(24).height(24).startPoint([12, 5]).endPoint([12, 19])
+          .stroke(this.color).strokeWidth(2.2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([5, 12]).endPoint([19, 12])
+          .stroke(this.color).strokeWidth(2.2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'cloud-down') {
+        // 云端下载：云 + 向下箭头
+        Line().width(24).height(24).startPoint([7, 9]).endPoint([17, 9])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([7, 9]).endPoint([6, 13])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([17, 9]).endPoint([18, 13])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([4, 14]).endPoint([20, 14])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([12, 15]).endPoint([12, 20])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([9, 18]).endPoint([12, 20])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([15, 18]).endPoint([12, 20])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'key') {
+        // 口令：钥匙
+        Circle().width(8).height(8).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 3, y: 4 })
+        Line().width(24).height(24).startPoint([10, 9]).endPoint([20, 19])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([16, 15]).endPoint([19, 12])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
       } else if (this.kind === 'info') {
         Circle().width(16).height(16).fill(Color.Transparent)
           .stroke(this.color).strokeWidth(2)
@@ -254,5 +304,80 @@ export struct EntryRow {
       this.onTap();
     })
     .accessibilityText(`${this.title}${this.value.length > 0 ? '，当前 ' + this.value : ''}`)
+  }
+}
+
+/**
+ * 带图标的按钮（图标 + 文字）。
+ *
+ * 为什么单独做一个组件：Button('文字') 没法内嵌图标，各页面自己拼 Row 会出现
+ * 图标 18/20 混用、间距 4/6 混用、禁用态只改字不改边框等问题。集中一处，
+ * 三种变体与 ui-spec §12 的三级形态一一对应。
+ *
+ * 只给"含义能被图标补强"的按钮用：**成对的动作（导入/导出）最值得**——
+ * 方向相反的箭头，比读两个字更快分辨。
+ */
+@Component
+export struct IconButton {
+  /** Glyph 的 kind：export / import-file / plus / cloud-down / key / copy / trash ... */
+  @Prop kind: string = '';
+  @Prop label: string = '';
+  /** primary=实心主色；outline=描边；chip=填充浅底 */
+  @Prop variant: string = 'outline';
+  @Prop enabledState: boolean = true;
+  onTap: () => void = () => {
+  };
+
+  private fillColorOf(): ResourceColor {
+    if (!this.enabledState) {
+      return this.variant === 'outline' ? $r('app.color.bg_surface') : $r('app.color.bg_chip');
+    }
+    if (this.variant === 'primary') {
+      return $r('app.color.accent');
+    }
+    return this.variant === 'outline' ? $r('app.color.bg_surface') : $r('app.color.bg_chip');
+  }
+
+  private fontColorOf(): ResourceColor {
+    if (!this.enabledState) {
+      return $r('app.color.text_tertiary');
+    }
+    if (this.variant === 'primary') {
+      return $r('app.color.text_on_accent');
+    }
+    return this.variant === 'outline' ? $r('app.color.accent') : $r('app.color.text_primary');
+  }
+
+  private strokeColorOf(): ResourceColor {
+    if (this.variant !== 'outline') {
+      return Color.Transparent;
+    }
+    return this.enabledState ? $r('app.color.accent') : $r('app.color.border_subtle');
+  }
+
+  build() {
+    // Capsule：与全站其它按钮（解密并恢复 / 输入框旁的按钮）保持同一外形
+    Button({ type: ButtonType.Capsule }) {
+      Row({ space: Space.sm }) {
+        Glyph({ kind: this.kind, color: this.fontColorOf(), box: 18 })
+        Text(this.label)
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor(this.fontColorOf())
+          .maxLines(1)
+      }
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+    }
+    .width('100%')
+    .height(Height.hit)
+    .borderRadius(Radius.pill)
+    .backgroundColor(this.fillColorOf())
+    .border({ width: this.variant === 'outline' ? 1 : 0, color: this.strokeColorOf() })
+    .enabled(this.enabledState)
+    .accessibilityText(this.label)
+    .onClick(() => {
+      this.onTap();
+    })
   }
 }

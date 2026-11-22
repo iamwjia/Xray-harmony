@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { PageHeader } from '../components/PageHeader';
-import { Glyph } from '../components/Glyph';
+import { Glyph, IconButton } from '../components/Glyph';
 import { EventLog } from '../service/EventLog';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 import { SubRecord, SubscriptionStore } from '../service/SubscriptionStore';
@@ -656,19 +656,17 @@ struct Subscriptions {
       }
 
       Row() {
-        Button(this.showAdd ? '收起' : '＋ 添加')
-          .accessibilityText('添加订阅地址')
-          .width('100%')
-          .height(Height.hit)
-          .fontSize(FontSize.bodySm)
-          .backgroundColor($r('app.color.accent'))
-          .fontColor($r('app.color.text_on_accent'))
-          .onClick(() => {
+        IconButton({
+          kind: 'plus',
+          label: this.showAdd ? '收起' : '添加',
+          variant: 'primary',
+          onTap: () => {
             this.showAdd = !this.showAdd;
             if (!this.showAdd) {
               this.addMsg = '';
             }
-          })
+          }
+        })
       }
       .width('100%')
       .padding({ left: Space.lg, right: Space.lg, top: Space.sm, bottom: Space.md })
