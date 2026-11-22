@@ -1,5 +1,8 @@
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
+/** 操作菜单宽度：固定值，不跟屏幕宽度变化 */
+const MENU_WIDTH: number = 180;
+
 /**
  * components/NodeRow.ets — 节点行（两个命中区）
  *
@@ -63,7 +66,9 @@ export struct NodeRow {
       Divider().color($r('app.color.border_subtle'))
       this.menuItem('删除', true, true, () => this.onDelete(this.nodeId))
     }
-    .constraintSize({ minWidth: 160 })
+    // 定宽而不是 minWidth：弹层是“自适应”容器，只给下限会被拉到几乎全屏宽，
+    // 行内文字又是 width('100%')，于是文字看起来偏左、像被遮挡。
+    .width(MENU_WIDTH)
     .padding({ top: Space.xs, bottom: Space.xs })
     .backgroundColor($r('app.color.bg_surface'))
     .borderRadius(Radius.panel)
@@ -74,10 +79,12 @@ export struct NodeRow {
   @Builder
   menuItem(label: string, dangerous: boolean, enabled: boolean, action: () => void) {
     Text(label)
-      .width('100%')
+      .width(MENU_WIDTH)
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
-      .fontSize(FontSize.bodySm)
+      // 菜单项比正文大一档：弹层里只有几个词，13/14 看着偏小且难点
+      .fontSize(FontSize.bodyLg)
+      .lineHeight(LineHeight.bodyLg)
       .fontColor(!enabled
         ? $r('app.color.text_tertiary')
         : (dangerous ? $r('app.color.danger') : $r('app.color.text_primary')))

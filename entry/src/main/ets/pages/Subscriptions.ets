@@ -6,6 +6,9 @@ import { SubscriptionImportResult, SubscriptionService } from '../service/Subscr
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
 
+/** 操作菜单宽度（与 NodeRow 保持一致） */
+const MENU_WIDTH: number = 180;
+
 /**
  * pages/Subscriptions.ets — 订阅管理
  *
@@ -223,7 +226,7 @@ struct Subscriptions {
       Divider().color($r('app.color.border_subtle'))
       this.menuItem('删除', true, true, () => this.confirmRemove(rec))
     }
-    .constraintSize({ minWidth: 160 })
+    .width(MENU_WIDTH)
     .padding({ top: Space.xs, bottom: Space.xs })
     .backgroundColor($r('app.color.bg_surface'))
     .borderRadius(Radius.panel)
@@ -233,10 +236,12 @@ struct Subscriptions {
   @Builder
   menuItem(label: string, dangerous: boolean, enabled: boolean, action: () => void) {
     Text(label)
-      .width('100%')
+      .width(MENU_WIDTH)
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
-      .fontSize(FontSize.bodySm)
+      // 菜单项比正文大一档：弹层里只有几个词，13/14 看着偏小且难点
+      .fontSize(FontSize.bodyLg)
+      .lineHeight(LineHeight.bodyLg)
       .fontColor(!enabled
         ? $r('app.color.text_tertiary')
         : (dangerous ? $r('app.color.danger') : $r('app.color.text_primary')))

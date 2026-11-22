@@ -61,8 +61,16 @@ function matchParen(src, i) {
 function consumeChain(src, i) {
   let cur = i;
   for (;;) {
+    // 同 check-text-style.js：属性链中间可以有 `//` 注释，必须跳过
     let k = cur;
-    while (k < src.length && /\s/.test(src[k])) k++;
+    for (;;) {
+      while (k < src.length && /\s/.test(src[k])) k++;
+      if (src[k] === '/' && src[k + 1] === '/') {
+        while (k < src.length && src[k] !== '\n') k++;
+        continue;
+      }
+      break;
+    }
     if (src[k] !== '.') break;
     let nameEnd = k + 1;
     while (nameEnd < src.length && /[A-Za-z0-9_$]/.test(src[nameEnd])) nameEnd++;

@@ -61,9 +61,17 @@ function consumeChain(src, i) {
   let cur = i;
   const start = i;
   for (;;) {
-    // 跳过空白
+    // 跳过空白与注释：属性链中间可以写 `// 说明`，紧接着继续 `.foo(...)`。
+    // 不跳注释的话，注释之后的 lineHeight 会被判成“没写”。
     let k = cur;
-    while (k < src.length && /\s/.test(src[k])) k++;
+    for (;;) {
+      while (k < src.length && /\s/.test(src[k])) k++;
+      if (src[k] === '/' && src[k + 1] === '/') {
+        while (k < src.length && src[k] !== '\n') k++;
+        continue;
+      }
+      break;
+    }
     if (src[k] !== '.') break;
     // 读方法名
     let nameEnd = k + 1;
