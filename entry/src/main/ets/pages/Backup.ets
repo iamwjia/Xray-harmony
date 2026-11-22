@@ -75,7 +75,10 @@ struct Backup {
     }
     this.exportPass = out;
     this.exportPass2 = out;
-    this.setExportMsg('已生成随机口令：先导出文件，再把口令另发一条消息', 0);
+    // 生成即复制：用户不可能把 20 位随机串记在脑子里，
+    // 不复制就等于“生成了一个自己也拿不到的口令”。
+    this.copyPassphrase();
+    this.setExportMsg('已生成并复制口令。请先导出文件，再把口令另发一条消息。', 0);
   }
 
   private doExport(): void {
@@ -109,7 +112,8 @@ struct Backup {
           } finally {
             fileIo.closeSync(f);
           }
-          this.setExportMsg('已导出。请把口令另发（别和文件放在同一条消息里）。', 0);
+          this.setExportMsg(`已导出（约 ${Math.round(text.length / 102.4) / 10} KB）。` +
+            '请把口令另发一条消息（别和文件放在同一条里）。', 0);
           this.exportPass = '';
           this.exportPass2 = '';
         } catch (e) {
@@ -284,6 +288,12 @@ struct Backup {
           // ---------- 导出 ----------
           Column({ space: Space.sm }) {
             this.section('导出备份', '把本机节点、凭据、规则打包成一个加密文件')
+            Text('流程：① 设口令（可随机生成并自动复制） ② 导出文件 '
+              + '③ 把文件发出去 ④ 把口令另发一条消息')
+              .fontSize(FontSize.caption)
+              .lineHeight(LineHeight.caption)
+              .fontColor($r('app.color.text_tertiary'))
+              .width('100%')
             this.passField('设置备份口令（至少 8 位）', this.exportPass, (v: string) => {
               this.exportPass = v;
             })
