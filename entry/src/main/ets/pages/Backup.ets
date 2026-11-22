@@ -416,8 +416,9 @@ struct Backup {
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_chip'))
-                .fontColor($r('app.color.text_primary'))
+                .backgroundColor($r('app.color.bg_surface'))
+                .fontColor($r('app.color.accent'))
+                .border({ width: 1, color: $r('app.color.accent') })
                 .enabled(!this.exporting)
                 .onClick(() => this.doExport())
             }
@@ -434,12 +435,14 @@ struct Backup {
               // 「随机生成」是本页的主动作之一（口令是导出的前提），用主色；
               // 它是二次操作，不是每屏唯一主操作（导出并分享才是），所以放在这一行里
               // 而不是底部条里。
+              // 随机生成不是本页主操作（主操作是"导出并分享"），回落到浅底；
+              // 否则一页上出现两个实心蓝，主次就没了
               Button('随机生成')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.accent'))
-                .fontColor($r('app.color.text_on_accent'))
+                .backgroundColor($r('app.color.bg_chip'))
+                .fontColor($r('app.color.text_primary'))
                 .onClick(() => this.generatePassphrase())
               // 「复制口令」在没口令时无事可做：禁用比"点了没反应"诚实。
               Button('复制口令')

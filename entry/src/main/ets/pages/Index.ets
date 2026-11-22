@@ -600,8 +600,9 @@ struct Index {
           .enabled(!this.view.busy)
           // 次级按钮只有一种长相：浅底 + 主文字色；不可操作时字降为三级灰。
           // 上一版这里是"浅蓝底 + 主色字"，等于给一个按钮单独开了套皮肤。
-          .backgroundColor($r('app.color.bg_chip'))
-          .fontColor(this.view.busy ? $r('app.color.text_tertiary') : $r('app.color.text_primary'))
+          .backgroundColor(this.view.busy ? $r('app.color.bg_chip') : $r('app.color.bg_surface'))
+          .fontColor(this.view.busy ? $r('app.color.text_tertiary') : $r('app.color.accent'))
+          .border({ width: 1, color: this.view.busy ? $r('app.color.border_subtle') : $r('app.color.accent') })
           .onClick(() => {
             router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
               Logger.error(`nav Nodes failed: ${e.message}`);
