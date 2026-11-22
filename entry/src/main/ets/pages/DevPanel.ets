@@ -277,7 +277,7 @@ api failed: ${err.code} ${err.message}`;
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
           Button('调试：模拟配置读取失败 → 看首页横幅').width('100%')
-            .backgroundColor('#8D6E63')
+            .backgroundColor($r('app.color.warning'))
             .onClick(() => {
               ConfigService.getInstance().debugForceLoadFailure();
               this.socksProbeResult = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
@@ -286,7 +286,7 @@ api failed: ${err.code} ${err.message}`;
 
           // 调试项：让下一次「连接」注入非法配置，用于验证失败路径（ERROR 且不卡 CONNECTING）
           Button('调试：下次连接注入非法配置 → 看 ERROR').width('100%')
-            .backgroundColor('#8D6E63')
+            .backgroundColor($r('app.color.warning'))
             .onClick(() => {
               this.kernelDebug.debugInjectInvalidConfig();
               this.socksProbeResult = '已置位 invalidConfig；返回首页点「连接」应显示错误原因（不卡连接中）';

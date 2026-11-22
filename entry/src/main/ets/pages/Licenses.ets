@@ -79,52 +79,52 @@ struct Licenses {
             Column({ space: 3 }) {
               Row({ space: 6 }) {
                 Text(c.name).fontSize(13).fontWeight(FontWeight.Medium)
-                Text(c.license).fontSize(10).fontColor('#5C6BC0')
+                Text(c.license).fontSize(10).fontColor($r('app.color.accent'))
               }
-              Text(`版本：${c.version}`).fontSize(11).fontColor('#666666')
-              Text(`用途：${c.usage}`).fontSize(11).fontColor('#666666')
+              Text(`版本：${c.version}`).fontSize(11).fontColor($r('app.color.text_secondary'))
+              Text(`用途：${c.usage}`).fontSize(11).fontColor($r('app.color.text_secondary'))
               Text(`修改情况：${c.modified}`).fontSize(11)
-                .fontColor(c.modified.startsWith('未修改') ? '#2E7D32' : '#C62828')
+                .fontColor(c.modified.startsWith('未修改') ? $r('app.color.success') : $r('app.color.danger'))
             }
             .alignItems(HorizontalAlign.Start)
             .width('100%')
             .padding(10)
-            .backgroundColor('#FAFAFA')
+            .backgroundColor($r('app.color.bg_surface_alt'))
             .borderRadius(6)
           }, (c: Component) => c.name)
 
           this.section('MPL-2.0 相关义务（Xray-core）')
           Text('本应用以**未经修改**的编译产物形式集成 Xray-core。MPL-2.0 要求：' +
             '以可执行形式分发时，须告知接收者如何获取对应源码。')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
           Text('• 上游源码：github.com/XTLS/Xray-core\n' +
             '• 本应用对应版本：v1.260327.1（commit 80263da 构建链）\n' +
             '• 本应用未修改其源码，因此无需公开自有代码；' +
             '若日后修改，相应文件须以 MPL-2.0 公开')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
 
           this.section('MIT / Apache-2.0 相关义务')
           Text('libXray、tun2socks 为 MIT；gVisor 为 Apache-2.0。' +
             '本应用保留其版权声明与许可证文本，不改变其许可条款。')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
 
           this.section('商标与归属')
           Text('本应用是独立第三方项目，与 XTLS、Xray-core、v2fly 等项目**无隶属关系**，' +
             '亦未获得其背书。应用名称与图标为原创，不使用上游项目的名称或标识作为品牌。')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
 
           this.section('数据来源')
           Text('分流用的 geoip / geosite 数据取自 v2fly 官方发布构建，按原样分发、未作修改。' +
             '该数据的具体许可条款以上游项目发布页为准；如上游调整许可，本应用将随之更新。')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
 
           this.section('如何获取源码')
           Text('本应用自身代码与其依赖清单公开在项目仓库中；内核部分请见上文的 Xray-core 上游地址。' +
             '构建脚本随仓库提供，可按脚本复现内核与数据文件的生成过程。')
-            .fontSize(11).fontColor('#444444').width('100%')
+            .fontSize(11).fontColor($r('app.color.text_primary')).width('100%')
 
           Text('说明：本页随依赖变化更新。若发现此处信息与实际分发不一致，以仓库中的依赖清单为准。')
-            .fontSize(10).fontColor('#999999').width('100%')
+            .fontSize(10).fontColor($r('app.color.text_tertiary')).width('100%')
         }
         .width('100%')
         .padding({ bottom: 24 })
