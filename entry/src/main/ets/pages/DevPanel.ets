@@ -15,6 +15,7 @@ import { GeoAssets } from '../service/GeoAssets';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
 import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 import { BundleImportResult, ConfigBundle } from '../service/ConfigBundle';
+import { DemoFlags } from '../platform/DemoFlags';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'XVPN_POC';
@@ -42,6 +43,8 @@ struct DevPanel {
   @State hostProbeResult: string = '(未运行)';
   /** 扩展进程回传的状态（starting / running / error / stopped） */
   @State vpnPhase: string = '';
+  /** 首页流量块是否处于演示模式（默认关，打开会带「演示数据」标记） */
+  @State trafficDemoOn: boolean = false;
 
   // 仅用于触发失败路径验证；真正的内核驱动在首页的 KernelService（同一个单例）
   private kernelDebug: KernelService = KernelService.getInstance();
@@ -49,6 +52,7 @@ struct DevPanel {
   private cfg: ConfigService = ConfigService.getInstance();
 
   aboutToAppear(): void {
+    this.trafficDemoOn = DemoFlags.trafficDemo();
     if (AUTO_PROBE_VPN) {
       this.probeVpnExt();
     }
@@ -335,6 +339,17 @@ api failed: ${err.code} ${err.message}`;
               .onClick(() => this.setColorMode(-1))
           }
           .width('100%')
+
+          // 流量统计要等内核 Stats 接通才有真数据（现在卡系统授权）。演示开关只为了
+          // 让首页那块布局有数字可看；打开后界面上会挂「演示数据」标记。
+          Button(this.trafficDemoOn ? '关闭流量演示数据' : '开启流量演示数据')
+            .width('100%')
+            .backgroundColor($r('app.color.bg_chip'))
+            .fontColor($r('app.color.text_primary'))
+            .onClick(() => {
+              DemoFlags.setTrafficDemo(!this.trafficDemoOn);
+              this.trafficDemoOn = DemoFlags.trafficDemo();
+            })
 
           Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
           Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)

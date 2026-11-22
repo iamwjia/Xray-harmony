@@ -14,6 +14,8 @@ import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 import { VpnController } from '../service/VpnController';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { NavTile } from '../components/Glyph';
+import { AppEvent, EventLog } from '../service/EventLog';
+import { DemoFlags } from '../platform/DemoFlags';
 
 /**
  * pages/Index.ets — 首页（连接开关 + 当前节点 + 连接状态）
@@ -43,8 +45,23 @@ struct Index {
   /** 凭据迁移失败提示 */
   @State migrationWarning: string = '';
 
+  /** 本次连接已持续时长（mm:ss / h:mm:ss）；未连接为空 */
+  @State uptimeText: string = '';
+  /** 上下行流量文本（真数据要内核 Stats；未接通时明确写不可用，不显示 0） */
+  @State trafficText: string = '';
+  /** 是否处于演示数据模式（界面上必须打「演示数据」标记） */
+  @State trafficDemo: boolean = false;
+  /** 最近事件（最多 3 条） */
+  @State events: AppEvent[] = [];
+
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
+  /** 连接成功的时刻（0 = 未连接） */
+  private connectedAt: number = 0;
+  private tickTimer: number = -1;
+  /** 演示流量的累计值（只在演示模式下动） */
+  private demoDown: number = 0;
+  private demoUp: number = 0;
   // 应用进程不再直接持有内核：数据面在扩展进程，应用侧只发请求 + 读状态文件
 
   aboutToAppear(): void {
@@ -66,6 +83,92 @@ struct Index {
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
     this.migrationWarning = this.cfg.getMigrationError();
     this.refreshVpnLine();
+    this.refreshStatusStrip();
+    this.refreshEvents();
+  }
+
+  /** 最近事件：读落盘缓冲的最新 3 条 */
+  private refreshEvents(): void {
+    this.events = EventLog.recent(3);
+  }
+
+  /**
+   * 首页状态条：时长 + 流量。
+   *
+   * 流量**没有真数据**：内核 Stats 要等扩展进程起得内核才有，而现在卡在系统授权（202）。
+   * 所以这里只有两种状态：演示模式（带「演示数据」标记）或明说"统计不可用"。
+   * 绝不在没有数据时显示 0 —— 那会让用户以为"连上了但没走流量"。
+   */
+  private refreshStatusStrip(): void {
+    this.trafficDemo = DemoFlags.trafficDemo();
+    const connected: boolean = this.vm.getState() === ConnState.CONNECTED;
+    if (connected) {
+      if (this.connectedAt === 0) {
+        this.connectedAt = Date.now();
+        this.demoDown = 0;
+        this.demoUp = 0;
+        this.startTick();
+      }
+    } else if (this.connectedAt !== 0) {
+      this.connectedAt = 0;
+      this.uptimeText = '';
+      this.stopTick();
+    }
+    this.tickOnce();
+  }
+
+  private startTick(): void {
+    if (this.tickTimer !== -1) {
+      return;
+    }
+    this.tickTimer = setInterval(() => {
+      this.tickOnce();
+    }, 1000);
+  }
+
+  private stopTick(): void {
+    if (this.tickTimer === -1) {
+      return;
+    }
+    clearInterval(this.tickTimer);
+    this.tickTimer = -1;
+  }
+
+  private tickOnce(): void {
+    const connected: boolean = this.connectedAt > 0;
+    if (connected) {
+      const sec: number = Math.floor((Date.now() - this.connectedAt) / 1000);
+      this.uptimeText = this.formatUptime(sec);
+    }
+    if (this.trafficDemo) {
+      // 演示数据：按每秒几百 KB 的节奏累加，只为让布局有"活"的数字可看
+      this.demoDown += 1000 + Math.floor(Math.random() * 900);
+      this.demoUp += 100 + Math.floor(Math.random() * 90);
+      this.trafficText = `↓ ${Index.bytesText(this.demoDown)}  ↑ ${Index.bytesText(this.demoUp)}`;
+      return;
+    }
+    this.trafficText = connected
+      ? '统计未接通：内核未提供数据（等真机验证后接入）'
+      : '未连接，无流量数据';
+  }
+
+  private formatUptime(sec: number): string {
+    const h: number = Math.floor(sec / 3600);
+    const m: number = Math.floor((sec % 3600) / 60);
+    const s: number = sec % 60;
+    const mm: string = m < 10 ? `0${m}` : `${m}`;
+    const ss: string = s < 10 ? `0${s}` : `${s}`;
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  }
+
+  private static bytesText(n: number): string {
+    if (n < 1024) {
+      return `${n} B`;
+    }
+    if (n < 1024 * 1024) {
+      return `${(n / 1024).toFixed(1)} KB`;
+    }
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
   }
 
   private nav(url: string): void {
@@ -223,8 +326,10 @@ struct Index {
       this.busyHint = '';
       if (st.state === 'running') {
         this.vm.onKernelConnected();
+        EventLog.push(0, `已连接：${this.nodeName}`);
       } else {
         const why: string = VpnController.describeStateCode(st.code);
+        EventLog.push(2, `连接失败：${why.length > 0 ? why : st.msg}`);
         this.vm.onKernelError(why.length > 0 ? why : (st.msg.length > 0 ? st.msg : '扩展进程未能就绪'));
       }
       this.refreshAll();
@@ -247,6 +352,7 @@ struct Index {
       .then(() => {
         this.vm.requestDisconnect();
         this.busyHint = '';
+        EventLog.push(0, `已断开：${this.nodeName}`);
         this.refreshAll();
       })
       .catch((err: Object) => {
@@ -411,6 +517,88 @@ struct Index {
           })
       }
       .width('100%')
+      .padding(Space.md)
+      .backgroundColor($r('app.color.bg_surface'))
+      .borderRadius(Radius.panel)
+
+      // 状态条：时长 + 流量 + 最近事件。
+      // 这块原来是纯 Blank，占掉半个屏幕却什么都没说；现在回答三个最常问的问题：
+      // "连了多久""走了多少流量""上次为什么没连上"。
+      Column({ space: Space.sm }) {
+        Row({ space: Space.md }) {
+          Column({ space: 2 }) {
+            Text('已连接')
+              .fontSize(FontSize.caption)
+              .lineHeight(LineHeight.caption)
+              .fontColor($r('app.color.text_tertiary'))
+            Text(this.uptimeText.length > 0 ? this.uptimeText : '—')
+              .fontSize(FontSize.titleMd)
+              .lineHeight(LineHeight.titleMd)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+
+          Column({ space: 2 }) {
+            Row({ space: Space.xs }) {
+              Text('上下行')
+                .fontSize(FontSize.caption)
+                .lineHeight(LineHeight.caption)
+                .fontColor($r('app.color.text_tertiary'))
+              if (this.trafficDemo) {
+                // 演示数据必须自曝身份：不标出来就等于用假数字骗人
+                Text('演示数据')
+                  .fontSize(FontSize.fontChip)
+                  .lineHeight(LineHeight.fontChip)
+                  .fontColor($r('app.color.warning'))
+                  .padding({ left: Space.xs, right: Space.xs, top: 2, bottom: 2 })
+                  .backgroundColor($r('app.color.warning_subtle'))
+                  .borderRadius(Radius.chip)
+              }
+            }
+            Text(this.trafficText)
+              .fontSize(this.trafficDemo ? FontSize.titleMd : FontSize.caption)
+              .lineHeight(this.trafficDemo ? LineHeight.titleMd : LineHeight.caption)
+              .fontColor(this.trafficDemo ? $r('app.color.text_primary') : $r('app.color.text_tertiary'))
+              .maxLines(2)
+          }
+          .alignItems(HorizontalAlign.End)
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Bottom)
+
+        if (this.events.length > 0) {
+          Divider()
+          ForEach(this.events, (e: AppEvent) => {
+            Row({ space: Space.sm }) {
+              Text(EventLog.timeText(e.ts))
+                .fontSize(FontSize.caption)
+                .lineHeight(LineHeight.caption)
+                .fontColor($r('app.color.text_tertiary'))
+              Text(e.text)
+                .fontSize(FontSize.caption)
+                .lineHeight(LineHeight.caption)
+                .fontColor(e.level === 2
+                  ? $r('app.color.danger')
+                  : (e.level === 1 ? $r('app.color.warning') : $r('app.color.text_secondary')))
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .layoutWeight(1)
+            }
+            .width('100%')
+          }, (e: AppEvent) => `${e.ts}-${e.text}`)
+        } else {
+          Text('还没有事件记录。连接一次，这里会显示结果。')
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor($r('app.color.text_tertiary'))
+            .width('100%')
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
       .padding(Space.md)
       .backgroundColor($r('app.color.bg_surface'))
       .borderRadius(Radius.panel)
