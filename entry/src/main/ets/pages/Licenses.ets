@@ -110,7 +110,7 @@ struct Licenses {
           }, (c: Component) => c.name)
 
           this.section('MPL-2.0 相关义务（Xray-core）')
-          Text('本应用以**未经修改**的编译产物形式集成 Xray-core。MPL-2.0 要求：' +
+          Text('本应用以未经修改的编译产物形式集成 Xray-core。MPL-2.0 要求：' +
             '以可执行形式分发时，须告知接收者如何获取对应源码。')
             .fontSize(FontSize.bodySm)
             .lineHeight(LineHeight.bodySm)
@@ -134,7 +134,7 @@ struct Licenses {
             .width('100%')
 
           this.section('商标与归属')
-          Text('本应用是独立第三方项目，与 XTLS、Xray-core、v2fly 等项目**无隶属关系**，' +
+          Text('本应用是独立第三方项目，与 XTLS、Xray-core、v2fly 等项目无隶属关系，' +
             '亦未获得其背书。应用名称与图标为原创，不使用上游项目的名称或标识作为品牌。')
             .fontSize(FontSize.bodySm)
             .lineHeight(LineHeight.bodySm)

@@ -211,7 +211,7 @@ struct RoutingRules {
       .backgroundColor($r('app.color.bg_surface_alt'))
       .borderRadius(Radius.panel)
 
-      Text('优先级：这里列出的规则**先于**内置的国内直连规则匹配，顺序即优先级。')
+      Text('优先级：这里列出的规则先于内置的国内直连规则匹配，顺序即优先级。')
         .fontSize(FontSize.caption).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.caption)
       Text('注意：分流模式为「全局」时，这些规则不生效（全局=全部走代理）。')
         .fontSize(FontSize.caption).fontColor($r('app.color.warning')).width('100%').lineHeight(LineHeight.caption)

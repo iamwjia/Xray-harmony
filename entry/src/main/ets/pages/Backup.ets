@@ -517,7 +517,7 @@ struct Backup {
             .width('100%')
 
             Text('口令是这个文件的唯一保护：忘了就打不开，也没有任何找回方式。' +
-              '请把口令**另外发一条消息**给接收方——和文件放在一起发，等于没有加密。')
+              '请把口令另发一条消息给接收方——和文件放在一起发，等于没有加密。')
               .fontSize(FontSize.caption)
               .lineHeight(LineHeight.caption)
               .fontColor($r('app.color.warning'))

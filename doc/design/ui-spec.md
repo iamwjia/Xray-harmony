@@ -202,20 +202,20 @@
 | `body-lg` | 15 / 22 | 400 / 600 | 节点名、规则 pattern、**弹出菜单项（2–6 字动作，见 §11.5）** | 15 / 14 |
 | `body` | 14 / 20 | 400 | 正文、设置项、输入框内文 | 13 / 12 |
 | `body-sm` | 13 / 20 | 400 | 说明、提示、按钮文字、**可点筛选 chip** | 12 / 11 |
-| `caption` | 12 / 16 | 400 | 元信息（协议·地址:端口）、时间戳、计数 | 11 / 10 |
-| **`font_chip`** | **11 / 16** | **500** | **标签类**：节点行的分组 chip、许可页的许可证 chip（**不可点击的短标签**，≤4 字） | 10 |
+| `caption` | **13 / 18** | 400 | 元信息（协议·地址:端口）、时间戳、计数、说明文字 | 11 / 10 |
+| **`font_chip`** | **12 / 18** | **500** | **标签类**：节点行的分组 chip、许可页的许可证 chip（**不可点击的短标签**，≤4 字） | 10 |
 
 **硬规则（必须）**：
 
-- **禁止 `fontSize(10)`**：现状 10fp 全部上移到 `caption`(12)。
-- **`fontSize(11)` 只允许一种用途：`font_chip`**（标签类短标签）。它**是一个档位，不是一个例外**——不是"某处可以破例"，而是"标签必须用这一档"。任何正文、说明、元信息、按钮文字使用 11fp 即违规。
+- **禁止 `fontSize(10)` / `fontSize(11)`**：全站最小档是 `font_chip` 12，现状 10/11fp 一律上移（`caption` 13 / `font_chip` 12）。11fp 这一档已于 2026-11-23 取消——它在真机截图里读起来像"标注"，不像"信息"。
+- **`font_chip`（12）只允许一种用途：标签类短标签**（分组 chip、许可证 chip）。它**是一个档位，不是一个例外**——不是"某处可以破例"，而是"标签必须用这一档"。任何正文、说明、元信息、按钮文字使用 `font_chip` 即违规。
 - **区分两种 chip，不许混**：
-  - **标签 chip**（`font_chip` 11/16，**不可点击**）：节点行的分组标签、许可页许可证标签。视觉高 ≥28vp；行内命中区由整行（≥64）承担，不单独设点击区。
+  - **标签 chip**（`font_chip` 12/18，**不可点击**）：节点行的分组标签、许可页许可证标签。视觉高 ≥28vp；行内命中区由整行（≥64）承担，不单独设点击区。
   - **筛选 chip**（`body-sm` 13/20，**可点击**）：分组筛选、日志级别、分流模式。命中区 **44×44**，圆角 999。
   - 若标签 chip 需要独立可点（如点击按分组筛选），下沉为筛选 chip 规格：外层 44 容器 + 内层 28 视觉，**反过来（视觉 44 / 命中 28）不允许**。
 - **禁止出现 8 档以外的字号**；需要更强调就用字重（600）而不是加字号。
 - **⚠ 机器归零 ≠ 语义达标（2026-11-22 实测教训）**：把 `fontSize(10)`/`11` 全换成 `FontSize.fontChip` 也能让"字面量 = 0"的脚本全绿，但 `fontChip` 是**标签档**，正文用它就是违规。`fontChip` 的用途白名单只有两种：① 标签 chip（分组/许可证标签）；② 徽标内数字。**任何多行、正文、元信息 Text 使用 `fontChip` 即违规**。判定见 §11.8 第 18 项。
-- **行高与字号的关系**：`lineHeight ≥ 1.4 × fontSize` 是正文默认；`< 1.4×` 只允许用于**单行标题 / 标签**（`title-md` 16/22 = 1.38、`font_chip` 11/16 = 1.45 均合规）。**多行正文低于 1.4× 即违规**。
+- **行高与字号的关系**：`lineHeight ≥ 1.4 × fontSize` 是正文默认；`< 1.4×` 只允许用于**单行标题 / 标签**（`title-md` 16/22 = 1.38、`font_chip` 12/18 = 1.5 均合规）。**多行正文低于 1.4× 即违规**。
 - **每一处 `fontSize` 必须显式配 `lineHeight`**（对应表里的值）。这是"零处 lineHeight"的正面修正。
 - **"可换行"= 未设 `maxLines` 或 `maxLines > 1`**：这类 `Text` 必须显式 `lineHeight`。**不写 `maxLines` 才是默认多行**，所以"只在 maxLines≠1 的地方查"会漏掉最常见的一类——这是 A-04 的机器可执行化口径（§11.8 第 19 项）。
 - 可换行文本必须 `maxLines` + `textOverflow({overflow: TextOverflow.Ellipsis})`，禁止依赖默认裁切。
@@ -296,7 +296,7 @@
 | 状态行 | 状态点 10vp 圆（`status_*`）+ 间距 8 + 状态文字 `display` 24/32 w600（`status_*` 色） |
 | hint（状态描述） | `body-sm` 13/20 `text_secondary`，最多 2 行；未选节点「当前仅在本机提供代理」/ 已选「当前走 <节点名>」（§10.4，**不含实现词**） |
 | busyHint | `body-sm` 13/20 `accent`（替换现状 11fp） |
-| 本机代理地址 | **诊断类信息层级**：`caption` 12/16 `text_tertiary`（**不得与节点名/状态同权重**），文案「本机代理地址 127.0.0.1:<port>」；**长按 500ms 复制** `127.0.0.1:<port>`（`pasteboard.setData` + 轻提示），不改视觉；`accessibilityText` 追加「长按可复制」 |
+| 本机代理地址 | **诊断类信息层级**：`caption` 13/18 `text_tertiary`（**不得与节点名/状态同权重**），文案「本机代理地址 127.0.0.1:<port>」；**长按 500ms 复制** `127.0.0.1:<port>`（`pasteboard.setData` + 轻提示），不改视觉；`accessibilityText` 追加「长按可复制」 |
 | 调试串 `state=` | **删除**，移到 `DevPanel`（10fp + `#AAAAAA`，既是纯调试信息又最小字号） |
 | 主按钮 | 全宽 × **48**，圆角 24，`accent` 底 / `text_on_accent` 字（`body` 14 w600） |
 
@@ -347,23 +347,23 @@
 ```
 Section 标题 title-md 16/24 w600            ← 上间距 24
 ────────────────────── 1vp border_subtle
-label  caption 12/16 text_tertiary          ← 间距 4
+label  caption 13/18 text_tertiary          ← 间距 4
 [ 输入框 44vp，body 14，radius 8，1.5vp border_strong ]
-（错误）caption 12/16 danger                ← 间距 0–4
+（错误）caption 13/18 danger                ← 间距 0–4
                                             ← 字段间 16
 ```
 - 输入框内文 14fp（现状 12fp，输入时偏小）。
 - 占位符 `text_tertiary`；密码框保留 `InputType.Password`。
-- 帮助文字（如"留空表示不修改"）`caption` 12/16 `text_tertiary`，置于输入框下 4vp。
+- 帮助文字（如"留空表示不修改"）`caption` 13/18 `text_tertiary`，置于输入框下 4vp。
 - 分组字段的"下拉 + 手输并存"保留（那是数据模型约束，不是视觉问题），但**下拉与输入框之间间距 8**，并加一行 12fp 说明「选已有，或直接输入新组名（会覆盖上面的选择）」。
 
 ### 4.7 `RuleRow` / `LogRow`
 
 | 组件 | 规格 |
 |---|---|
-| `RuleRow` | 高 ≥64，padding v12/h12，圆角 12；pattern `body-lg` 15/22 w500；元信息 `caption` 12/16；右侧 2 个 **44×44** 命中区（启用/禁用、删除） |
+| `RuleRow` | 高 ≥64，padding v12/h12，圆角 12；pattern `body-lg` 15/22 w500；元信息 `caption` 13/18；右侧 2 个 **44×44** 命中区（启用/禁用、删除） |
 | 规则禁用态 | **不改底色**（现状 `#F0F0F0`），pattern 用 `text_tertiary`，元信息追加 `· 已禁用`，右侧动作文字改「启用」 |
-| `LogRow` | padding v8/h12，圆角 8，行间 6；level `caption` 12/16 **w600** + 级别色；time `caption` 12/16 `text_tertiary`；msg `caption` 12/**18** `text_primary`（可 2 行） |
+| `LogRow` | padding v8/h12，圆角 8，行间 6；level `caption` 13/18 **w600** + 级别色；time `caption` 13/18 `text_tertiary`；msg `caption` 12/**18** `text_primary`（可 2 行） |
 
 > 日志行**非交互**（现状也没有 onClick），44vp 规则不适用；但若后续加"长按复制"，整行必须达到 44。
 
@@ -451,7 +451,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | hint | 13 / `#666666` | 建议 | 13/20 `text_secondary` |
 | busyHint | 11 / `#1976D2` | 必须 | 13/20 `accent` |
 | `state=` 调试串 | 10 / `#AAAAAA` | 必须 | **删除**（移至 DevPanel） |
-| 本机代理地址（原 `socksInfo` 行） | 10 / `#90A4AE`（对比 **2.59:1**） | 必须 | 诊断类信息层级：`caption` 12/16 `text_tertiary`，文案 **「本机代理地址 127.0.0.1:<port>」**；**长按复制**该地址（D-3，只加事件、不改视觉）；`accessibilityText` 带「长按可复制」（§10.4.3） |
+| 本机代理地址（原 `socksInfo` 行） | 10 / `#90A4AE`（对比 **2.59:1**） | 必须 | 诊断类信息层级：`caption` 13/18 `text_tertiary`，文案 **「本机代理地址 127.0.0.1:<port>」**；**长按复制**该地址（D-3，只加事件、不改视觉）；`accessibilityText` 带「长按可复制」（§10.4.3） |
 | 主按钮 | `width('70%')` / 40（默认） | 必须 | 全宽 × 48，radius 24 |
 | 当前节点行 | padding 12 / radius 8 / `#FAFAFA` | 建议 | padding 12 / radius 12 / `bg_surface_alt` |
 | 「更换」按钮 | 12fp / 40 | 必须 | Secondary 44 高、13fp、最小宽 64 |
@@ -463,7 +463,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 元素 | 现状 | 判定 | 改成 |
 |---|---|---|---|
 | 顶栏 | `Button('返回')` + 标题 18 | 必须/建议 | `PageHeader`：返回 44×44 图标，标题 20/28 |
-| 计数 | 12 / `#999999` | 建议 | `caption` 12/16 `text_tertiary` |
+| 计数 | 12 / `#999999` | 建议 | `caption` 13/18 `text_tertiary` |
 | 导入切换按钮 | **36×36** / 16fp | **必须** | **44×44**，图标 20vp |
 | 导入面板 | padding 10 / `#F5F5F5` / radius 8 | 建议 | padding 12 / `bg_surface_alt` / radius 12 |
 | 输入框 | 12fp / 40 | 必须 | 14fp / 44 |
@@ -488,7 +488,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 元素 | 现状 | 判定 | 改成 |
 |---|---|---|---|
 | 顶栏 | 返回 12fp 按钮 + 标题 18 | 必须/建议 | `PageHeader`（标题 20/28） |
-| 字段 label | 12 / `#666666` × 13 处 | 必须 | `caption` 12/16 `text_tertiary`，与输入框间距 4 |
+| 字段 label | 12 / `#666666` × 13 处 | 必须 | `caption` 13/18 `text_tertiary`，与输入框间距 4 |
 | 输入框 | 12fp / 40 × 13 个 | 必须 | 14fp / **44** / radius 8 / 1.5vp `border_strong` |
 | 字段间距 | `space 10` | 必须 | 16；Section 之间 24 |
 | 协议/传输/安全按钮组 | 11fp / 40 / `space 6` | 必须 | 13fp / 44 / `space 8` / 可换行 `Flex(wrap)` |
@@ -544,7 +544,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 「刷新」「清空」 | 11fp / 40；清空 `#8D6E63` | 必须 | 44 命中；清空改 **Text/Danger**（不可撤销操作） |
 | 结果提示 | 11 / `#1976D2` | 必须 | 13/20 按结果分色 |
 | 空状态文案 | 11 / `#999999` | 必须 | 12/18 `text_tertiary` + 居中 |
-| **诊断行（新增，§10.4.3 D-2）** | 无 | **必须** | 紧贴脱敏说明下方一行 `caption` 12/16 `text_tertiary`，三态：已连接「当前代理地址 127.0.0.1:<port>」/ 已断开「最近一次代理地址 127.0.0.1:<port>（已断开）」/ 从未连接「暂无代理地址记录（本次启动未连接过）」；**长按复制**端口（同 D-3）。**不得放进列表区**（否则被日志淹没） |
+| **诊断行（新增，§10.4.3 D-2）** | 无 | **必须** | 紧贴脱敏说明下方一行 `caption` 13/18 `text_tertiary`，三态：已连接「当前代理地址 127.0.0.1:<port>」/ 已断开「最近一次代理地址 127.0.0.1:<port>（已断开）」/ 从未连接「暂无代理地址记录（本次启动未连接过）」；**长按复制**端口（同 D-3）。**不得放进列表区**（否则被日志淹没） |
 | 日志行 | padding 8 / radius 6 / `#FAFAFA` / `space 4` | 建议 | v8 h12 / radius 8 / `bg_surface_alt` / `space 6` |
 | level | 10 / 级别色 | 必须 | 12/16 **w600** + 级别色 |
 | time | 10 / `#999999` | 必须 | 12/16 `text_tertiary` |
@@ -910,7 +910,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | A-12 | 破坏性操作可撤回或二次确认 | 必须 | 删除节点、清空日志：现状有确认/有说明，保持 |
 | A-13 | 系统字体放大 1.3× 后无截断 | 必须 | 模拟器把字体调到最大，检查标题/按钮/列表行 |
 | A-14 | 触控目标之间不重叠 | 必须 | 相邻命中区边界间距 ≥0（建议 8）；节点行整行与溢出按钮必须真正分离 |
-| A-17 | 诊断信息可得且可复制（§10.4.3 D-1~D-3） | 必须 | 三查：①诊断行是 `caption` 12/16 `text_tertiary`，不与节点名/状态同权重；②**首页与 Logs 两处都能读到端口，且断连后 Logs 仍显示"最近一次"**；③长按复制结果**严格等于** `127.0.0.1:<port>` |
+| A-17 | 诊断信息可得且可复制（§10.4.3 D-1~D-3） | 必须 | 三查：①诊断行是 `caption` 13/18 `text_tertiary`，不与节点名/状态同权重；②**首页与 Logs 两处都能读到端口，且断连后 Logs 仍显示"最近一次"**；③长按复制结果**严格等于** `127.0.0.1:<port>` |
 
 **A-10 的补充说明**：这条是给"美化"设的边界。本规格里唯一的"隐藏"是 `↑ ↓ 编辑 删除`，它们**不属于四要素**，且被移到 1 次点击可达的菜单里；四要素在任何状态下都完整可见。
 
@@ -1023,7 +1023,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 **连带的 3 处必改（否则验收过不去）**：
 
 1. `ConnectionViewModel.deriveView()` 的 4 条 `hint` 现在都含 "SOCKS"/"内核" 字样（如"点击开关启动内核（当前仅本地 SOCKS，未接节点）"、"内核已启动（本地 SOCKS 监听中，尚未接入节点）"）→ 全部按 10.4.1 改。
-2. 首页 `socksInfo` 那一行（`本地 SOCKS 127.0.0.1:<port>（已启用口令鉴权）`）→ 改 **「本机代理地址 127.0.0.1:<port>」**，归**诊断类信息**层级：`caption` 12/16 `text_tertiary`（**不得与节点名 `body-lg` / 状态 `display` 同权重**）。**信息保留**，只换词、去掉实现细节括号。
+2. 首页 `socksInfo` 那一行（`本地 SOCKS 127.0.0.1:<port>（已启用口令鉴权）`）→ 改 **「本机代理地址 127.0.0.1:<port>」**，归**诊断类信息**层级：`caption` 13/18 `text_tertiary`（**不得与节点名 `body-lg` / 状态 `display` 同权重**）。**信息保留**，只换词、去掉实现细节括号。
 3. `DevPanel` 的说明文字可保留技术词（那是调试面），但**首页与 Settings 用户可见文案不含** SOCKS / freedom / 内核直连。
 
 #### 10.4.3 诊断信息三条附加约束（leader 2026-11-22 拍板"保留信息、换词"）
@@ -1032,7 +1032,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 
 | # | 约束 | 落点 |
 |---|---|---|
-| D-1 | 该行归**诊断类信息**层级（次要色 + 12fp），**不能与节点名/状态同权重** | §4.3 StatusHero：`caption` 12/16 `text_tertiary` |
+| D-1 | 该行归**诊断类信息**层级（次要色 + 12fp），**不能与节点名/状态同权重** | §4.3 StatusHero：`caption` 13/18 `text_tertiary` |
 | D-2 | **Logs 页也必须能读到当前代理端口**——首页那行不能是唯一暴露点，否则用户一断连就无从查 | §5.6：Logs 顶部加诊断行（见下） |
 | D-3 | **长按复制** `127.0.0.1:<port>`，报障时用户能直接粘出来。**不改视觉，只加事件**（不加图标、不加下划线、不改颜色） | §4.3 / §5.1：`LongPressGesture`(500ms) → `pasteboard.setData` → 轻提示「已复制」 |
 
@@ -1040,7 +1040,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 
 | 状态 | 文案 | 样式 |
 |---|---|---|
-| 已连接 | `当前代理地址 127.0.0.1:<port>`（长按复制） | `caption` 12/16 `text_tertiary`，紧贴脱敏说明下方 |
+| 已连接 | `当前代理地址 127.0.0.1:<port>`（长按复制） | `caption` 13/18 `text_tertiary`，紧贴脱敏说明下方 |
 | 已断开、但本次启动内连接过 | `最近一次代理地址 127.0.0.1:<port>（已断开）`（长按复制） | 同上 |
 | 本次启动从未连接 | `暂无代理地址记录（本次启动未连接过）` | 同上 |
 
@@ -1135,19 +1135,19 @@ scrim                #A6000000   start_window_background  #0E1013
 
 > `scrim` 用 8 位 ARGB：`#73000000` = 黑 45%，`#A6000000` = 黑 65%（`Index` 现在的 `#99000000` = 60%，浅色下偏重）。
 > 键名固定不可自创；新增色必须同时改两个文件并重算对比度。
-> `common/Token.ets` 需同步导出字号常量 8 个（`display 24 / titleLg 20 / titleMd 16 / bodyLg 15 / body 14 / bodySm 13 / caption 12 / fontChip 11`）与行高、间距、高度、圆角常量；页面里**不许再写字面量数字**。
+> `common/Token.ets` 需同步导出字号常量 8 个（`display 24 / titleLg 20 / titleMd 16 / bodyLg 15 / body 14 / bodySm 13 / caption 13 / fontChip 12`）与行高、间距、高度、圆角常量；页面里**不许再写字面量数字**。
 
 ### 11.3 `Nodes` 页骨架（逐元素属性清单）
 
 | # | 元素 | 组件与属性（照抄即可） |
 |---|---|---|
 | 1 | 页面根 | `Column({space:0})` `.width('100%')` `.height('100%')` `.backgroundColor($r('app.color.bg_canvas'))` |
-| 2 | 顶栏 | `PageHeader({title:'节点列表', count: visibleNodes().length})` → 高 56，左右 padding 16，返回 44×44 图标 20vp，标题 `title-lg` 20/28 w600，计数 `caption` 12/16 `text_tertiary` 右对齐 |
+| 2 | 顶栏 | `PageHeader({title:'节点列表', count: visibleNodes().length})` → 高 56，左右 padding 16，返回 44×44 图标 20vp，标题 `title-lg` 20/28 w600，计数 `caption` 13/18 `text_tertiary` 右对齐 |
 | 3 | 导入按钮 | 44×44，图标 20vp（`+` / `×`），`.accessibilityText(this.showImport ? '收起导入面板' : '导入节点或订阅')` |
 | 4 | 导入面板 | `Column({space:12})` padding 12，`bg_surface_alt`，`radius-card` 8，**左右外边距 16** |
 | 5 | 导入输入框 | `TextInput` 高 `h-input` 44，字号 `body` 14，占位符 `text_tertiary`，`.borderRadius(8)` |
 | 6 | 导入按钮 | 高 44，最小宽 72，`body-sm` 13，Primary（全宽） |
-| 7 | 面板说明 | `caption` 12/16 `text_tertiary`（"vless/vmess/trojan/ss 走单条导入；http(s) 走订阅导入"） |
+| 7 | 面板说明 | `caption` 13/18 `text_tertiary`（"vless/vmess/trojan/ss 走单条导入；http(s) 走订阅导入"） |
 | 8 | 结果提示 `importMsg` | `body-sm` 13/20；**按结果分色**：`total===0 || error 非空` → `danger`；`failed>0` → `warning`；否则 `accent`。`.accessibilityText('导入结果：' + importMsg)` |
 | 9 | 分组 chips 容器 | `Scroll`(Horizontal)，Row `space 8`，**首尾 padding 16** |
 | 10 | chip | 高 44，圆角 999，水平 padding 16，`body-sm` 13；选中 `accent`/`text_on_accent`；未选 `bg_chip`/`text_secondary`。`.accessibilityText(g + (选中?'，当前筛选':'') )` |
@@ -1303,7 +1303,7 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 15) 菜单可辨与禁用态     浮层有 1vp border_subtle；首/末项上移下移置灰    → 通过
 16) 字号字面量归零       grep -c "fontSize([0-9]" pages/ components/ = 0
                         grep -c "lineHeight([0-9]" pages/ components/ = 0
-                        字号取值集合 ⊆ {24,20,16,15,14,13,12,11}
+                        字号取值集合 ⊆ {24,20,16,15,14,13,12}
                         （注意：`Text('\u2713')` 等图标走 IconSize，不算字号）
 17) host 常量唯一        全仓 grep "127.0.0.1" 仅常量定义 1 处（文档/注释除外）
 18) fontChip 不被滥用    逐处 `grep -n "FontSize.fontChip"` 人工过：
@@ -1376,7 +1376,7 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 | 线框图 + 尺寸标注 | ✅ §6 共 8 张（首页/列表/编辑/设置/规则/日志/许可/须知弹层） |
 | 裁决项写成"已裁决 + 结论 + 约束 + 日期" | ✅ §10（4 项全裁决，含 leader 追加的 2 条 Nodes 约束） |
 | 提供端到端示范（可抄即能写码） | ✅ §11：26 键令牌全值 + `NodeRow` 逐属性结构树 + 宽度核算 222vp + 溢出菜单 + 空态 + **八条自检（A-01…A-16）** + 八项脚本 |
-| 字号档位把 chip 收编为令牌 | ✅ §3.2 扩为 **8 档**，`font_chip` 11/16 是档位不是例外；配 `h-chip-label` 28 与"视觉 28 / 命中 44"方向约束（反向不允许） |
+| 字号档位把 chip 收编为令牌 | ✅ §3.2 扩为 **8 档**，`font_chip` 12/18 是档位不是例外；配 `h-chip-label` 28 与"视觉 28 / 命中 44"方向约束（反向不允许） |
 | 事件结构写成可判定条款 | ✅ §11.4"兄弟不嵌套"五条 + A-15（菜单打开时点同行不改选中）/ A-16（外层无 click 容器） |
 | 首页文案不写实现细节 | ✅ §10.4 第二版：定位语「本地转发，规则由你定」+ **状态句三档回退（name → host:port → 未选节点）** + `deriveView()` **只传展示字符串的签名约束**；连带 `ViewModel` 4 条 `hint` 与 `socksInfo` 行一并改，验收 `grep -i 'socks\|freedom\|内核直连'` = 0 |
 | 诊断信息"保留信息、换词"（leader 拍板） | ✅ §10.4.3 D-1~D-3：诊断层级（12fp 次要）/ **Logs 也暴露端口（含"最近一次"三态）** / **长按复制**不改视觉；`lastEndpoint()` 三条硬约束 L-1~L-3（不可变快照、断开不置空、幂等）；检查表新增 **A-17**，脚本新增 9)~11) |
@@ -1384,6 +1384,7 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 | 实现偏离已裁定并写回（`2f4ea1a`） | ✅ §11.10 两条偏离裁定 + 条件；脚本扩到 15 项 |
 | **自身错误已修（3 处）** | ✅ 行内 padding `10→8`（白名单自相矛盾）、`space-line=2` 补进间距白名单（原来无处安放）、host「中间省略」改为「尾部省略」（ArkUI `Ellipsis` 不支持中间，且端口已独立）；另对齐 `title-md 16/22`、`body 14/20` 与 Token 一致，并补 1.4× 行高规则 |
 | 与代码现状对齐 | ✅ 2026-11-22 复核：`Nodes.ets` 仍 361 行（未改造，基线有效）；`Index.ets` 354 行（结构已稳定，§5.9 有效） |
+| **字号整体上调（2026-11-23）** | ✅ 用户反馈"有的字体过小"。`caption` **12/16 → 13/18**、`font_chip` **11/16 → 12/18**，全站最小档从 11 提到 12（11 档取消）。闸门补三条：字号下限 12、页面禁止硬编码 `.fontSize(数字)`、**Text 文案禁止出现 `**强调**`**（ArkUI 的 Text 不解析 markdown，分流页/备份页/许可页真的漏出了字面星号）。顺带修掉两处折行：日志页筛选说明独占一行、设置页自动更新说明缩到单行。 |
 
 
 ---

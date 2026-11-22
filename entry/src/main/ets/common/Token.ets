@@ -14,9 +14,9 @@ export class FontSize {
   static readonly bodyLg: number = 15;
   static readonly body: number = 14;
   static readonly bodySm: number = 13;
-  static readonly caption: number = 12;
-  /** 标签类不可点短标签（≤4 字）专用档位；正文/说明/元信息用 11fp 即违规 */
-  static readonly fontChip: number = 11;
+  static readonly caption: number = 13;
+  /** 标签类不可点短标签（≤4 字）专用档位；全站最小字号，正文/说明/元信息低于 12 即违规 */
+  static readonly fontChip: number = 12;
 }
 
 export class LineHeight {
@@ -26,7 +26,7 @@ export class LineHeight {
   static readonly bodyLg: number = 22;
   static readonly body: number = 20;
   static readonly bodySm: number = 20;
-  static readonly caption: number = 16;
+  static readonly caption: number = 18;
   static readonly fontChip: number = 16;
 }
 

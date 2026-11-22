@@ -334,10 +334,6 @@ struct Logs {
           .lineHeight(LineHeight.bodySm)
           .fontColor($r('app.color.text_primary'))
           .maxLines(1)
-        Text('该级别及以上；只影响显示，不改写入')
-          .fontSize(FontSize.caption)
-          .lineHeight(LineHeight.caption)
-          .fontColor($r('app.color.text_tertiary'))
           .layoutWeight(1)
         // 动作放标题行右侧：它们是"刷新/清空"，与"筛选项"不是一类，
         // 混在同一排胶囊里会出现 6 个宽窄不一的块，用户会问"为什么大小不一样"
@@ -358,6 +354,15 @@ struct Logs {
       }
       .width('100%')
       .padding({ left: Space.lg, right: Space.lg, bottom: Space.xs })
+
+      // 说明单独占一行：字号上调后它挤在标题行里会折成两行，
+      // 把「刷新/清空」顶到一半高度，看起来像三个不同基线的东西。
+      Text('该级别及以上；只影响显示，不改写入')
+        .fontSize(FontSize.caption)
+        .lineHeight(LineHeight.caption)
+        .fontColor($r('app.color.text_tertiary'))
+        .width('100%')
+        .padding({ left: Space.lg, right: Space.lg, bottom: Space.xs })
 
       Row({ space: Space.sm }) {
         ForEach(this.chips, (c: LevelChip) => {

@@ -314,7 +314,8 @@ struct Settings {
                   .lineHeight(LineHeight.bodyLg)
                   .fontColor($r('app.color.text_primary'))
                   .maxLines(1)
-                Text('进入应用时若超过间隔会提示更新（不会静默联网）')
+                // 字号 12→13 后原来的 24 字会折出孤字"网）"，缩短到能单行放下
+                Text('超间隔后打开应用才提示（不静默联网）')
                   .fontSize(FontSize.caption)
                   .lineHeight(LineHeight.caption)
                   .fontColor($r('app.color.text_tertiary'))
