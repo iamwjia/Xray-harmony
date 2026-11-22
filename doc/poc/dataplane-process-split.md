@@ -65,3 +65,44 @@ UI 进程（EntryAbility / 页面）
 3. 授权被拒 / 已被其他 VPN 占用时的错误归因是否正确（2203001 / 2203002）；
 4. 销毁顺序：先停内核再销毁 tun（否则留下"网卡在、转发死"的状态）；
 5. 转发接入后：tun 内流量是否真的经 SOCKS 出网（服务端日志佐证）。
+
+## 6. 仿真环境实际能验证到什么（已实测，修正了"必须真机"的笼统说法）
+
+原始判断是「扩展路径必须真机」。实测发现**大部分可以在模拟器上验证**，
+做法是绕开系统授权弹窗，直接用 `aa start` 拉起扩展 ability 并带上会话参数：
+
+```sh
+# 设备侧脚本，避免宿主机 shell 的嵌套引号问题
+SESSION=$(cat /data/local/tmp/session-test.json)
+aa start -a MyVpnExtAbility -b com.tunnelix.app --ps tunnelix.session "$SESSION"
+```
+
+实测输出（模拟器 API 26 / x86_64）：
+
+```
+XVPN_EXT: onCreate abilityName=MyVpnExtAbility
+XVPN_EXT: session: socksPort=12345 routing=rule configBytes=207
+XVPN_EXT: starting kernel in extension process
+XVPN_EXT: kernel running in extension process        ← 架构假设成立
+XVPN_EXT: bootstrap failed: code=202 msg=Non-system applications use system APIs
+```
+
+**已证实的**：
+
+| 项 | 结果 |
+|---|---|
+| 扩展进程独立拉起 | ✅（pid 与 UI 进程不同） |
+| `Want` 参数传递 + 会话解析 | ✅ `socksPort=12345 routing=rule configBytes=207` |
+| **内核在扩展进程里加载并启动** | ✅ 这是本架构最关键的假设 |
+| 缺参数时拒绝建 tun | ✅ `missing session parameters, refusing to establish tun` |
+| 错误可读性 | ✅ 修复前是 `[object Object]`，现在是 `code=... msg=...` |
+
+**仍然只能在真机验证的**：`create()` 能否拿到 tun fd。原因是它必须在
+「经 `startVpnExtensionAbility` 授权的会话」里调用，而这步在模拟器上卡在缺失的
+系统授权组件（`com.huawei.hmos.vpndialog`）上。
+
+**待查（重要）**：`code=202 Non-system applications use system APIs`。
+`@ohos.net.vpnExtension` 的 d.ts 里**没有** `@systemapi` 标记，release notes 也未提权限限制，
+所以 202 更可能是「本次不是授权会话」而不是「第三方不能用」。
+需要确认：三方应用走正式 `startVpnExtensionAbility` 流程时是否会得到同样错误。
+这条直接决定产品可行性，必须在真机优先验证。

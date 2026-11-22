@@ -32,6 +32,7 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
   private conn: vpnExtension.VpnConnection | null = null;
   private tunFd: number = -1;
   private session: VpnSession | null = null;
+  // 见文件末尾的 BusinessErrorLike
   private kernel: KernelService = KernelService.getInstance();
 
   onCreate(want: Want): void {
@@ -46,9 +47,24 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     this.bootstrap().then(() => {
       hilog.info(DOMAIN, TAG, 'bootstrap finished');
     }).catch((e: Object) => {
-      const msg: string = e instanceof Error ? e.message : String(e);
-      hilog.error(DOMAIN, TAG, 'bootstrap failed: %{private}s', msg);
+      // 不能直接 String(e)：BusinessError 是对象，打出来是 "[object Object]"，
+      // 等于把最有用的 code 丢掉了（实测踩到）。
+      hilog.error(DOMAIN, TAG, 'bootstrap failed: %{public}s', MyVpnExtAbility.describe(e));
     });
+  }
+
+  /** 把错误对象压成一行可读文本；code 必须保留，它决定了归因 */
+  private static describe(e: Object): string {
+    const err = e as BusinessErrorLike;
+    if (err !== null && err !== undefined && err.code !== undefined) {
+      const code: number = err.code;
+      const msg: string = err.message === undefined ? '' : err.message;
+      return `code=${code} msg=${msg}`;
+    }
+    if (e instanceof Error) {
+      return e.message;
+    }
+    return String(e);
   }
 
   onDestroy(): void {
@@ -126,4 +142,10 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
       hilog.info(DOMAIN, TAG, 'tun destroyed');
     }
   }
+}
+
+/** BusinessError 的形状：只取我们需要的字段，避免引入整套错误类型 */
+interface BusinessErrorLike {
+  code: number;
+  message?: string;
 }
