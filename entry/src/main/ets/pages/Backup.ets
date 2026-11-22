@@ -420,7 +420,7 @@ struct Backup {
             Row({ space: Space.sm }) {
               Column() {
                 IconButton({
-                  kind: 'export',
+                  kind: 'share',
                   label: this.exporting ? '生成中…' : '导出并分享',
                   variant: 'outline',
                   enabledState: this.canExport(),
@@ -431,7 +431,7 @@ struct Backup {
 
               Column() {
                 IconButton({
-                  kind: 'export',
+                  kind: 'file-export',
                   label: '导出到文件',
                   variant: 'outline',
                   enabledState: this.canExport(),

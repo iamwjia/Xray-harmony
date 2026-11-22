@@ -32,6 +32,8 @@ struct Logs {
   @State entries: LogEntry[] = [];
   /** 缓冲里的总数（未筛选）；筛选时与 entries.length 一起显示 */
   @State allCount: number = 0;
+  /** 下拉刷新中：与节点/订阅页同一套手势，不再单独放刷新按钮 */
+  @State refreshing: boolean = false;
   /** 空串 = 全部级别 */
   @State filter: string = '';
   @State msg: string = '';
@@ -43,7 +45,10 @@ struct Logs {
   private cfg: ConfigService = ConfigService.getInstance();
 
   private chips: LevelChip[] = [
+    // 全部 = 不限级别（显示所有已记录的）；DEBUG/INFO/WARN/ERROR 才是按级别筛。
+    // 之前漏了 DEBUG：写入级别设成 DEBUG 时能记下 DEBUG 条目，筛选里却选不到。
     { label: '全部', value: '' },
+    { label: 'DEBUG', value: LogLevel.DEBUG },
     { label: 'INFO', value: LogLevel.INFO },
     { label: 'WARN', value: LogLevel.WARN },
     { label: 'ERROR', value: LogLevel.ERROR }
@@ -155,6 +160,19 @@ struct Logs {
       return $r('app.color.text_tertiary');
     }
     return $r('app.color.success');
+  }
+
+  @Builder
+  textAction(label: string, action: () => void) {
+    Text(label)
+      .fontSize(FontSize.bodySm)
+      .lineHeight(LineHeight.bodySm)
+      .fontColor($r('app.color.accent'))
+      .padding({ left: Space.sm, right: Space.sm, top: Space.xs, bottom: Space.xs })
+      .onClick(() => {
+        action();
+      })
+      .accessibilityText(label)
   }
 
   @Builder
@@ -282,28 +300,36 @@ struct Logs {
           .lineHeight(LineHeight.caption)
           .fontColor($r('app.color.text_tertiary'))
           .layoutWeight(1)
+        // 动作放标题行右侧：它们是"刷新/清空"，与"筛选项"不是一类，
+        // 混在同一排胶囊里会出现 6 个宽窄不一的块，用户会问"为什么大小不一样"
+        this.textAction('清空', () => {
+          Logger.clear();
+          this.reload();
+          this.msg = '已清空缓冲（hilog 中的历史不受影响）';
+        })
       }
       .width('100%')
       .padding({ left: Space.lg, right: Space.lg, bottom: Space.xs })
 
-      Scroll() {
-        Row({ space: Space.sm }) {
-          ForEach(this.chips, (c: LevelChip) => {
-            this.chip(c.label, c.value)
-          }, (c: LevelChip) => c.label)
-          this.actionChip('刷新', () => this.reload())
-          this.actionChip('清空', () => {
-            Logger.clear();
-            this.reload();
-            this.msg = '已清空缓冲（hilog 中的历史不受影响）';
-          })
-        }
-        .padding({ left: Space.lg, right: Space.lg })
+      Row({ space: Space.sm }) {
+        ForEach(this.chips, (c: LevelChip) => {
+          Button(c.label, { type: ButtonType.Capsule })
+            .layoutWeight(1)
+            .padding({ left: 0, right: 0 })
+            .height(Height.hit)
+            .fontSize(FontSize.bodySm)
+            .backgroundColor(this.filter === c.value ? $r('app.color.accent') : $r('app.color.bg_chip'))
+            .fontColor(this.filter === c.value
+              ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+            .accessibilityText(this.filter === c.value ? `${c.label}，当前筛选` : c.label)
+            .onClick(() => {
+              this.filter = c.value;
+              this.reload();
+            })
+        }, (c: LevelChip) => c.label)
       }
-      .scrollable(ScrollDirection.Horizontal)
-      .scrollBar(BarState.Off)
       .width('100%')
-      .padding({ bottom: Space.sm })
+      .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
 
       if (this.msg.length > 0) {
         Text(this.msg)
@@ -329,39 +355,51 @@ struct Logs {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        List({ space: Space.xs }) {
-          ForEach(this.entries, (e: LogEntry) => {
-            ListItem() {
-              Column({ space: Space.xxs }) {
-                Row({ space: Space.xs }) {
-                  Text(e.level)
+        // 下拉刷新：与节点/订阅页同一套手势。列表页的"刷新"做成按钮属于桌面习惯，
+        // 手机上手指本来就在列表上，下拉更省一次定位。
+        Refresh({ refreshing: $$this.refreshing }) {
+          List({ space: Space.xs }) {
+            ForEach(this.entries, (e: LogEntry) => {
+              ListItem() {
+                Column({ space: Space.xxs }) {
+                  Row({ space: Space.xs }) {
+                    Text(e.level)
+                      .fontSize(FontSize.caption)
+                      .lineHeight(LineHeight.caption)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(this.levelColor(e.level))
+                    Text(e.time)
+                      .fontSize(FontSize.caption)
+                      .lineHeight(LineHeight.caption)
+                      .fontColor($r('app.color.text_tertiary'))
+                  }
+                  Text(e.msg)
                     .fontSize(FontSize.caption)
                     .lineHeight(LineHeight.caption)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.levelColor(e.level))
-                  Text(e.time)
-                    .fontSize(FontSize.caption)
-                    .lineHeight(LineHeight.caption)
-                    .fontColor($r('app.color.text_tertiary'))
+                    .fontColor($r('app.color.text_primary'))
+                    .width('100%')
                 }
-                Text(e.msg)
-                  .fontSize(FontSize.caption)
-                  .lineHeight(LineHeight.caption)
-                  .fontColor($r('app.color.text_primary'))
-                  .width('100%')
+                .alignItems(HorizontalAlign.Start)
+                .width('100%')
+                .padding(Space.sm)
+                .backgroundColor($r('app.color.bg_surface_alt'))
+                .borderRadius(Radius.chip)
               }
-              .alignItems(HorizontalAlign.Start)
-              .width('100%')
-              .padding(Space.sm)
-              .backgroundColor($r('app.color.bg_surface_alt'))
-              .borderRadius(Radius.chip)
-            }
-          }, (e: LogEntry) => `${e.time}-${e.level}-${e.msg.length}`)
+            }, (e: LogEntry) => `${e.time}-${e.level}-${e.msg.length}`)
+          }
+          .width('100%')
+          .height('100%')
+          .padding({ left: Space.lg, right: Space.lg })
+          .scrollBar(BarState.Off)
         }
         .layoutWeight(1)
         .width('100%')
-        .padding({ left: Space.lg, right: Space.lg })
-        .scrollBar(BarState.Off)
+        .onRefreshing(() => {
+          this.reload();
+          setTimeout(() => {
+            this.refreshing = false;
+          }, 300);
+        })
       }
 
       // 底部动作条统一规格：外层 padding（左右 16 / 上 8 / 下 12）+ 内层按钮撑满。

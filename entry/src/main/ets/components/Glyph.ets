@@ -96,6 +96,26 @@ export struct Glyph {
           .stroke(this.color).strokeWidth(2.2).strokeLineCap(LineCapStyle.Round)
         Line().width(24).height(24).startPoint([5, 12]).endPoint([19, 12])
           .stroke(this.color).strokeWidth(2.2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'share') {
+        // 分享：三个节点连线（系统分享的通用形状）
+        Circle().width(6).height(6).fill(this.color).position({ x: 15, y: 3 })
+        Circle().width(6).height(6).fill(this.color).position({ x: 15, y: 15 })
+        Circle().width(6).height(6).fill(this.color).position({ x: 3, y: 9 })
+        Line().width(24).height(24).startPoint([9, 12]).endPoint([15, 6])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([9, 12]).endPoint([15, 18])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'file-export') {
+        // 存成文件：文档外形 + 向外的箭头（区别于纯 export 的"离开本机"）
+        Rect().width(11).height(14).radius(2).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 3, y: 6 })
+        Line().width(24).height(24).startPoint([14, 13]).endPoint([21, 13])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([18, 10]).endPoint([21, 13])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([18, 16]).endPoint([21, 13])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
       } else if (this.kind === 'cloud-down') {
         // 云端下载：云 + 向下箭头
         Line().width(24).height(24).startPoint([7, 9]).endPoint([17, 9])
