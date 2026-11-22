@@ -8,6 +8,9 @@ import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 import { GeoAssets } from '../service/GeoAssets';
 import { XrayNode, RoutingMode } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
+import { common } from '@kit.AbilityKit';
+import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
+import { VpnController } from '../service/VpnController';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 
 /**
@@ -28,6 +31,9 @@ struct Index {
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
   @State socksInfo: string = '';
+  /** 系统 VPN（扩展进程）状态文案；空串 = 从未尝试 */
+  @State vpnLine: string = '';
+  @State vpnLineLevel: number = 0;
   /** 只放 host:port：长按复制的内容必须精确等于它，带括号或说明就等于又把实现细节粘回去了 */
   @State socksPortText: string = '';
   /** 首次连接的一次性明示是否正在显示 */
@@ -57,6 +63,7 @@ struct Index {
     // 配置加载异常必须在 UI 可见（不能只在日志里）：否则用户会以为"节点全没了"
     this.configWarning = this.cfg.hasLoadFailure() ? '配置读取异常，已使用默认值（原数据未被覆盖）' : '';
     this.migrationWarning = this.cfg.getMigrationError();
+    this.refreshVpnLine();
   }
 
   /** 语义色调 → 资源色（页面是唯一知道"哪个令牌对应哪种状态"的地方） */
@@ -87,6 +94,38 @@ struct Index {
       Logger.warn(`copy proxy address failed: ${msg}`);
       promptAction.showToast({ message: '复制失败', duration: 1500 });
     });
+  }
+
+  /**
+   * 把扩展进程回传的状态变成一句人话。
+   *
+   * 为什么首页要看得到：本地代理开着不等于“全局走代理”。
+   * 用户以为连上了却发现未改变流量路径，是最坏的体验；
+   * 随时告诉他“系统 VPN 有没有真正接管”。
+   */
+  private refreshVpnLine(): void {
+    const st: VpnState | null = VpnStateFile.read(getContext(this) as common.UIAbilityContext);
+    if (st === null) {
+      this.vpnLine = '';
+      this.vpnLineLevel = 0;
+      return;
+    }
+    if (st.state === 'running') {
+      this.vpnLine = VpnStateFile.isStale(st)
+        ? '系统 VPN：状态已过期（扩展进程可能已被终止）'
+        : `系统 VPN：已接管（${st.msg}）`;
+      this.vpnLineLevel = VpnStateFile.isStale(st) ? 1 : 0;
+      return;
+    }
+    if (st.state === 'error') {
+      const why: string = VpnController.describeStateCode(st.code);
+      this.vpnLine = `系统 VPN：未接管 —— ${why.length > 0 ? why : st.msg}`;
+      this.vpnLineLevel = 2;
+      return;
+    }
+    // starting / stopped
+    this.vpnLine = st.state === 'starting' ? '系统 VPN：正在接管…' : '';
+    this.vpnLineLevel = 0;
   }
 
   private isIdleOrError(): boolean {    const st: ConnState = this.vm.getState();
@@ -284,6 +323,16 @@ struct Index {
                   this.copyProxyAddress();
                 })
             )
+        }
+        if (this.vpnLine.length > 0) {
+          Text(this.vpnLine)
+            .fontSize(FontSize.caption)
+            .lineHeight(LineHeight.caption)
+            .fontColor(this.vpnLineLevel === 2
+              ? $r('app.color.danger')
+              : (this.vpnLineLevel === 1 ? $r('app.color.warning') : $r('app.color.text_secondary')))
+            .textAlign(TextAlign.Center)
+            .width('100%')
         }
         Button(this.buttonLabel())
           .enabled(this.view.canToggle)

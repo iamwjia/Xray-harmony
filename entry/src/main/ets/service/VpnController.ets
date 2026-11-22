@@ -110,6 +110,37 @@ export class VpnController {
     VpnController.running = false;
   }
 
+  /**
+   * 把扩展进程回传的状态码翻成人话 + 可操作建议。
+   *
+   * 为什么要单独一张表：这些码不是我们自己定的，而是系统返回的。
+   * 用户看到“202”只会以为是应用坏了；看到“需要真机/系统授权”才知道该做什么。
+   */
+  static describeStateCode(code: number): string {
+    if (code === 202) {
+      return '系统拒绝非系统应用创建 VPN（需真机与系统授权）';
+    }
+    if (code === 2203002) {
+      return '已有其他 VPN 连接，请先在系统中断开';
+    }
+    if (code === 2203001) {
+      return '当前账户类型不允许创建 VPN';
+    }
+    if (code === 16000001) {
+      return '找不到 VPN 扩展组件（安装包可能不完整）';
+    }
+    if (code === 201) {
+      return '缺少权限或用户未授权';
+    }
+    if (code === -1) {
+      return '扩展进程状态已过期（可能已被系统终止）';
+    }
+    if (code === -2) {
+      return '等待扩展进程响应超时';
+    }
+    return code === 0 ? '' : `未知错误码 ${code}`;
+  }
+
   /** 把系统错误码翻成人话；原始 code 一律进日志，便于排查 */
   static describeError(e: Object): string {
     const err = e as BusinessErrorLike;
