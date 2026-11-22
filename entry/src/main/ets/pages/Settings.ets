@@ -229,6 +229,23 @@ struct Settings {
             })
         }
         .width('100%')
+        Divider()
+        Row({ space: 8 }) {
+          Column({ space: 2 }) {
+            Text('开源许可').fontSize(13)
+            Text('第三方组件、MPL-2.0 义务、商标归属与源码获取方式')
+              .fontSize(10).fontColor('#999999')
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('查看').fontSize(12)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/Licenses' }).catch((e: Error) => {
+                this.persistError = `打开许可页失败：${e.message}`;
+              });
+            })
+        }
+        .width('100%')
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)

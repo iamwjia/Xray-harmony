@@ -6,6 +6,7 @@
     "pages/DevPanel",
     "pages/NodeEdit",
     "pages/RoutingRules",
-    "pages/Logs"
+    "pages/Logs",
+    "pages/Licenses"
   ]
 }
