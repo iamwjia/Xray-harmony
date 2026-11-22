@@ -221,12 +221,12 @@ struct Logs {
       // 用卡片包起来，是为了和下面那条"筛选"胶囊行在视觉上分层：一个是设置，一个是筛选。
       Column({ space: Space.sm }) {
         Row({ space: Space.sm }) {
-          Text('记录级别')
+          Text('写入级别')
             .fontSize(FontSize.bodySm)
             .lineHeight(LineHeight.bodySm)
             .fontColor($r('app.color.text_primary'))
             .maxLines(1)
-          Text('低于该级别不写入；下面那条只是筛选已记录的')
+          Text('设置项 · 低于该级别不写入')
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
@@ -262,10 +262,29 @@ struct Logs {
       .alignItems(HorizontalAlign.Start)
       .padding(Space.md)
       .margin({ left: Space.lg, right: Space.lg, bottom: Space.sm })
-      .backgroundColor($r('app.color.bg_surface_alt'))
+      .backgroundColor($r('app.color.bg_surface'))
       .borderRadius(Radius.panel)
+      // 加描边：浅色下 bg_surface_alt 与画布几乎同色，卡片"存在感"太弱，
+      // 用户看不出"这是设置块"还是"这是列表开头"
+      .border({ width: 1, color: $r('app.color.border_subtle') })
 
-      // 筛选行：只筛"已经记下来的"，与上面的记录级别是两件事
+      // 筛选行：只筛"已经记下来的"，与上面的写入级别是两件事。
+      // 两组控件长得一样（胶囊），必须各带一行标题才不会混——用户原话："没有明显的分类提示"。
+      Row({ space: Space.xs }) {
+        Text('筛选')
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+        Text('只影响显示，不改写入')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_tertiary'))
+          .layoutWeight(1)
+      }
+      .width('100%')
+      .padding({ left: Space.lg, right: Space.lg, bottom: Space.xs })
+
       Scroll() {
         Row({ space: Space.sm }) {
           ForEach(this.chips, (c: LevelChip) => {
