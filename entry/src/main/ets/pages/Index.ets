@@ -180,7 +180,7 @@ struct Index {
       return;
     }
     // 用户看不懂协议名，但端口是报障时唯一能自证的线索 —— 换词不删信息
-    this.socksInfo = `本机代理地址 ${SocksGuard.LOCAL_HOST}:${built.socksPort}`;
+    this.socksInfo = `本机代理地址 ${SocksGuard.LOCAL_HOST}:${built.socksPort} · 长按复制`;
     this.socksPortText = `${SocksGuard.LOCAL_HOST}:${built.socksPort}`;
     this.refreshAll();
 

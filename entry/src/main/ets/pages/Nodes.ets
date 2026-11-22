@@ -361,13 +361,13 @@ struct Nodes {
         .onClick(() => this.doSmartImport())
 
       // 导入完就能就地管理订阅，不必先退回设置页
-      Text('管理订阅')
+      // 用 Button：手机上“看起来像文字”的东西就会被当成不可点
+      Button('管理订阅', { type: ButtonType.Normal })
         .height(Height.hit)
         .width('100%')
         .fontSize(FontSize.bodySm)
         .fontColor($r('app.color.accent'))
-        .textAlign(TextAlign.Center)
-        .maxLines(1)
+        .backgroundColor(Color.Transparent)
         .accessibilityText('打开订阅管理')
         .onClick(() => {
           router.pushUrl({ url: 'pages/Subscriptions' }).catch((e: Error) => {

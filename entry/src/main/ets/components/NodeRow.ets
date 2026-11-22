@@ -23,6 +23,8 @@ export struct NodeRow {
   @Prop group: string = '';
   @Prop selected: boolean = false;
   /** 首/末行的"上移/下移"必须置灰，否则用户会一直点一个永远不会生效的项 */
+  /** 按下中：手机上必须有可见反馈，否则用户不知道自己点到了没有 */
+  @State pressed: boolean = false;
   @Prop canMoveUp: boolean = true;
   @Prop canMoveDown: boolean = true;
   /** 分组 chip 里真正的"标签"，与行内文字同层但不抢宽度 */
@@ -200,11 +202,21 @@ export struct NodeRow {
     .width('100%')
     .constraintSize({ minHeight: Height.row })
     .padding({ left: 0, right: Space.md, top: 10, bottom: 10 })
-    .backgroundColor(this.selected ? $r('app.color.selected_row_bg') : $r('app.color.bg_surface'))
+    .backgroundColor(this.pressed
+      ? (this.selected ? $r('app.color.accent_subtle') : $r('app.color.bg_chip'))
+      : (this.selected ? $r('app.color.selected_row_bg') : $r('app.color.bg_surface')))
     .borderRadius(Radius.card)
     .border({
       width: 1,
       color: this.selected ? Color.Transparent : $r('app.color.border_subtle')
+    })
+    .onTouch((e: TouchEvent) => {
+      // 只跟随按下/抬起与取消；不在这里做选中逻辑（那是 onClick 的事）
+      if (e.type === TouchType.Down) {
+        this.pressed = true;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.pressed = false;
+      }
     })
     .onClick(() => {
       // 命中区①：只做选中。编辑/排序/删除都在溢出菜单里，不在这里分流。

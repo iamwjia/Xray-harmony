@@ -69,9 +69,9 @@ struct Logs {
       return '暂无代理地址记录（本次启动未连接过）';
     }
     if (KernelService.getInstance().isRunning()) {
-      return `当前代理地址 ${ep.host}:${ep.port}`;
+      return `当前代理地址 ${ep.host}:${ep.port} · 长按复制`;
     }
-    return `最近一次代理地址 ${ep.host}:${ep.port}（已断开）`;
+    return `最近一次代理地址 ${ep.host}:${ep.port}（已断开）· 长按复制`;
   }
 
   /** 复制：内容严格等于 host:port，不带括号与说明文字 */

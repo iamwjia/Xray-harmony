@@ -30,6 +30,8 @@ struct Subscriptions {
   /** 过期订阅数；>0 时在顶部给一个「全部更新」入口 */
   @State staleCount: number = 0;
   @State refreshingAll: boolean = false;
+  /** 按下中的行 id（为空 = 没有按下）：手机上需要可见反馈 */
+  @State pressedId: string = '';
 
   aboutToAppear(): void {
     this.reload();
@@ -319,10 +321,18 @@ struct Subscriptions {
     .width('100%')
     .constraintSize({ minHeight: Height.row })
     .padding({ left: 0, right: Space.md, top: Space.sm, bottom: Space.sm })
-    .backgroundColor($r('app.color.bg_surface'))
+    .backgroundColor(this.pressedId === rec.id ? $r('app.color.bg_chip') : $r('app.color.bg_surface'))
     .borderRadius(Radius.card)
     .border({ width: 1, color: $r('app.color.border_subtle') })
-    // 整行没有"选中"语义，只有操作；这里不挂 onClick，避免出现"点了没反应"的假命中区
+    // 整行没有"选中"语义，只有操作；不挂 onClick（避免假命中区），
+    // 但按下时给一个底色变化：否则手指按下去什么都不变，像没点着
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.pressedId = rec.id;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.pressedId = '';
+      }
+    })
     .accessibilityLevel('yes')
     .accessibilityText(`${rec.name}，${rec.nodeCount} 个节点，` +
       `${this.isStale(rec) ? '超过 7 天未更新' : this.updatedText(rec)}`)

@@ -350,9 +350,11 @@ struct Settings {
           .width('100%')
 
           if (this.autoUpdateSubs) {
-            Row({ space: Space.sm }) {
+            // 用 Flex 换行而不是 Row：四个调度在 360vp 宽下会拤一起、第四个被压扁；
+            // 换行后每个都保持 44 命中高与完整文字
+            Flex({ wrap: FlexWrap.Wrap }) {
               ForEach([6, 12, 24, 168], (h: number) => {
-                Text(h === 168 ? '每周' : `每 ${h} 小时`)
+                Button(h === 168 ? '每周' : `每 ${h} 小时`, { type: ButtonType.Capsule })
                   .height(Height.hit)
                   .padding({ left: Space.md, right: Space.md })
                   .fontSize(FontSize.bodySm)
@@ -360,8 +362,7 @@ struct Settings {
                     ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
                   .backgroundColor(this.autoUpdateHours === h
                     ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                  .borderRadius(Radius.pill)
-                  .maxLines(1)
+                  .margin({ right: Space.sm, bottom: Space.sm })
                   .onClick(() => {
                     this.setAutoUpdateHours(h);
                   })

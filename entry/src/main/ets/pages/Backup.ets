@@ -517,12 +517,13 @@ struct Backup {
               .onClick(() => this.doImport())
 
             if (this.importDetails.length > 0) {
-              Text(this.showDetails ? '收起明细' : `查看明细（${this.importDetails.length} 条）`)
+              Button(this.showDetails ? '收起明细' : `查看明细（${this.importDetails.length} 条）`,
+                { type: ButtonType.Normal })
                 .fontSize(FontSize.bodySm)
-                .lineHeight(LineHeight.bodySm)
                 .fontColor($r('app.color.accent'))
+                .backgroundColor(Color.Transparent)
                 .width('100%')
-                .maxLines(1)
+                .height(Height.hit)
                 .accessibilityText(this.showDetails ? '收起导入明细' : '展开导入明细')
                 .onClick(() => {
                   this.showDetails = !this.showDetails;
