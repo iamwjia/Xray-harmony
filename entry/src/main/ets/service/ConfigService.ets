@@ -6,6 +6,7 @@ import { SettingsStore, SettingsSnapshot } from './SettingsStore';
 import { RulesStore } from './RulesStore';
 import { SubRecord, SubscriptionStore } from './SubscriptionStore';
 import { EventLog } from './EventLog';
+import { ProbeStore } from './ProbeStore';
 
 /**
  * service/ConfigService.ets — 配置读写服务（应用服务层）
@@ -262,6 +263,7 @@ export class ConfigService {
       `secrets(node=${res.nodeSecrets} sub=${res.subUrls}) failures=${res.secretFailures}`);
     // 首页最近事件也清掉：清空后还留着“已连接某节点”，等于显示已经不存在的状态
     EventLog.clear();
+    ProbeStore.clear();
     return res;
   }
 

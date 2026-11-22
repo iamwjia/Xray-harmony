@@ -13,6 +13,7 @@ import { ShareLinkBuilder } from '../service/ShareLinkBuilder';
 import { SecretStore } from '../platform/SecretStore';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { EventLog } from '../service/EventLog';
+import { ProbeRecord, ProbeStore } from '../service/ProbeStore';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -159,11 +160,13 @@ struct Nodes {
         EventLog.push(0, `测连通「${node.name}」：${r.ms} ms`);
         this.probeResultText = `${r.ms} ms`;
         this.probeResultLevel = 0;
+        ProbeStore.put(node.id, true, r.ms, '');
       } else {
         this.setNotice(`「${node.name}」不可达：${r.error}`, 2);
         EventLog.push(2, `测连通「${node.name}」失败：${r.error}`);
         this.probeResultText = '失败';
         this.probeResultLevel = 2;
+        ProbeStore.put(node.id, false, 0, r.error);
       }
     }).catch((e: Object) => {
       const m: string = e instanceof Error ? e.message : String(e);
@@ -396,18 +399,28 @@ struct Nodes {
         .backgroundColor(!this.busy ? $r('app.color.accent') : $r('app.color.bg_chip'))
         .fontColor(!this.busy ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
         .borderRadius(Radius.panel)
-        .enabled(!this.busy)
+        // 输入为空时不该"看起来可以导入"：点了只会弹一句"请粘贴…"
+        .enabled(!this.busy && this.importInput.trim().length > 0)
         .onClick(() => this.doSmartImport())
 
       // 导入完就能就地管理订阅，不必先退回设置页
       // 用 Button：手机上“看起来像文字”的东西就会被当成不可点
-      Button('管理订阅', { type: ButtonType.Normal })
-        .height(Height.hit)
-        .width('100%')
-        .fontSize(FontSize.bodySm)
-        .fontColor($r('app.color.accent'))
-        .backgroundColor(Color.Transparent)
-        .accessibilityText('打开订阅管理')
+      // 它是跳转，不是并列的第二个按钮：做成"行"（小字 + 箭头），
+      // 避免和上面的「导入」读成"一个可用、一个不可用"的两个选项。
+      Row({ space: Space.xs }) {
+        Text('管理订阅')
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.accent'))
+        Text('\u203a')
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor($r('app.color.text_tertiary'))
+      }
+      .height(Height.hit)
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .accessibilityText('打开订阅管理')
         .onClick(() => {
           router.pushUrl({ url: 'pages/Subscriptions' }).catch((e: Error) => {
             this.setNotice(`打开订阅管理失败：${e.message}`, 2);
@@ -578,6 +591,21 @@ struct Nodes {
     this.reload();
   }
 
+  /** 行上显示的测连通结论：本页刚测过用内存值，否则读落盘（并带"多久以前"） */
+  private probeTextFor(id: string): string {
+    if (id === this.probeResultId && this.probeResultText.length > 0) {
+      return this.probeResultText;
+    }
+    const rec: ProbeRecord | null = ProbeStore.get(id);
+    if (rec === null) {
+      return '';
+    }
+    if (!rec.ok) {
+      return '失败';
+    }
+    return `${rec.ms} ms`;
+  }
+
   private closeSwipe(): void {
     // 执行完动作就收起露出的操作，否则列表会留着一排开着的行。
     // 这一版 SDK 的 Scroller 没有 closeAllSwipeActions，只能靠重建行来复位滑动状态。
@@ -732,7 +760,7 @@ struct Nodes {
                 onProbe: (id: string) => this.probeNode(id),
                 onDelete: (id: string) => this.confirmDeleteById(id),
                 onCopyLink: (id: string) => this.copyShareLink(id),
-                probeText: item.id === this.probeResultId ? this.probeResultText : '',
+                probeText: this.probeTextFor(item.id),
                 probeLevel: this.probeResultLevel
                 })
               }

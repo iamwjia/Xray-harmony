@@ -412,6 +412,12 @@ struct Subscriptions {
     .padding({ left: Space.xl, right: Space.xl })
   }
 
+  /** 地址是否"看起来能加"：只做前缀校验，真正的合法性由服务端/解析器判 */
+  private canAddSub(): boolean {
+    const v: string = this.addInput.trim();
+    return v.startsWith('http://') || v.startsWith('https://');
+  }
+
   /** 添加订阅：与节点页导入走同一个服务方法，避免两套解析逻辑 */
   private doAddSubscription(): void {
     const url: string = this.addInput.trim();
@@ -611,15 +617,19 @@ struct Subscriptions {
               this.addInput = v;
             })
           Row({ space: Space.sm }) {
+            // 两个按钮等宽：一宽一窄会让人以为"取消"是附属控件
             Button(this.addBusy ? '添加中…' : '添加')
               .layoutWeight(1)
               .height(Height.hit)
               .fontSize(FontSize.bodySm)
-              .backgroundColor(!this.addBusy ? $r('app.color.accent') : $r('app.color.bg_chip'))
-              .fontColor(!this.addBusy ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-              .enabled(!this.addBusy)
+              .backgroundColor(!this.addBusy && this.canAddSub() ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(!this.addBusy && this.canAddSub()
+                ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+              // 没粘贴合法地址前不给点：点了只会弹一句"请粘贴 http(s) …"
+              .enabled(!this.addBusy && this.canAddSub())
               .onClick(() => this.doAddSubscription())
             Button('取消')
+              .layoutWeight(1)
               .height(Height.hit)
               .fontSize(FontSize.bodySm)
               .backgroundColor($r('app.color.bg_chip'))

@@ -405,12 +405,14 @@ struct Settings {
             .width('100%')
 
             Row({ space: Space.sm }) {
+              // 联网更新与从本地导入是**等价的两个来源**，不是主次关系：
+              // 一蓝一灰会让人以为"本地导入只是兜底方案"，实际取决于用户能不能连外网。
               Button(this.geoBusy ? '更新中…' : '联网更新')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor(!this.geoBusy ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(!this.geoBusy ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+                .backgroundColor($r('app.color.bg_chip'))
+                .fontColor(!this.geoBusy ? $r('app.color.text_primary') : $r('app.color.text_tertiary'))
                 .enabled(!this.geoBusy)
                 .onClick(() => this.confirmGeoUpdate())
               Button('从本地导入')
