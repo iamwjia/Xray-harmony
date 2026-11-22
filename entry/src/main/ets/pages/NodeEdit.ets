@@ -284,6 +284,8 @@ struct NodeEdit {
           Row({ space: 6 }) {
             ForEach(this.protos, (p: ProtoOption) => {
               Button(p.label).fontSize(FontSize.caption)
+                .layoutWeight(1)
+                .padding({ left: 0, right: 0 })
                 .backgroundColor(p.value === this.protocol ? $r('app.color.accent') : $r('app.color.bg_chip'))
                 .fontColor(p.value === this.protocol ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {
@@ -296,6 +298,8 @@ struct NodeEdit {
           Row({ space: 6 }) {
             ForEach(this.transports, (t: TransportOption, i: number) => {
               Button(t.label).fontSize(FontSize.caption)
+                .layoutWeight(1)
+                .padding({ left: 0, right: 0 })
                 .backgroundColor(i === this.transportIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
                 .fontColor(i === this.transportIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {
@@ -308,6 +312,8 @@ struct NodeEdit {
           Row({ space: 6 }) {
             ForEach(this.securities, (s: SecurityOption, i: number) => {
               Button(s.label).fontSize(FontSize.caption)
+                .layoutWeight(1)
+                .padding({ left: 0, right: 0 })
                 .backgroundColor(i === this.securityIdx ? $r('app.color.accent') : $r('app.color.bg_chip'))
                 .fontColor(i === this.securityIdx ? $r('app.color.text_on_accent') : $r('app.color.text_primary'))
                 .onClick(() => {

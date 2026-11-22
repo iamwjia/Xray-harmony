@@ -251,6 +251,8 @@ struct Settings {
         Row({ space: 8 }) {
           ForEach(this.levels, (lv: string) => {
             Button(lv).fontSize(FontSize.bodySm)
+              .layoutWeight(1)
+              .padding({ left: 0, right: 0 })
               .backgroundColor(lv === this.logLevel ? $r('app.color.accent') : $r('app.color.bg_chip'))
               .fontColor(lv === this.logLevel ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
               .onClick(() => this.setLevel(lv))
