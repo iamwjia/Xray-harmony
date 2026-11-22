@@ -1050,8 +1050,13 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | # | 约束 | 判定方式 |
 |---|---|---|
 | L-1 | 返回**不可变快照**（`{host, port}` 或空）；调用方拿到的对象**不允许改回写进** `SocksGuard` | 返回副本/冻结对象；评审确认无 setter、无共享引用 |
-| L-2 | 只在**"绑定成功"那一刻**更新；**断开时不置空**（置空就把要解决的场景删掉了）；进程死亡后自然为空 → 落第三态 | 单测：连接 → 断开 → 仍可读到原值 |
+| L-2 | ~~只在"绑定成功"那一刻更新~~ → **在「端口轮换即刻」写入快照（早于内核启动）**；断开**不置空**；进程死亡后自然为空 → 落第三态（**2026-11-22 改口**，见下） | 单测：连接 → 断开 → 仍可读到原值 |
 | L-3 | **不持久化、不进日志缓冲、不参与轮换决策**；允许被反复读而不改变任何状态（**幂等**） | 单测：连续调用 3 次返回值相等，且 `SocksGuard` 内部状态不变 |
+
+**L-2 的代价（写清，避免被当成 bug 修掉）**：快照在 `rotate()` 时写入，而 `rotate()` 早于 `kernel.start()` ⇒ **启动失败时快照里会留下一个"尝试过但未监听"的端口**。这是**特性**（失败才是报障主场景，用户需要知道试的是哪个端口），但文案上不得声称"当前可用"，所以 Logs 必须用 `KernelService.isRunning()` 区分「当前 / 最近一次」。
+
+**host 单一来源（必须）**：`SocksGuard` 的快照 host 与 `KernelConfigBuilder` 的 `listen` **不得各写一处字面量**（否则改监听地址时，Logs 会显示一个错的地址）。做法：提一个常量（如 `SocksGuard.LOCAL_HOST`），两处共同引用。**不加参数**——加参数会引入"日志地址"和"绑定地址"两个可变量，比现在更糟。
+**验收**：全仓 `grep "127.0.0.1"` 只剩常量定义 1 处（文档/注释除外）。
 - 数据来源：`SocksGuard` 当前端点；页面 `onPageShow` 读一次即可（与首页同源）。
 - 可选（建议，不需要可跳过）：连接成功时 `Logger.info` 打一行「本地代理端口 <port>」，让导出日志里也留痕——**这一行必须脱敏后仍保留端口**（端口不是凭据，漏掉它反而废掉 D-2 的意义）。
 
@@ -1278,8 +1283,10 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 6) 读屏标签数量         grep -c "accessibilityText" ≥ 6
 7) 两套资源同键         base/dark color.json 的 key 列表逐行 diff         → 无差异
 8) 深色截图             选中行 / chip / 输入框 / 空态                  → 无白底块
-9) lastEndpoint 幂等    连调 3 次返回值相等，且 SocksGuard 内部状态不变  → 通过
-                        （D-2 / L-3；连接→断开后仍可读到原值，L-2）
+9) lastEndpoint            **结构断言 + 手册验证**（不是脚本可判定）：
+                           · 结构级：返回副本 / 不落盘 / 不进日志缓冲 / 幂等
+                           · 手册级：连接 → 断开 → 进 Logs 页仍显示「最近一次…（已断开）」
+                           · 禁止为凑脚本写只验结构的假测试冒充行为验证（同 §8.2 原则）
 10) 名称不被 chip 挤压   造 4 字分组名，名称宽度仍 = 222vp              → 通过
 11) 端口恒可见          造超长 host + 4 字分组，`:port` 完整显示        → 通过
 12) 提示颜色不靠猜文案   grep -n "indexOf('失败')\|indexOf('已存在')"     → 0
@@ -1289,6 +1296,11 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
 14) 行整句播报         NodeRow 根有 accessibilityText + 根上**无** accessibilityGroup    → 通过
                         （注意：accessibilityText 不进 dumpLayout，A-07 见 §8.2）
 15) 菜单可辨与禁用态     浮层有 1vp border_subtle；首/末项上移下移置灰    → 通过
+16) 字号字面量归零       grep -c "fontSize([0-9]" pages/ components/ = 0
+                        grep -c "lineHeight([0-9]" pages/ components/ = 0
+                        字号取值集合 ⊆ {24,20,16,15,14,13,12,11}
+                        （注意：`Text('\u2713')` 等图标走 IconSize，不算字号）
+17) host 常量唯一        全仓 grep "127.0.0.1" 仅常量定义 1 处（文档/注释除外）
 ```
 
 ### 11.9 示范 → 其余页面的复用约定

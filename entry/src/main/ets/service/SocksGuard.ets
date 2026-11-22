@@ -41,6 +41,11 @@ export class LastEndpoint {
 }
 
 export class SocksGuard {
+  /**
+   * 入站绑定地址的**唯一来源**：内核 listen 与日志/快照都取这里。
+   * 两处各写一份字面量的后果是——改了绑定地址，日志还在报旧地址。
+   */
+  static readonly LOCAL_HOST: string = '127.0.0.1';
   private static current: SocksEndpoint | null = null;
   /**
    * 最近一次的端点快照（只读用途）。
@@ -58,13 +63,14 @@ export class SocksGuard {
     ep.password = SocksGuard.randomHex(SECRET_HEX_LEN);
     ep.authEnabled = true;
     SocksGuard.current = ep;
-    // 绑定成功即记下快照：断开后 Logs 仍要能读到"最近一次用过哪个地址"
+    // 端口轮换即刻写入（不等内核启动成功）：失败时用户更需要知道"这次试的是哪个端口"，
+    // 只在成功后记录会让报障主场景反而没有线索。代价是失败时留下一个未监听的端口号——这是特性。
     const snap: LastEndpoint = new LastEndpoint();
-    snap.host = '127.0.0.1';
+    snap.host = SocksGuard.LOCAL_HOST;
     snap.port = ep.port;
     SocksGuard.last = snap;
     // 只记录端口：口令进日志就等于没有口令
-    Logger.info(`socks endpoint rotated: 127.0.0.1:${ep.port} (auth=password)`);
+    Logger.info(`socks endpoint rotated: ${SocksGuard.LOCAL_HOST}:${ep.port} (auth=password)`);
     return ep;
   }
 

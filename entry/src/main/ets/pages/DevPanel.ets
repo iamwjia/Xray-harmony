@@ -1,4 +1,5 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 import { vpnExtension } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Want } from '@kit.AbilityKit';
@@ -239,40 +240,40 @@ api failed: ${err.code} ${err.message}`;
   build() {
     Column({ space: 12 }) {
       Row({ space: 8 }) {
-        Button('返回').fontSize(12)
+        Button('返回').fontSize(FontSize.caption)
           .onClick(() => {
             router.back();
           })
-        Text('开发者面板（PoC 探针）').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
+        Text('开发者面板（PoC 探针）').fontSize(FontSize.titleMd).fontWeight(FontWeight.Bold).layoutWeight(1)
       }
       .width('100%')
 
       Scroll() {
         Column({ space: 10 }) {
           Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
-          Text(this.napiHelloResult).fontSize(12).width('100%')
+          Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%')
 
           Button('prebuilt_add(1,2)').onClick(() => this.runPrebuiltAdd()).width('100%')
-          Text(this.prebuiltAddResult).fontSize(12).width('100%')
+          Text(this.prebuiltAddResult).fontSize(FontSize.caption).width('100%')
 
           Button('启动 VpnExtensionAbility（仅代码）').onClick(() => this.runVpnExt()).width('100%')
-          Text(this.vpnExtResult).fontSize(12).width('100%')
+          Text(this.vpnExtResult).fontSize(FontSize.caption).width('100%')
 
           Button('Go CGoPing()').onClick(() => this.runCGoPing()).width('100%')
-          Text(this.cgoPingResult).fontSize(12).width('100%')
+          Text(this.cgoPingResult).fontSize(FontSize.caption).width('100%')
 
           Button('加载 libxray + CGoInvoke').onClick(() => this.runCGoInvoke()).width('100%')
-          Text(this.cgoInvokeResult).fontSize(12).width('100%')
+          Text(this.cgoInvokeResult).fontSize(FontSize.caption).width('100%')
 
           Button('libxray xrayVersion').onClick(() => this.runXrayVersion()).width('100%')
-          Text(this.xrayVersionResult).fontSize(12).width('100%')
+          Text(this.xrayVersionResult).fontSize(FontSize.caption).width('100%')
 
           Button('经内核 SOCKS + 出口 IP 对比').onClick(() => this.runSocksProbe()).width('100%')
-          Text(this.socksProbeResult).fontSize(12).width('100%')
+          Text(this.socksProbeResult).fontSize(FontSize.caption).width('100%')
 
           // E15 Step 1：真测 TCP + HTTP。不用 ping 代替——ICMP 通不代表端口通。
           Button('探测宿主 10.0.2.2:8000').onClick(() => this.runHostProbe()).width('100%')
-          Text(this.hostProbeResult).fontSize(12).width('100%')
+          Text(this.hostProbeResult).fontSize(FontSize.caption).width('100%')
 
           Divider()
           // 调试项：模拟"配置读取失败"，用于验证首页横幅与保存拦截（TODO 持久化接入后删除）
@@ -282,7 +283,7 @@ api failed: ${err.code} ${err.message}`;
               ConfigService.getInstance().debugForceLoadFailure();
               this.socksProbeResult = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
             })
-          Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(11).width('100%')
+          Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(FontSize.fontChip).width('100%')
 
           // 调试项：让下一次「连接」注入非法配置，用于验证失败路径（ERROR 且不卡 CONNECTING）
           Button('调试：下次连接注入非法配置 → 看 ERROR').width('100%')

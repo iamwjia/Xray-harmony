@@ -14,6 +14,7 @@
  */
 
 import { XrayNode, TransportKind, SecurityKind, RoutingMode, RoutingRule } from '../model/AppConfig';
+import { SocksGuard } from './SocksGuard';
 
 export class KernelConfigBuilder {
   static readonly DEFAULT_SOCKS_PORT: number = 18080;
@@ -32,7 +33,7 @@ export class KernelConfigBuilder {
       ? '{"auth":"password","accounts":[{"user":' + KernelConfigBuilder.esc(socksUser) +
         ',"pass":' + KernelConfigBuilder.esc(socksPass) + '}],"udp":true}'
       : '{"auth":"noauth","udp":true}';
-    return '{"tag":"socks-in","listen":"127.0.0.1","port":' + socksPort.toString() +
+    return '{"tag":"socks-in","listen":"' + SocksGuard.LOCAL_HOST + '","port":' + socksPort.toString() +
       ',"protocol":"socks","settings":' + settings + '}';
   }
 

@@ -157,7 +157,19 @@ console.log('[入站片段：源码级断言]');
   check('有口令时使用 password 鉴权',
     src.includes('"auth":"password"') && src.includes('"accounts"'));
   check('无口令时回落 noauth', src.includes('"auth":"noauth"'));
-  check('入站只监听回环', src.includes('"listen":"127.0.0.1"'));
+  // 只监听回环这件事现在只有一个来源（SocksGuard.LOCAL_HOST），
+  // 所以断言不再是"某处有字面量"，而是"字面量只有一处、且这里确实用它"。
+  const guardSrc = fs.readFileSync(
+    path.join(ROOT, 'entry', 'src', 'main', 'ets', 'service', 'SocksGuard.ets'), 'utf8');
+  // 注释里提到这个地址是允许的（说明性文字），只算代码行
+  const guardCode = guardSrc.split('\n')
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join('\n');
+  check('回环地址代码里只定义一处',
+    (guardCode.match(/127\.0\.0\.1/g) || []).length === 1,
+    'LOCAL_HOST 之外不应再有硬编码的回环地址');
+  check('入站监听取统一常量',
+    src.includes('"listen":"\' + SocksGuard.LOCAL_HOST') && !src.includes('"listen":"127.0.0.1"'));
 }
 
 console.log('');

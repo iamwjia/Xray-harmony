@@ -146,8 +146,8 @@ struct Index {
       : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password, credential,
         GeoAssets.isReady(), this.cfg.getRules());
     // 用户看不懂协议名，但端口是报障时唯一能自证的线索 —— 换词不删信息
-    this.socksInfo = `本机代理地址 127.0.0.1:${ep.port}`;
-    this.socksPortText = `127.0.0.1:${ep.port}`;
+    this.socksInfo = `本机代理地址 ${SocksGuard.LOCAL_HOST}:${ep.port}`;
+    this.socksPortText = `${SocksGuard.LOCAL_HOST}:${ep.port}`;
 
     try {
       await this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS);
