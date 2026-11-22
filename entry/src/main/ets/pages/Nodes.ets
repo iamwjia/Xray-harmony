@@ -8,6 +8,7 @@ import { SubscriptionImportResult, SubscriptionService } from '../service/Subscr
 import { NodeRow } from '../components/NodeRow';
 import { PageHeader } from '../components/PageHeader';
 import { NodeProbe, ProbeResult } from '../service/NodeProbe';
+import { Glyph } from '../components/Glyph';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -44,6 +45,14 @@ struct Nodes {
   @State importLevel: number = 0;
 
   private cfg: ConfigService = ConfigService.getInstance();
+
+  /** 用于动作执行后收起已露出的行内操作 */
+  private listScroller: Scroller = new Scroller();
+  /**
+   * 动作执行后收起左滑：当前 API 版本的 Scroller 没有 closeAllSwipeActions，
+   * 只能让行重建一次（key 里带上这个版本号），重建后滑开状态自然复位。
+   */
+  @State swipeRev: number = 0;
 
   aboutToAppear(): void {
     this.reload();
@@ -186,8 +195,7 @@ struct Nodes {
     this.importLevel = level;
   }
 
-  private pick(id: string): void {
-    if (this.cfg.selectNode(id)) {
+  private pick(id: string): void {    if (this.cfg.selectNode(id)) {
       this.selectedId = id;
     } else {
       Logger.warn(`pick node failed: ${id}`);
@@ -449,6 +457,74 @@ struct Nodes {
     .justifyContent(FlexAlign.Center)
   }
 
+  private closeSwipe(): void {
+    // 执行完动作就收起露出的操作，否则列表会留着一排开着的行。
+    // 这一版 SDK 的 Scroller 没有 closeAllSwipeActions，只能靠重建行来复位滑动状态。
+    this.swipeRev = this.swipeRev + 1;
+  }
+
+  /** 左滑露出（行右端）：测连通性 + 删除。用底色区分"看一眼"和"删掉" */
+  @Builder
+  rowEndActions(item: XrayNode) {
+    Row() {
+      Column({ space: 2 }) {
+        Glyph({ kind: 'probe', color: $r('app.color.accent'), box: 20 })
+        Text('测连通')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.accent_subtle'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.probeNode(item.id);
+      })
+      .accessibilityText(`测 ${item.name} 的连通性`)
+
+      Column({ space: 2 }) {
+        Glyph({ kind: 'trash', color: $r('app.color.text_on_accent'), box: 20 })
+        Text('删除')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_on_accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.danger'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.confirmDeleteById(item.id);
+      })
+      .accessibilityText(`删除 ${item.name}`)
+    }
+    .height('100%')
+  }
+
+  /** 右滑露出（行左端）：编辑 */
+  @Builder
+  rowStartActions(item: XrayNode) {
+    Column({ space: 2 }) {
+      Glyph({ kind: 'edit', color: $r('app.color.accent'), box: 20 })
+      Text('编辑')
+        .fontSize(FontSize.caption)
+        .lineHeight(LineHeight.caption)
+        .fontColor($r('app.color.accent'))
+    }
+    .width(84)
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor($r('app.color.accent_subtle'))
+    .onClick(() => {
+      this.closeSwipe();
+      this.openEdit(item.id);
+    })
+    .accessibilityText(`编辑 ${item.name}`)
+  }
+
   build() {
     Column({ space: 0 }) {
       this.header()
@@ -483,7 +559,7 @@ struct Nodes {
       if (this.visibleNodes().length === 0) {
         this.emptyState()
       } else {
-        List({ space: Space.sm }) {
+        List({ space: Space.sm, scroller: this.listScroller }) {
           ForEach(this.visibleNodes(), (item: XrayNode) => {
             ListItem() {
               NodeRow({
@@ -503,7 +579,22 @@ struct Nodes {
                 onDelete: (id: string) => this.confirmDeleteById(id)
               })
             }
-          }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${item.id === this.selectedId}-${this.cfgRev}`)
+            // 行内左滑：右侧露出「测连通性 / 删除」，按危险程度配色 + 图标；
+            // 右滑露出「编辑」。滑回去或执行任一动作即收起——操作始终属于这一行，
+            // 不是抽屉式导航。
+            .swipeAction({
+              end: {
+                builder: () => {
+                  this.rowEndActions(item)
+                }
+              },
+              start: {
+                builder: () => {
+                  this.rowStartActions(item)
+                }
+              }
+            })
+          }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${item.id === this.selectedId}-${this.cfgRev}-${this.swipeRev}`)
         }
         .layoutWeight(1)
         .width('100%')

@@ -56,6 +56,33 @@ export struct Glyph {
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
         Line().width(24).height(24).startPoint([8, 17]).endPoint([13, 17])
           .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'edit') {
+        // 笔：斜向笔杆 + 笔尖
+        Line().width(24).height(24).startPoint([7, 17]).endPoint([18, 6])
+          .stroke(this.color).strokeWidth(2.4).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([4, 20]).endPoint([8, 18])
+          .stroke(this.color).strokeWidth(2.4).strokeLineCap(LineCapStyle.Round)
+      } else if (this.kind === 'trash') {
+        // 垃圾桶：盖 + 桶身 + 提手
+        Line().width(24).height(24).startPoint([4, 7]).endPoint([20, 7])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([9, 4]).endPoint([15, 4])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Rect().width(12).height(13).radius(2).fill(Color.Transparent)
+          .stroke(this.color).strokeWidth(2)
+          .position({ x: 6, y: 7 })
+      } else if (this.kind === 'probe') {
+        // 脉冲：握手/连通性的通用表达
+        Line().width(24).height(24).startPoint([3, 12]).endPoint([8, 12])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([8, 12]).endPoint([11, 5])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([11, 5]).endPoint([15, 19])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([15, 19]).endPoint([18, 12])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
+        Line().width(24).height(24).startPoint([18, 12]).endPoint([21, 12])
+          .stroke(this.color).strokeWidth(2).strokeLineCap(LineCapStyle.Round)
       } else if (this.kind === 'backup') {
         // 盒子 + 提手：备份是"装起来存别处"
         Rect().width(18).height(13).radius(3).fill(Color.Transparent)

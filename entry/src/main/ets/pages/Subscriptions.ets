@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { PageHeader } from '../components/PageHeader';
+import { Glyph } from '../components/Glyph';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 import { SubRecord } from '../service/SubscriptionStore';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
@@ -32,6 +33,8 @@ struct Subscriptions {
   @State refreshingAll: boolean = false;
   /** 按下中的行 id（为空 = 没有按下）：手机上需要可见反馈 */
   @State pressedId: string = '';
+  /** 动作执行后收起左滑（key 里带上它，重建即复位） */
+  @State swipeRev: number = 0;
 
   aboutToAppear(): void {
     this.reload();
@@ -357,6 +360,51 @@ struct Subscriptions {
     .padding({ left: Space.xl, right: Space.xl })
   }
 
+  private closeSwipe(): void {
+    this.swipeRev = this.swipeRev + 1;
+  }
+
+  /** 左滑露出（行右端）：立即更新 + 删除订阅（不删已导入的节点） */
+  @Builder
+  rowEndActions(rec: SubRecord) {
+    Row() {
+      Column({ space: 2 }) {
+        Glyph({ kind: 'sub', color: $r('app.color.accent'), box: 20 })
+        Text('更新')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.accent_subtle'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.doRefresh(rec);
+      })
+      .accessibilityText(`立即更新 ${rec.name}`)
+
+      Column({ space: 2 }) {
+        Glyph({ kind: 'trash', color: $r('app.color.text_on_accent'), box: 20 })
+        Text('删除')
+          .fontSize(FontSize.caption)
+          .lineHeight(LineHeight.caption)
+          .fontColor($r('app.color.text_on_accent'))
+      }
+      .width(84)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.danger'))
+      .onClick(() => {
+        this.closeSwipe();
+        this.confirmRemove(rec);
+      })
+      .accessibilityText(`删除订阅 ${rec.name}`)
+    }
+    .height('100%')
+  }
+
   build() {
     Column({ space: 0 }) {
       Column() {
@@ -408,7 +456,15 @@ struct Subscriptions {
             ListItem() {
               this.subRow(rec)
             }
-          }, (rec: SubRecord) => `${rec.id}-${rec.name}-${rec.nodeCount}-${rec.lastUpdated}-${this.busyId}`)
+            // 与节点行同一套手势：左滑露出「立即更新 / 删除」，右滑收回
+            .swipeAction({
+              end: {
+                builder: () => {
+                  this.rowEndActions(rec)
+                }
+              }
+            })
+          }, (rec: SubRecord) => `${rec.id}-${rec.name}-${rec.nodeCount}-${rec.lastUpdated}-${this.busyId}-${this.swipeRev}`)
         }
         .layoutWeight(1)
         .width('100%')
