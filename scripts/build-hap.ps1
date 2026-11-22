@@ -41,24 +41,18 @@ $original = Get-Content $profile -Raw -Encoding UTF8
 
 # The default block (kept verbatim in build-profile.json5) — we replace this exact
 # text instead of using a regex, because a sloppy regex produced invalid JSON once.
-$defaultBlock = @"
-      "abiFilters": [
-        "arm64-v8a"
-      ]
-"@
-if (-not $original.Contains($defaultBlock)) {
-    Write-Host 'ERROR: default abiFilters block not found (expected arm64-v8a only).' -ForegroundColor Red
-    Write-Host 'Check entry/build-profile.json5 manually.' -ForegroundColor Red
+# 用正则而不是字面块：字面匹配在 CRLF/LF 不一致时会失败，
+# 而失败时的报错与“文件真的被改坏”很难区分。
+$abiPattern = '("abiFilters"\s*:\s*\[)([^\]]*)(\])'
+$m = [regex]::Match($original, $abiPattern)
+if (-not $m.Success) {
+    Write-Host 'ERROR: abiFilters not found in build-profile.json5.' -ForegroundColor Red
     exit 1
 }
 
-$abiLines = ($filters -split ',\s*' | ForEach-Object { '        "' + $_ + '"' }) -join ",`n"
-$newBlock = @"
-      "abiFilters": [
-$abiLines
-      ]
-"@
-$patched = $original.Replace($defaultBlock, $newBlock)
+$abiLines = ($filters -split ',\s*' | ForEach-Object { '        "' + $_ + '"' }) -join ",`r`n"
+$replacement = $m.Groups[1].Value + "`r`n" + $abiLines + "`r`n      " + $m.Groups[3].Value
+$patched = $original.Substring(0, $m.Index) + $replacement + $original.Substring($m.Index + $m.Length)
 
 try {
     [System.IO.File]::WriteAllText($profile, $patched, (New-Object System.Text.UTF8Encoding($false)))
@@ -94,6 +88,14 @@ try {
     }
 
     if (-not (Test-Path $hapOut)) { Write-Host 'ERROR: HAP not produced' -ForegroundColor Red; exit 1 }
+
+    # 按 ABI 另存一份：默认输出名不含 ABI，而两个 ABI 会写同一个文件。
+    # 上一次就踩到：先构 x86_64、再跑一遍验证（它会构 arm64），
+    # 然后安装那个文件——装的是 arm64 包，设备上还是旧版本，白跑一轮。
+    $hapTagged = Join-Path (Split-Path $hapOut) ("entry-default-unsigned-" + $Abi + ".hap")
+    Copy-Item -Path $hapOut -Destination $hapTagged -Force
+    Write-Host ("HAP (this ABI): {0}" -f $hapTagged) -ForegroundColor Yellow
+
     $hap = Get-Item $hapOut
     Write-Host ("BUILD OK  abi={0}  hap={1:N0} bytes  build={2}s" -f $Abi, $hap.Length, [int]$sw.Elapsed.TotalSeconds) -ForegroundColor Green
 

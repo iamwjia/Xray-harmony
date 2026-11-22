@@ -1,5 +1,6 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
+import { PageHeader } from '../components/PageHeader';
 import { vpnExtension } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Want } from '@kit.AbilityKit';
@@ -264,18 +265,20 @@ api failed: ${err.code} ${err.message}`;
   }
 
   build() {
-    Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(FontSize.caption)
-          .onClick(() => {
+    Column({ space: 0 }) {
+      Column() {
+        PageHeader({
+          title: '开发者面板',
+          onBack: () => {
             router.back();
-          })
-        Text('开发者面板（PoC 探针）').fontSize(FontSize.titleMd).fontWeight(FontWeight.Bold).layoutWeight(1).lineHeight(LineHeight.titleMd)
+          }
+        })
       }
       .width('100%')
+      .padding({ left: Space.sm, right: Space.sm })
 
       Scroll() {
-        Column({ space: 10 }) {
+        Column({ space: Space.sm }) {
           Button('NAPI hello()').onClick(() => this.runNapiHello()).width('100%')
           Text(this.napiHelloResult).fontSize(FontSize.caption).width('100%').lineHeight(LineHeight.caption)
 
@@ -325,13 +328,14 @@ api failed: ${err.code} ${err.message}`;
             })
         }
         .width('100%')
-        .padding({ bottom: 24 })
+        .padding({ left: Space.lg, right: Space.lg, bottom: Space.xl })
       }
       .layoutWeight(1)
+      .width('100%')
       .scrollBar(BarState.Auto)
     }
     .width('100%')
     .height('100%')
-    .padding(12)
+    .backgroundColor($r('app.color.bg_canvas'))
   }
 }

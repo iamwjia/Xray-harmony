@@ -63,6 +63,19 @@ struct Subscriptions {
     return `更新于 ${mm}-${dd} ${hh}:${mi}`;
   }
 
+  /**
+   * 订阅是会过期的：服务器改了端口、换了腾话，本地节点还是旧的。
+   * 7 天是一个意味着“基本不再可信”的粗线，不是精确阈值：它只用来提醒去点更新，
+   * 不会自动更新、也不会禁用节点——自动做事反而会让用户不知道发生了什么。
+   */
+  private isStale(rec: SubRecord): boolean {
+    if (rec.lastUpdated <= 0) {
+      return false;
+    }
+    const age: number = Date.now() - rec.lastUpdated;
+    return age > 7 * 24 * 60 * 60 * 1000;
+  }
+
   private doRefresh(rec: SubRecord): void {
     if (this.busyId.length > 0) {
       return;
@@ -193,10 +206,10 @@ struct Subscriptions {
             .lineHeight(LineHeight.caption)
             .fontColor($r('app.color.text_tertiary'))
             .accessibilityLevel('no')
-          Text(this.updatedText(rec))
+          Text(this.isStale(rec) ? '超过 7 天未更新' : this.updatedText(rec))
             .fontSize(FontSize.caption)
             .lineHeight(LineHeight.caption)
-            .fontColor($r('app.color.text_tertiary'))
+            .fontColor(this.isStale(rec) ? $r('app.color.warning') : $r('app.color.text_tertiary'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
@@ -228,7 +241,8 @@ struct Subscriptions {
     .border({ width: 1, color: $r('app.color.border_subtle') })
     // 整行没有"选中"语义，只有操作；这里不挂 onClick，避免出现"点了没反应"的假命中区
     .accessibilityLevel('yes')
-    .accessibilityText(`${rec.name}，${rec.nodeCount} 个节点，${this.updatedText(rec)}`)
+    .accessibilityText(`${rec.name}，${rec.nodeCount} 个节点，` +
+      `${this.isStale(rec) ? '超过 7 天未更新' : this.updatedText(rec)}`)
   }
 
   @Builder
