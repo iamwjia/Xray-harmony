@@ -1,8 +1,8 @@
 /**
  * service/NodeStore.ets — 节点持久化（最小实现）
  *
- * 方案：AppStorage + PersistentStorage（ArkUI 持久化属性），无需 Context，
- *       由框架负责落盘与恢复。数据以 JSON 字符串形式保存，带 schema 版本号。
+ * 方案：KvStore（preferences 同步读写），由 KvStore 统一负责落盘与恢复。
+ *       数据以 JSON 字符串形式保存，带 schema 版本号。
  *
  * 约束（与 ConfigService 同一原则）：
  *   1. **读取失败绝不覆盖原数据**：解析失败时返回 null 并由调用方决定处理，
@@ -13,6 +13,7 @@
 
 import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
 import { Logger } from '../platform/Logger';
+import { KvStore } from '../platform/KvStore';
 
 const KEY: string = 'tunnelix_nodes_v1';
 /**
@@ -66,19 +67,20 @@ interface StoredPayload {
 export class NodeStore {
   /** 初始化持久化属性（幂等，可多次调用） */
   static ensure(): void {
-    PersistentStorage.persistProp<string>(KEY, '');
+    // 已改由 KvStore（preferences 同步读写）承载持久化，此方法保留为空实现以兼容旧调用
   }
 
   /** 保存节点列表；返回 false 表示参数不合法（未写入） */
   static save(nodes: XrayNode[]): boolean {
     try {
-      NodeStore.ensure();
       const list: StoredNode[] = [];
       for (let i = 0; i < nodes.length; i++) {
         list.push(NodeStore.toStored(nodes[i]));
       }
       const payload: StoredPayload = { schema: SCHEMA, nodes: list };
-      AppStorage.setOrCreate<string>(KEY, JSON.stringify(payload));
+      if (!KvStore.write(KEY, JSON.stringify(payload))) {
+        return false;
+      }
       Logger.info(`nodeStore save ok: ${list.length} node(s)`);
       return true;
     } catch (e) {
@@ -96,9 +98,9 @@ export class NodeStore {
   static loadResult(): NodeLoadResult {
     const out = new NodeLoadResult();
     try {
-      NodeStore.ensure();
-      const raw: string | undefined = AppStorage.get<string>(KEY);
-      if (raw === undefined || raw === '') {
+      const raw: string = KvStore.read(KEY);
+      Logger.info(`nodeStore load: rawLen=${raw.length}`);
+      if (raw === '') {
         out.ok = true;
         out.schema = 0;
         return out;

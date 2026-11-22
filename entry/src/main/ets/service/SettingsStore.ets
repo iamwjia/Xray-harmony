@@ -1,7 +1,7 @@
 /**
  * service/SettingsStore.ets — 设置持久化（最小实现）
  *
- * 与 NodeStore 同方案：AppStorage + PersistentStorage，无需 Context。
+ * 与 NodeStore 同方案：KvStore（preferences），由 KvStore 负责落盘与恢复。
  * 单独一个 KEY，避免"改一个分流开关要重写整个节点列表"。
  *
  * 约束：
@@ -10,6 +10,7 @@
  */
 
 import { Logger } from '../platform/Logger';
+import { KvStore } from '../platform/KvStore';
 
 const KEY: string = 'tunnelix_settings_v1';
 const SCHEMA: number = 1;
@@ -30,22 +31,18 @@ export class SettingsSnapshot {
 }
 
 export class SettingsStore {
-  /** 初始化持久化属性（幂等） */
-  static ensure(): void {
-    PersistentStorage.persistProp<string>(KEY, '');
-  }
-
   /** 保存；返回 false 表示写失败（调用方应提示，不要静默） */
   static save(routingMode: string, logLevel: string, onboardingDone: boolean): boolean {
     try {
-      SettingsStore.ensure();
       const payload: StoredSettings = {
         schema: SCHEMA,
         routingMode: routingMode,
         logLevel: logLevel,
         onboardingDone: onboardingDone
       };
-      AppStorage.setOrCreate<string>(KEY, JSON.stringify(payload));
+      if (!KvStore.write(KEY, JSON.stringify(payload))) {
+        return false;
+      }
       Logger.info(`settingsStore save ok: routing=${routingMode} log=${logLevel}`);
       return true;
     } catch (e) {
@@ -63,9 +60,11 @@ export class SettingsStore {
   static load(): SettingsSnapshot | null {
     const snap: SettingsSnapshot = new SettingsSnapshot();
     try {
-      SettingsStore.ensure();
-      const raw: string | undefined = AppStorage.get<string>(KEY);
-      if (raw === undefined || raw === '') {
+      const raw: string = KvStore.read(KEY);
+      // 每次都记录原始长度：排查"设置写了但重启丢失"时，第一步要分清
+      // "根本没写进去"和"写了但没读回来"——这两种原因的修法完全不同。
+      Logger.info(`settingsStore load: rawLen=${raw.length}`);
+      if (raw === '') {
         return snap; // 首次启动：全空，调用方沿用默认
       }
       const payload: StoredSettings = JSON.parse(raw) as StoredSettings;

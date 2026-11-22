@@ -42,6 +42,8 @@ export class ConfigService {
   private persistError: string = '';
   /** v1 明文凭据待迁移到 Asset Store */
   private pendingCredentialMigration: boolean = false;
+  /** 是否已从磁盘恢复过（loadFromDisk 幂等标志） */
+  private loadedFromDisk: boolean = false;
   /** 迁移失败原因（空串 = 无失败）；失败时必须阻断依赖明文凭据的连接 */
   private migrationError: string = '';  /** 正在执行的迁移（in-flight 复用，避免两个入口同时跑导致"假失败"） */
   private migrationInFlight: Promise<boolean> | null = null;
@@ -59,6 +61,24 @@ export class ConfigService {
     } else {
       this.config = decoded;
     }
+  }
+
+  /**
+   * 从磁盘恢复节点 / 设置 / 规则。
+   *
+   * 为什么不在构造函数里做：PersistentStorage 的值要等 UI 上下文就绪后才能从文件恢复，
+   * 在 `EntryAbility.onCreate` 阶段读到的是空串——那会让"已保存的设置"看起来像"没保存过"，
+   * 而且后续任何写回都会把磁盘上的真实数据覆盖成空。实测：onCreate 阶段 load 得到
+   * `rawLen=0`，磁盘文件里却存着完整 JSON。所以由 `onWindowStageCreate`（loadContent 之前）
+   * 显式调用，幂等，重复调用无副作用。
+   */
+  loadFromDisk(): void {
+    if (this.loadedFromDisk) {
+      return;
+    }
+    this.loadedFromDisk = true;
+    Logger.info('configService loadFromDisk start');
+
     // 载入已保存的节点：解析失败时**保留原数据**，只记日志（不覆盖、不清空）
     const loaded: NodeLoadResult = NodeStore.loadResult();
     if (!loaded.ok) {
@@ -97,6 +117,7 @@ export class ConfigService {
     } else if (rules.length > 0) {
       this.config.rules = rules;
     }
+    Logger.info(`configService loadFromDisk done: nodes=${this.config.nodes.length} rules=${this.config.rules.length} onboarding=${this.config.settings.onboardingDone ? 'true' : 'false'}`);
   }
 
   /** 字符串 → 枚举（解码与外部输入的统一入口，未知值回落 RULE） */
@@ -133,6 +154,29 @@ export class ConfigService {
 
   getRoutingMode(): RoutingMode {
     return this.config.settings.routingMode;
+  }
+
+  /**
+   * 首次连接的一次性明示是否已完成。
+   *
+   * 这里**刻意没有**"重新显示提示"的开关：一旦允许运营侧重置，这条告知就会被当成
+   * 可以关掉的弹窗，从而失去意义。只有卸载重装或清除应用数据才会重现。
+   */
+  isOnboardingDone(): boolean {
+    return this.config.settings.onboardingDone;
+  }
+
+  /** 用户点了「我已了解」后才调用；写盘失败回滚并返回 false，由 UI 决定是否放行 */
+  markOnboardingDone(): boolean {
+    const prev: boolean = this.config.settings.onboardingDone;
+    this.config.settings.onboardingDone = true;
+    if (!this.persistSettings()) {
+      this.config.settings.onboardingDone = prev;
+      Logger.error('markOnboardingDone: persist failed, rolled back');
+      return false;
+    }
+    Logger.info('onboarding notice acknowledged by user');
+    return true;
   }
 
   static getInstance(): ConfigService {

@@ -27,6 +27,8 @@ struct Index {
   @State busyHint: string = '';
   /** 当前本地 SOCKS 端点（端口可变，调试时需要看得到） */
   @State socksInfo: string = '';
+  /** 首次连接的一次性明示是否正在显示 */
+  @State showNotice: boolean = false;
   /** 凭据迁移失败提示 */
   @State migrationWarning: string = '';
 
@@ -76,6 +78,12 @@ struct Index {
   }
 
   private async runConnect(): Promise<void> {
+    // 首次连接必须先完成一次性明示：**在改状态之前**拦下，否则 UI 会先跳到“连接中”
+    // 再弹窗，用户会以为已经连上了。明示确认后由 noticeOverlay 的按钮回调继续连接。
+    if (!this.cfg.isOnboardingDone()) {
+      this.showNotice = true;
+      return;
+    }
     this.vm.requestConnect();
     this.busyHint = '';
     this.refreshAll();
@@ -157,6 +165,12 @@ struct Index {
 
   private onToggle(): void {
     if (this.isIdleOrError()) {
+      // 先判明示：没确认过就不该出现“正在启动内核”的提示，
+      // 否则弹窗和进度文案同时出现，用户会以为连接已经在进行。
+      if (!this.cfg.isOnboardingDone()) {
+        this.showNotice = true;
+        return;
+      }
       this.busyHint = '正在启动内核…';
       this.doConnect();
     } else {
@@ -165,7 +179,8 @@ struct Index {
   }
 
   build() {
-    Column({ space: 16 }) {
+    Stack() {
+      Column({ space: 16 }) {
       Text('Tunnelix').fontSize(24).fontWeight(FontWeight.Bold)
       Text('内核直连驱动（socks + freedom，未接节点）').fontSize(12).fontColor('#999999')
 
@@ -257,5 +272,83 @@ struct Index {
     .width('100%')
     .height('100%')
     .padding(16)
+
+      if (this.showNotice) {
+        this.noticeOverlay()
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  /**
+   * 首次连接的一次性明示（四要素）。
+   *
+   * 硬约束（都是需求原文，不是我的偏好）：
+   *   - 四要素必须**同屏可见**，不能折叠进“详情”；
+   *   - 只能通过「我已了解」关闭：没有预勾选的“不再提示”，没有跳过按钮，
+   *     背景点击 / 返回键 / 手势返回都不能关掉（见 onBackPress）；
+   *   - 文案不得出现“不影响使用”“仅偶发”这类淡化表述。
+   */
+  @Builder
+  noticeOverlay() {
+    Column() {
+      Column({ space: 14 }) {
+        Text('连接前请先了解').fontSize(18).fontWeight(FontWeight.Bold)
+
+        this.noticeItem('1',
+          '应用被系统或你手动终止时，代理会一起停止，设备流量将恢复直连——' +
+          '也就是说，退出应用之后网络不再受保护。')
+        this.noticeItem('2',
+          '本应用不提供进程级 kill switch，无法做到“断了也不许直连”。')
+        this.noticeItem('3',
+          'IPv6 策略：当前 IPv6 已接管并阻断，流量走 IPv4；如需 IPv6 代理，' +
+          '需要在设置中显式开启（开启后会显示“IPv6 代理已启用”）。')
+        this.noticeItem('4',
+          '如果长时任务通知被清除，后台保活会停止，连接可能中断。')
+
+        Button('我已了解')
+          .width('100%')
+          .onClick(() => {
+            if (this.cfg.markOnboardingDone()) {
+              this.showNotice = false;
+              // 确认后直接继续这次连接，不让用户再点一次
+              this.doConnect();
+            } else {
+              this.busyHint = '无法保存“已了解”状态，请重试';
+            }
+          })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('88%')
+      .padding(20)
+      .backgroundColor('#FFFFFF')
+      .borderRadius(14)
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    // 全屏遮罩：点空白处不关闭（没有 onClick），只挡住背景交互
+    .backgroundColor('#99000000')
+  }
+
+  @Builder
+  noticeItem(index: string, text: string) {
+    Row({ space: 8 }) {
+      Text(index).fontSize(12).fontColor('#FFFFFF')
+        .width(20).height(20).textAlign(TextAlign.Center)
+        .backgroundColor('#1976D2').borderRadius(10)
+      Text(text).fontSize(13).fontColor('#333333').layoutWeight(1)
+    }
+    .alignItems(VerticalAlign.Top)
+    .width('100%')
+  }
+
+  /** 明示未确认时，返回键不得关闭它——需求里明确把这条列为绕过尝试之一 */
+  onBackPress(): boolean {
+    if (this.showNotice) {
+      return true;
+    }
+    return false;
   }
 }

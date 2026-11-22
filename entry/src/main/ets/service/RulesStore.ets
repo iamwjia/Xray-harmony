@@ -1,12 +1,13 @@
 /**
  * service/RulesStore.ets — 用户自定义分流规则持久化
  *
- * 与 NodeStore / SubscriptionStore 同一套方案（AppStorage + PersistentStorage，分键存储）。
+ * 与 NodeStore / SubscriptionStore 同一套方案（KvStore / preferences，分键存储）。
  *
  * 为什么单独一个键：规则是"用户意图"，和节点/订阅的生命周期完全独立——
  * 换节点不该丢规则，删订阅也不该影响规则。
  */
 
+import { KvStore } from '../platform/KvStore';
 import { Logger } from '../platform/Logger';
 import { RoutingRule } from '../model/AppConfig';
 
@@ -28,12 +29,11 @@ interface StoredPayload {
 
 export class RulesStore {
   static ensure(): void {
-    PersistentStorage.persistProp<string>(KEY, '');
+    // 持久化改由 KvStore（preferences 同步读写）承载，保留空实现兼容旧调用
   }
 
   static save(rules: RoutingRule[]): boolean {
     try {
-      RulesStore.ensure();
       const list: StoredRule[] = [];
       for (let i = 0; i < rules.length; i++) {
         const r: RoutingRule = rules[i];
@@ -47,7 +47,9 @@ export class RulesStore {
         list.push(st);
       }
       const payload: StoredPayload = { schema: SCHEMA, rules: list };
-      AppStorage.setOrCreate<string>(KEY, JSON.stringify(payload));
+      if (!KvStore.write(KEY, JSON.stringify(payload))) {
+        return false;
+      }
       Logger.info(`rulesStore save ok: ${list.length} rule(s)`);
       return true;
     } catch (e) {
@@ -60,9 +62,9 @@ export class RulesStore {
   /** null = 读到了但解析失败（调用方保留原数据，不得覆盖写） */
   static load(): RoutingRule[] | null {
     try {
-      RulesStore.ensure();
-      const raw: string | undefined = AppStorage.get<string>(KEY);
-      if (raw === undefined || raw === '') {
+      const raw: string = KvStore.read(KEY);
+      Logger.info(`rulesStore load: rawLen=${raw.length}`);
+      if (raw === '') {
         return [];
       }
       const payload: StoredPayload = JSON.parse(raw) as StoredPayload;

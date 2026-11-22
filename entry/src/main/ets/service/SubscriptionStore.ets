@@ -1,7 +1,7 @@
 /**
  * service/SubscriptionStore.ets — 订阅源持久化（最小实现）
  *
- * 与 NodeStore 同一套方案（AppStorage + PersistentStorage，无需 Context），但**分键存储**：
+ * 与 NodeStore 同一套方案（KvStore / preferences），但**分键存储**：
  * 订阅是"来源"，节点是"结果"，两者的生命周期不同——删掉订阅不该顺带删掉已导入的节点，
  * 反过来改一个节点也不该重写订阅表。
  *
@@ -10,6 +10,7 @@
  *   所以订阅表里只存**别名**，真实 URL 放 Asset Store；别名不进日志。
  */
 
+import { KvStore } from '../platform/KvStore';
 import { Logger } from '../platform/Logger';
 import { SecretStore } from '../platform/SecretStore';
 
@@ -47,12 +48,11 @@ export class SubscriptionStore {
   }
 
   static ensure(): void {
-    PersistentStorage.persistProp<string>(KEY, '');
+    // 持久化改由 KvStore（preferences 同步读写）承载，保留空实现兼容旧调用
   }
 
   static save(subs: SubRecord[]): boolean {
     try {
-      SubscriptionStore.ensure();
       const list: StoredSub[] = [];
       for (let i = 0; i < subs.length; i++) {
         const s: SubRecord = subs[i];
@@ -66,7 +66,9 @@ export class SubscriptionStore {
         list.push(st);
       }
       const payload: StoredPayload = { schema: SCHEMA, subs: list };
-      AppStorage.setOrCreate<string>(KEY, JSON.stringify(payload));
+      if (!KvStore.write(KEY, JSON.stringify(payload))) {
+        return false;
+      }
       Logger.info(`subStore save ok: ${list.length} sub(s)`);
       return true;
     } catch (e) {
@@ -79,9 +81,9 @@ export class SubscriptionStore {
   /** null = 读到了但解析失败（调用方必须保留原数据，不得覆盖写） */
   static load(): SubRecord[] | null {
     try {
-      SubscriptionStore.ensure();
-      const raw: string | undefined = AppStorage.get<string>(KEY);
-      if (raw === undefined || raw === '') {
+      const raw: string = KvStore.read(KEY);
+      Logger.info(`subStore load: rawLen=${raw.length}`);
+      if (raw === '') {
         return [];
       }
       const payload: StoredPayload = JSON.parse(raw) as StoredPayload;
