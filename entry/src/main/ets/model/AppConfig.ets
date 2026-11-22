@@ -102,6 +102,10 @@ export class RoutingRule {
 
 /** 应用设置 */
 export class AppSettings {
+  /** 是否允许自动更新订阅；**默认 false**——不偷偷联网 */
+  autoUpdateSubs: boolean = false;
+  /** 自动更新间隔（小时） */
+  autoUpdateHours: number = 24;
   routingMode: RoutingMode = RoutingMode.RULE;
   logLevel: string = 'INFO';
   /** 是否已看过首启说明 */

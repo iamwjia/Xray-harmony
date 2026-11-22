@@ -3,6 +3,7 @@ import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 import { SubRecord } from '../service/SubscriptionStore';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
+import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
 
 /**
@@ -23,13 +24,90 @@ struct Subscriptions {
   @State msg: string = '';
   /** 0 信息 / 1 警告 / 2 错误：颜色由级别决定，不由文案决定 */
   @State msgLevel: number = 0;
+  /** 过期订阅数；>0 时在顶部给一个「全部更新」入口 */
+  @State staleCount: number = 0;
+  @State refreshingAll: boolean = false;
 
   aboutToAppear(): void {
     this.reload();
+    this.checkAutoUpdate();
   }
 
   onPageShow(): void {
     this.reload();
+    this.checkAutoUpdate();
+  }
+
+  /**
+   * 进入页面时检查是否有超过间隔的订阅。
+   *
+   * 这里**只提示、不自动发请求**：订阅 URL 带 token，背底下联网是用户无法察觉的行为。
+   * 真正的"自动"交给用户一次确认（点「全部更新」），而不是我们替他决定。
+   */
+  private checkAutoUpdate(): void {
+    const cfg: ConfigService = ConfigService.getInstance();
+    if (!cfg.getConfig().settings.autoUpdateSubs) {
+      return;
+    }
+    const hours: number = cfg.getConfig().settings.autoUpdateHours;
+    const limitMs: number = hours * 60 * 60 * 1000;
+    const now: number = Date.now();
+    let stale: number = 0;
+    for (let i = 0; i < this.subs.length; i++) {
+      const t: number = this.subs[i].lastUpdated;
+      if (t <= 0 || (now - t) > limitMs) {
+        stale++;
+      }
+    }
+    if (stale > 0 && this.busyId.length === 0) {
+      this.setNotice(`有 ${stale} 个订阅超过 ${hours} 小时未更新`, 1);
+      this.staleCount = stale;
+      return;
+    }
+    this.staleCount = 0;
+  }
+
+  /** 串行更新全部过期订阅（串行：并发拉取容易被服务器限流） */
+  private refreshStale(): void {
+    if (this.refreshingAll) {
+      return;
+    }
+    this.refreshingAll = true;
+    const cfg: ConfigService = ConfigService.getInstance();
+    const limitMs: number = cfg.getConfig().settings.autoUpdateHours * 60 * 60 * 1000;
+    const now: number = Date.now();
+    const targets: SubRecord[] = [];
+    for (let i = 0; i < this.subs.length; i++) {
+      const t: number = this.subs[i].lastUpdated;
+      if (t <= 0 || (now - t) > limitMs) {
+        targets.push(this.subs[i]);
+      }
+    }
+    let done: number = 0;
+    let failed: number = 0;
+    const step = (idx: number): void => {
+      if (idx >= targets.length) {
+        this.refreshingAll = false;
+        this.reload();
+        this.staleCount = 0;
+        this.setNotice(`已更新 ${done} 个订阅${failed > 0 ? `，${failed} 个失败` : ''}`, failed > 0 ? 1 : 0);
+        return;
+      }
+      const rec: SubRecord = targets[idx];
+      this.busyId = rec.id;
+      SubscriptionService.refresh(rec.id).then((r: SubscriptionImportResult) => {
+        if (r.total === 0) {
+          failed++;
+        } else {
+          done++;
+        }
+        step(idx + 1);
+      }).catch((e: Object) => {
+        failed++;
+        step(idx + 1);
+      });
+    };
+    step(0);
   }
 
   private reload(): void {
@@ -277,7 +355,27 @@ struct Subscriptions {
       }
       .width('100%')
 
-      if (this.msg.length > 0) {
+      if (this.staleCount > 0) {
+        Row({ space: Space.sm }) {
+          Text(this.msg.length > 0 ? this.msg : `有 ${this.staleCount} 个订阅需更新`)
+            .fontSize(FontSize.bodySm)
+            .lineHeight(LineHeight.bodySm)
+            .fontColor($r('app.color.warning'))
+            .layoutWeight(1)
+            .maxLines(2)
+          Button(this.refreshingAll ? '更新中…' : '全部更新')
+            .height(Height.hit)
+            .fontSize(FontSize.bodySm)
+            .backgroundColor($r('app.color.warning_subtle'))
+            .fontColor($r('app.color.warning'))
+            .enabled(!this.refreshingAll)
+            .onClick(() => this.refreshStale())
+        }
+        .width('100%')
+        .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+      }
+
+      if (this.msg.length > 0 && this.staleCount === 0) {
         Text(this.msg)
           .fontSize(FontSize.bodySm)
           .lineHeight(LineHeight.bodySm)

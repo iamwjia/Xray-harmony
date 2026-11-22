@@ -173,9 +173,11 @@ api failed: ${err.code} ${err.message}`;
       const wrongRejected: boolean = !wrong.ok && wrong.error.length > 0;
       const ok: BundleImportResult = await ConfigBundle.importFromText(text, 'selftest-pass-123');
       const plainCred = text.indexOf('credential') >= 0 && text.indexOf('"credential": ""') < 0;
+      const firstDetail: string = ok.details.length > 0
+        ? `${ok.details[0].outcome}:${ok.details[0].name}(${ok.details[0].reason})` : 'none';
       const summary = `size=${text.length} wrongPassRejected=${wrongRejected} ` +
         `importOk=${ok.ok} nodes(${ok.addedNodes}/${ok.skippedNodes}) rules(${ok.addedRules}/${ok.skippedRules}) ` +
-        `plaintextCredLeak=${plainCred}`;
+        `details=${ok.details.length} first=${firstDetail} plaintextCredLeak=${plainCred}`;
       this.bundleResult = summary;
       hilog.info(DOMAIN, TAG, 'bundle self-test: %{public}s', summary);
     }).catch((e: Object) => {

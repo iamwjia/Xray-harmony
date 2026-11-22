@@ -93,6 +93,22 @@ export class BundleImportResult {
   skippedRules: number = 0;
   /** 凭据缺失的节点数（对方导出时该节点凭据已丢失） */
   missingCredentials: number = 0;
+  /**
+   * 逐条明细。
+   *
+   * 为什么不只给数字：“导入 3 个、跳过 2 个”无法回答用户最关心的问题——
+   * **跳过的是哪两个**。用户需要能对照自己的节点表判断“是真的重复，还是我漏了什么”。
+   */
+  details: ImportDetail[] = [];
+}
+
+/** 导入明细行 */
+export class ImportDetail {
+  name: string = '';
+  /** added / skipped / missing-credential */
+  outcome: string = '';
+  /** 人话原因；added 为空串 */
+  reason: string = '';
 }
 
 export class ConfigBundle {
@@ -217,11 +233,19 @@ export class ConfigBundle {
       }
       const node: XrayNode = ConfigBundle.toNode(bn);
       const added: boolean = await cfg.addNodeSecure(node);
+      const d = new ImportDetail();
+      d.name = bn.name;
       if (added) {
         result.addedNodes++;
+        d.outcome = bn.credential.length === 0 ? 'missing-credential' : 'added';
+        d.reason = bn.credential.length === 0 ? '已导入，但缺少凭据，需手工补填' : '';
       } else {
         result.skippedNodes++;
+        d.outcome = 'skipped';
+        // 去重依据是 protocol+address+port，告诉用户具体是哪三项重了
+        d.reason = `已存在同地址节点（${bn.protocol} ${bn.address}:${bn.port}）`;
       }
+      result.details.push(d);
     }
 
     const existing: RoutingRule[] = cfg.getRules();

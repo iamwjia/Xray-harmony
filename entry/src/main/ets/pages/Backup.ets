@@ -8,7 +8,7 @@ import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
-import { ConfigBundle, BundleImportResult } from '../service/ConfigBundle';
+import { BundleImportResult, ConfigBundle, ImportDetail } from '../service/ConfigBundle';
 import { BundleCrypto } from '../platform/BundleCrypto';
 import { Logger } from '../platform/Logger';
 
@@ -40,6 +40,9 @@ struct Backup {
   @State importMsgLevel: number = 0;
   /** 文件头摘要：选完文件先给用户看"这是几个节点、什么时候导的" */
   @State importSummary: string = '';
+  /** 恢复明细（逐条），默认折叠：正常情况下用户不需要看它 */
+  @State importDetails: ImportDetail[] = [];
+  @State showDetails: boolean = false;
 
   private msgColor(level: number): Resource {
     if (level === 2) {
@@ -278,6 +281,8 @@ struct Backup {
     this.setImportMsg('正在解密并恢复…', 0);
     ConfigBundle.importFromText(this.importText, this.importPass).then((r: BundleImportResult) => {
       this.importing = false;
+      this.importDetails = r.details;
+      this.showDetails = false;
       if (!r.ok) {
         this.setImportMsg(r.error.length > 0 ? r.error : '恢复失败', 2);
         return;
@@ -499,6 +504,58 @@ struct Backup {
               .fontColor($r('app.color.text_on_accent'))
               .enabled(!this.importing)
               .onClick(() => this.doImport())
+
+            if (this.importDetails.length > 0) {
+              Text(this.showDetails ? '收起明细' : `查看明细（${this.importDetails.length} 条）`)
+                .fontSize(FontSize.bodySm)
+                .lineHeight(LineHeight.bodySm)
+                .fontColor($r('app.color.accent'))
+                .width('100%')
+                .maxLines(1)
+                .accessibilityText(this.showDetails ? '收起导入明细' : '展开导入明细')
+                .onClick(() => {
+                  this.showDetails = !this.showDetails;
+                })
+              if (this.showDetails) {
+                ForEach(this.importDetails, (d: ImportDetail) => {
+                  Row({ space: Space.sm }) {
+                    Text(d.outcome === 'added' ? '已导入'
+                      : (d.outcome === 'missing-credential' ? '缺凭据' : '已存在'))
+                      .fontSize(FontSize.fontChip)
+                      .lineHeight(LineHeight.fontChip)
+                      .fontColor(d.outcome === 'skipped'
+                        ? $r('app.color.text_tertiary')
+                        : (d.outcome === 'missing-credential'
+                          ? $r('app.color.warning') : $r('app.color.success')))
+                      .backgroundColor($r('app.color.bg_chip'))
+                      .borderRadius(Radius.chip)
+                      .padding({ left: Space.xs, right: Space.xs })
+                      .maxLines(1)
+                    Column({ space: Space.xxs }) {
+                      Text(d.name)
+                        .fontSize(FontSize.caption)
+                        .lineHeight(LineHeight.caption)
+                        .fontColor($r('app.color.text_primary'))
+                        .maxLines(1)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                        .width('100%')
+                      if (d.reason.length > 0) {
+                        Text(d.reason)
+                          .fontSize(FontSize.fontChip)
+                          .lineHeight(LineHeight.fontChip)
+                          .fontColor($r('app.color.text_tertiary'))
+                          .maxLines(2)
+                          .width('100%')
+                      }
+                    }
+                    .alignItems(HorizontalAlign.Start)
+                    .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .alignItems(VerticalAlign.Top)
+                }, (d: ImportDetail) => `${d.name}-${d.outcome}`)
+              }
+            }
 
             if (this.importMsg.length > 0) {
               Text(this.importMsg)

@@ -21,6 +21,10 @@ interface StoredSettings {
   routingMode: string;
   logLevel: string;
   onboardingDone: boolean;
+  /** 自动更新订阅；缺省 false（不偷偷联网） */
+  autoUpdateSubs?: boolean;
+  /** 自动更新间隔（小时）；缺省 24 */
+  autoUpdateHours?: number;
 }
 
 /** 读取结果：调用方按字段覆盖自己已有的默认值 */
@@ -28,17 +32,22 @@ export class SettingsSnapshot {
   routingMode: string = '';
   logLevel: string = '';
   onboardingDone: boolean = false;
+  autoUpdateSubs: boolean = false;
+  autoUpdateHours: number = 24;
 }
 
 export class SettingsStore {
   /** 保存；返回 false 表示写失败（调用方应提示，不要静默） */
-  static save(routingMode: string, logLevel: string, onboardingDone: boolean): boolean {
+  static save(routingMode: string, logLevel: string, onboardingDone: boolean,
+    autoUpdateSubs: boolean = false, autoUpdateHours: number = 24): boolean {
     try {
       const payload: StoredSettings = {
         schema: SCHEMA,
         routingMode: routingMode,
         logLevel: logLevel,
-        onboardingDone: onboardingDone
+        onboardingDone: onboardingDone,
+        autoUpdateSubs: autoUpdateSubs,
+        autoUpdateHours: autoUpdateHours
       };
       if (!KvStore.write(KEY, JSON.stringify(payload))) {
         return false;
@@ -78,6 +87,9 @@ export class SettingsStore {
       snap.routingMode = payload.routingMode === undefined ? '' : payload.routingMode;
       snap.logLevel = payload.logLevel === undefined ? '' : payload.logLevel;
       snap.onboardingDone = payload.onboardingDone === undefined ? false : payload.onboardingDone;
+      snap.autoUpdateSubs = payload.autoUpdateSubs === undefined ? false : payload.autoUpdateSubs;
+      const hrs: number = payload.autoUpdateHours === undefined ? 24 : payload.autoUpdateHours;
+      snap.autoUpdateHours = hrs > 0 ? hrs : 24;
       Logger.info(`settingsStore load ok: routing=${snap.routingMode} log=${snap.logLevel}`);
       return snap;
     } catch (e) {

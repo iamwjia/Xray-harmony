@@ -23,6 +23,9 @@ struct Settings {
   @State clearing: boolean = false;
   @State clearMsg: string = '';
   @State clearMsgLevel: number = 0;
+  /** 订阅自动更新（默认关：不偷偷联网） */
+  @State autoUpdateSubs: boolean = false;
+  @State autoUpdateHours: number = 24;
   /** geo 资源版本（未就绪时明确显示"不可用"，不要显示空串让人以为正常） */
   @State geoLabel: string = '';
   /** geo 手动更新状态 */
@@ -40,6 +43,8 @@ struct Settings {
     this.logLevel = this.cfg.getLogLevel();
     this.geoLabel = GeoAssets.isReady() ? `${GeoAssets.getVersion()}（规则模式下国内直连生效）` : '未就绪（规则模式已降级为仅内网直连）';
     this.refreshRuleCount();
+    this.autoUpdateSubs = this.cfg.getConfig().settings.autoUpdateSubs;
+    this.autoUpdateHours = this.cfg.getConfig().settings.autoUpdateHours;
   }
 
   /** 从规则页返回时刷新计数（同 @Watch 不生效的场景） */
@@ -62,6 +67,21 @@ struct Settings {
     const ok: boolean = this.cfg.setRoutingMode(mode);
     // 写盘失败时 ConfigService 已把内存值回滚，这里必须读回真实值，否则 UI 会显示"改了但没存"
     this.routingMode = this.cfg.getConfig().settings.routingMode;
+    this.persistError = ok ? '' : this.cfg.getPersistError();
+  }
+
+  /** 切换订阅自动更新；写盘失败回滚并提示 */
+  private setAutoUpdate(enabled: boolean): void {
+    const ok: boolean = this.cfg.setSubscriptionAutoUpdate(enabled, this.autoUpdateHours);
+    this.autoUpdateSubs = this.cfg.getConfig().settings.autoUpdateSubs;
+    this.autoUpdateHours = this.cfg.getConfig().settings.autoUpdateHours;
+    this.persistError = ok ? '' : this.cfg.getPersistError();
+  }
+
+  private setAutoUpdateHours(h: number): void {
+    const ok: boolean = this.cfg.setSubscriptionAutoUpdate(this.autoUpdateSubs, h);
+    this.autoUpdateSubs = this.cfg.getConfig().settings.autoUpdateSubs;
+    this.autoUpdateHours = this.cfg.getConfig().settings.autoUpdateHours;
     this.persistError = ok ? '' : this.cfg.getPersistError();
   }
 
@@ -312,6 +332,46 @@ struct Settings {
             })
         }
         .width('100%')
+        Divider()
+        Column({ space: Space.sm }) {
+          Row({ space: 8 }) {
+            Column({ space: 2 }) {
+              Text('自动更新订阅').fontSize(FontSize.bodySm).maxLines(1)
+              Text('开启后，进入应用时若超过间隔会提示更新（不会静默联网）')
+                .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
+            }
+            .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
+            Toggle({ type: ToggleType.Switch, isOn: this.autoUpdateSubs })
+              .onChange((on: boolean) => {
+                this.setAutoUpdate(on);
+              })
+          }
+          .width('100%')
+
+          if (this.autoUpdateSubs) {
+            Row({ space: Space.sm }) {
+              ForEach([6, 12, 24, 168], (h: number) => {
+                Text(h === 168 ? '每周' : `每 ${h} 小时`)
+                  .height(Height.hit)
+                  .padding({ left: Space.md, right: Space.md })
+                  .fontSize(FontSize.bodySm)
+                  .fontColor(this.autoUpdateHours === h
+                    ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+                  .backgroundColor(this.autoUpdateHours === h
+                    ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                  .borderRadius(Radius.pill)
+                  .maxLines(1)
+                  .onClick(() => {
+                    this.setAutoUpdateHours(h);
+                  })
+              }, (h: number) => `${h}`)
+            }
+            .width('100%')
+          }
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {

@@ -107,6 +107,8 @@ export class ConfigService {
         this.config.settings.logLevel = settings.logLevel;
       }
       this.config.settings.onboardingDone = settings.onboardingDone;
+      this.config.settings.autoUpdateSubs = settings.autoUpdateSubs;
+      this.config.settings.autoUpdateHours = settings.autoUpdateHours;
     }
     // 让 Logger 的缓冲门槛与已保存的日志级别一致（否则重启后"运行日志"页面仍是默认级别）
     Logger.setMinLevel(this.config.settings.logLevel);
@@ -140,7 +142,8 @@ export class ConfigService {
       return false;
     }
     const s: AppSettings = this.config.settings;
-    const ok: boolean = SettingsStore.save(s.routingMode as string, s.logLevel, s.onboardingDone);
+    const ok: boolean = SettingsStore.save(s.routingMode as string, s.logLevel, s.onboardingDone,
+      s.autoUpdateSubs, s.autoUpdateHours);
     this.persistError = ok ? '' : '设置保存失败，已恢复原值（详见日志）';
     return ok;
   }
@@ -151,6 +154,20 @@ export class ConfigService {
    */
   getPersistError(): string {
     return this.persistError;
+  }
+
+  /** 设置订阅自动更新；失败回滚并返回 false */
+  setSubscriptionAutoUpdate(enabled: boolean, hours: number): boolean {
+    const prevEnabled: boolean = this.config.settings.autoUpdateSubs;
+    const prevHours: number = this.config.settings.autoUpdateHours;
+    this.config.settings.autoUpdateSubs = enabled;
+    this.config.settings.autoUpdateHours = hours > 0 ? hours : 24;
+    if (!this.persistSettings()) {
+      this.config.settings.autoUpdateSubs = prevEnabled;
+      this.config.settings.autoUpdateHours = prevHours;
+      return false;
+    }
+    return true;
   }
 
   getRoutingMode(): RoutingMode {
@@ -228,7 +245,7 @@ export class ConfigService {
     NodeStore.save([]);
     RulesStore.save([]);
     SubscriptionStore.save([]);
-    SettingsStore.save(RoutingMode.RULE as string, 'INFO', false);
+    SettingsStore.save(RoutingMode.RULE as string, 'INFO', false, false, 24);
 
     // 3) 内存回到默认，并通知 UI 重取
     this.config = createDefaultConfig();
