@@ -384,7 +384,7 @@ struct Backup {
           // ---------- 导出 ----------
           Column({ space: Space.sm }) {
             this.section('导出备份', '把本机节点、凭据、规则打包成一个加密文件')
-            Text('流程：① 设口令（可随机生成并自动复制） ② 导出文件 '
+            Text('流程：① 设口令（可随机口令并自动复制） ② 导出文件 '
               + '③ 把文件发出去 ④ 把口令另发一条消息')
               .fontSize(FontSize.caption)
               .lineHeight(LineHeight.caption)
@@ -421,8 +421,15 @@ struct Backup {
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor(this.canExport() ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(this.canExport() ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+                // 与「导出到文件」同款描边：两者是同一目的的两条路径，
+                // 差别只是"本机有没有分享面板"，不是"哪条更推荐"。
+                // 一实一描会让用户以为分享才是正规路径、存文件是降级方案。
+                .backgroundColor($r('app.color.bg_surface'))
+                .fontColor(this.canExport() ? $r('app.color.accent') : $r('app.color.text_tertiary'))
+                .border({
+                  width: 1,
+                  color: this.canExport() ? $r('app.color.accent') : $r('app.color.border_subtle')
+                })
                 .enabled(this.canExport())
                 .onClick(() => this.doExportAndShare())
               Button('导出到文件')
@@ -445,12 +452,11 @@ struct Backup {
               .width('100%')
 
             Row({ space: Space.sm }) {
-              // 「随机生成」是本页的主动作之一（口令是导出的前提），用主色；
-              // 它是二次操作，不是每屏唯一主操作（导出并分享才是），所以放在这一行里
-              // 而不是底部条里。
               // 本页统一两种可点形态：实心主色（推进流程）+ 描边（一切可选动作）。
+              // 口令相关的三个动作（随机 / 复制 / 导出）都属于"可选路径"，一律描边；
+              // 实心主色只留给「解密并恢复」这种不可替代的执行点。
               // "浅底"留给选项组与"取消/收起"，不再掺进来。
-              Button('随机生成')
+              Button('随机口令')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
