@@ -355,7 +355,9 @@ struct Backup {
   }
 
   @Builder
-  passField(placeholder: string, value: string, onEdit: (v: string) => void) {
+  passField(placeholder: string, value: string, onEdit: (v: string) => void,
+    onSubmit: () => void = () => {
+    }) {
     TextInput({ placeholder: placeholder, text: value })
       .type(InputType.Password)
       .height(Height.input)
@@ -365,6 +367,11 @@ struct Backup {
       .borderRadius(Radius.panel)
       .onChange((v: string) => {
         onEdit(v);
+      })
+      // 回车直接提交：手机上键盘遮住下方按钮，还要先收键盘再点它
+      .enterKeyType(EnterKeyType.Go)
+      .onSubmit(() => {
+        onSubmit();
       })
   }
 
@@ -396,6 +403,8 @@ struct Backup {
             })
             this.passField('再输一次', this.exportPass2, (v: string) => {
               this.exportPass2 = v;
+            }, () => {
+              this.doExport();
             })
             Row({ space: Space.sm }) {
               Button(this.exporting ? '生成中…' : '导出并分享')
@@ -494,6 +503,8 @@ struct Backup {
 
             this.passField('输入备份口令', this.importPass, (v: string) => {
               this.importPass = v;
+            }, () => {
+              this.doImport();
             })
 
             Button(this.importing ? '恢复中…' : '解密并恢复')

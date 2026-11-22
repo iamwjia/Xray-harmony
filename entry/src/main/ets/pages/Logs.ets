@@ -141,7 +141,8 @@ struct Logs {
 
   @Builder
   chip(label: string, value: string) {
-    Text(label)
+    // 同 Nodes：可点元素用 Button，手机上才有按下反馈（Text 只有 onClick）
+    Button(label, { type: ButtonType.Capsule })
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       .fontSize(FontSize.bodySm)
@@ -151,13 +152,11 @@ struct Logs {
       .backgroundColor(this.filter === value
         ? $r('app.color.accent')
         : $r('app.color.bg_chip'))
-      .borderRadius(Radius.pill)
-      .textAlign(TextAlign.Center)
       .accessibilityText(this.filter === value ? `${label}，当前筛选` : label)
       .onClick(() => {
         this.filter = value;
         this.reload();
-      }).lineHeight(LineHeight.bodySm)
+      })
   }
 
   build() {
@@ -292,16 +291,14 @@ struct Logs {
 
   @Builder
   actionChip(label: string, action: () => void) {
-    Text(label)
+    Button(label, { type: ButtonType.Capsule })
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       .fontSize(FontSize.bodySm)
       .fontColor($r('app.color.text_primary'))
       .backgroundColor($r('app.color.bg_chip'))
-      .borderRadius(Radius.pill)
-      .textAlign(TextAlign.Center)
       .onClick(() => {
         action();
-      }).lineHeight(LineHeight.bodySm)
+      })
   }
 }

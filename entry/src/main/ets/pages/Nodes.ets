@@ -337,6 +337,12 @@ struct Nodes {
         .onChange((v: string) => {
           this.importInput = v;
         })
+        // 回车直接导入：手机上键盘会遮住下方「导入」按钮，
+        // 抬手去点它是桌面习惯（实测下半屏被键盘占满）。
+        .enterKeyType(EnterKeyType.Go)
+        .onSubmit(() => {
+          this.doSmartImport();
+        })
 
       Text('vless / vmess / trojan / ss 走单条导入；http(s) 走订阅导入')
         .fontSize(FontSize.caption)
@@ -397,18 +403,18 @@ struct Nodes {
 
   @Builder
   chip(label: string, active: boolean, action: () => void) {
-    Text(label)
+    // 用 Button 而不是 Text：Text 上没有按下反馈，手指点下去什么都不变——
+    // 那是鼠标想象（hover 代替了反馈），碰屏上会像“没点着”。
+    Button(label, { type: ButtonType.Capsule })
       .height(Height.hit)
       .padding({ left: Space.lg, right: Space.lg })
       .fontSize(FontSize.bodySm)
       .fontColor(active ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
       .backgroundColor(active ? $r('app.color.accent') : $r('app.color.bg_chip'))
-      .borderRadius(Radius.pill)
-      .textAlign(TextAlign.Center)
       .accessibilityText(active ? `${label}，当前筛选` : label)
       .onClick(() => {
         action();
-      }).lineHeight(LineHeight.bodySm)
+      })
   }
 
   @Builder
