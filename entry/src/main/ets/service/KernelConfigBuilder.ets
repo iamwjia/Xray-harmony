@@ -176,9 +176,15 @@ export class KernelConfigBuilder {
       const sep: number = cred.indexOf(':');
       const method: string = sep > 0 ? cred.substring(0, sep) : 'aes-256-gcm';
       const password: string = sep > 0 ? cred.substring(sep + 1) : cred;
+      // streamSettings 必须拼上，与另外三个协议一致。
+      // 依据（Xray-core 源码，不是猜测）：出站的流控由 app/proxyman/outbound/handler.go
+      // 解析成 h.streamSettings，再由 h.Dial() → internet.Dial(ctx, dest, h.streamSettings)
+      // 套用，**与协议无关**；shadowsocks 的 Client.Process 正是经这个 dialer 出网，
+      // 所以 ss + ws / ss + tls 成立。
+      // 之前漏拼的表现是"给 ss 节点选了 WS，保存成功，实际仍按 TCP 走"，且没有任何提示。
       return '{"tag":"proxy","protocol":"shadowsocks","settings":{"servers":[{"address":' + addr +
         ',"port":' + port + ',"method":' + KernelConfigBuilder.esc(method) +
-        ',"password":' + KernelConfigBuilder.esc(password) + '}]}}';
+        ',"password":' + KernelConfigBuilder.esc(password) + '}]},"streamSettings":' + stream + '}';
     }
     return '{"tag":"proxy","protocol":"freedom"}';
   }

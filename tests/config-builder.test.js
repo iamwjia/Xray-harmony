@@ -180,6 +180,55 @@ console.log('[入站片段：源码级断言]');
     src.includes('"listen":"\' + SocksGuard.LOCAL_HOST') && !src.includes('"listen":"127.0.0.1"'));
 }
 
+// ---------------------------------------------------------------- 出站：行为级
+// 背景：四个协议的出站都该带 streamSettings（出站流控由 outbound handler 统一套用，
+// 与协议无关）。shadowsocks 分支曾经漏拼，表现是"给 ss 节点选了 WS，保存成功、实际按 TCP 走"，
+// 编译不报错、内核也不报错，只能靠断言拦。
+console.log('[出站：四个协议都要带 streamSettings]');
+{
+  // 抽取 buildOutbound 里 shadowsocks 分支的真实函数体，喂假参数跑一遍
+  const start = src.indexOf("if (proto === 'shadowsocks') {");
+  const end = src.indexOf("return '{\"tag\":\"proxy\",\"protocol\":\"freedom\"}';");
+  check('能定位到 shadowsocks 分支', start > 0 && end > start);
+
+  if (start > 0 && end > start) {
+    const rawBody = src.slice(start + "if (proto === 'shadowsocks') {".length, end).trim();
+    // 截到 freedom 的 return 之前，尾部还留着 ss 分支自己的收尾 `}`，去掉它
+    const noTrailing = rawBody.replace(/\}\s*$/, '').trim();
+    // ArkTS 的类型标注 JS 不认，先剥掉再交给 new Function 执行（与上面 buildRouting 同一手法）
+    const body = noTrailing.replace(/:\s*(string|number|boolean)\b/g, '');
+    const KC = { esc: (v) => JSON.stringify(v) };
+    // eslint-disable-next-line no-new-func
+    const run = new Function('addr', 'port', 'cred', 'stream', 'KernelConfigBuilder', body);
+
+    const streamJson = '{"network":"ws","security":"tls","wsSettings":{"path":"/x"}}';
+    const out = JSON.parse(run('"h.example"', 8388, 'aes-256-gcm:pw', streamJson, KC));
+    check('ss 出站带 streamSettings', out.streamSettings !== undefined);
+    check('ss 的 streamSettings 原样透传（network=ws）',
+      out.streamSettings && out.streamSettings.network === 'ws',
+      JSON.stringify(out.streamSettings));
+    check('ss 的 method 与 password 按首个冒号拆分',
+      out.settings.servers[0].method === 'aes-256-gcm' &&
+      out.settings.servers[0].password === 'pw',
+      JSON.stringify(out.settings.servers[0]));
+
+    // 不带冒号的凭据（只有 password）：method 回落 aes-256-gcm，password 取全串
+    const out2 = JSON.parse(run('"h.example"', 8388, 'only-password', streamJson, KC));
+    check('无冒号凭据回落默认 method',
+      out2.settings.servers[0].method === 'aes-256-gcm' &&
+      out2.settings.servers[0].password === 'only-password',
+      JSON.stringify(out2.settings.servers[0]));
+
+    // 另外三个分支：源码级断言（它们是拼接串，行为级抽取成本高）
+    ['vless', 'vmess', 'trojan'].forEach((p) => {
+      const s = src.indexOf(`if (proto === '${p}') {`);
+      const e = src.indexOf('return ', s);
+      const seg = src.slice(s, src.indexOf(';', e));
+      check(`${p} 出站带 streamSettings`, seg.includes('"streamSettings":'));
+    });
+  }
+}
+
 console.log('');
 if (failed === 0) {
   console.log('ALL PASS');

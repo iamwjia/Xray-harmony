@@ -52,19 +52,25 @@ ConfigBundle、KernelConfigBuilder、ShareLinkParser、ProbeStore、BundleCrypto
 
 ---
 
-## 二、记录未改（需产品或验证支撑）
-
-### R-5（中）shadowsocks 出站静默忽略"传输"设置
+### R-5（中，已修）shadowsocks 出站静默忽略"传输"设置
 
 - 位置：`service/KernelConfigBuilder.ets` `buildOutbound()` 的 `shadowsocks` 分支
 - 现象：vless/vmess/trojan 三个分支都拼了 `streamSettings`，**只有 ss 分支没拼**。
   用户在编辑页给 ss 节点选了 WS，配置生成时被悄悄丢掉 —— "设置了不生效"且没有任何提示。
-- 为什么不直接改：Xray 的 shadowsocks 出站是否支持 `streamSettings`（ss over ws 是否成立）
-  我没有在真机上验证过；擅自补上可能导致这类节点**从"传输不生效"变成"内核起不来"**，
-  后者更糟。两个选项：
-  1. 补 `streamSettings`（若上游支持，语义正确）；
-  2. 保持现状但在编辑页对"ss + 传输≠TCP"给出提示，说明该组合不会生效。
-- 需要你定：要我按 1 做（并在真机/内核日志上验证一次），还是按 2 做。
+- 依据（**读源码确认，不是猜**）：`app/proxyman/outbound/handler.go` 把出站的
+  `streamSettings` 解析成 `h.streamSettings`（第 88 行），由 `h.Dial() → internet.Dial(ctx, dest,
+  h.streamSettings)`（第 275 行）套用，**与协议无关**；`proxy/shadowsocks/client.go` 的
+  `Client.Process` 正是通过传入的 `dialer internet.Dialer` 出网。所以 ss + ws / ss + tls 是成立的，
+  之前漏拼属于实现遗漏，不是上游限制。
+- 已做：ss 分支补 `"streamSettings":' + stream + '`，与另外三个协议一致。
+- 已加回归：`tests/config-builder.test.js` 新增「四个协议都要带 streamSettings」——
+  **行为级**（抽取 ss 分支真实函数体喂参数跑，断言 `streamSettings` 存在且 network 透传）
+  + 另外三个协议的源码级断言。并按"闸门必须能报错"的要求做了反向验证：
+  把 ss 分支的拼接去掉后，该组断言如预期 FAIL 两条。
+  顺带发现：那次故意打断时第一次误打到 trojan 分支（字符串匹配到更早的相同片段），
+  断言也如实报出了 `trojan 出站带 streamSettings FAIL`——说明这些断言各自独立生效。
+
+## 二、记录未改（需产品或验证支撑）
 
 ### R-6（低）`clearAllData` 用 `credentialRef` 当别名删密钥，覆盖不全
 
@@ -110,9 +116,72 @@ ConfigBundle、KernelConfigBuilder、ShareLinkParser、ProbeStore、BundleCrypto
 
 ---
 
-## 五、给下一步的建议顺序
+## 五、第二轮：VPN 扩展进程与凭据生命周期（R-5 之后按优先级做的 B）
+
+范围：`vpnability/VpnExtAbility.ets`（181 行）、`service/VpnSession.ets`、`service/VpnController.ets`、
+`platform/VpnStateFile.ets` 的调用面。
+
+### V-1（高，已修）启动中任一环节失败，内核不会停
+
+- 位置：`VpnExtAbility.bootstrap()`
+- 现象：`kernel.start()` 成功之后，`createVpnConnection()` / `conn.create()` 抛异常时，代码只往
+  状态文件写 `error` 就结束了 —— **内核还在本进程里跑着，SOCKS 端口也被占着**。
+  下一次连接会以"端口占用"这种与真实原因无关的形式失败，而用户与日志都指向错误方向。
+  原代码对"转发失败"这一个分支做了 tun 回滚，但**没停内核**；对更早的失败则完全没有回滚。
+- 修法：内核起来之后的所有步骤包在 try 里，失败统一走 `rollback()`：转发 → tun → 内核，
+  三步各自独立 try（前一步失败不能连带后面的清理也不做）。`bootstrap` 再抛出，
+  由 `onCreate` 的 catch 统一写 `error` 状态——状态文案保持一处，不分散。
+
+### V-2（中，已修）明文凭据在整个会话期间驻留在扩展进程内存
+
+- 位置：`VpnExtAbility` + `VpnSession.configJson`
+- 现象：内核配置串（含 UUID / 密码 / ss method:password）从 Want 解出来后存在 `this.session` 上，
+  **直到进程销毁都不清**。而内核启动后已经持有自己的副本，扩展侧没有任何代码再用它。
+- 修法：`dropSessionSecrets()` —— 转发层就绪后立刻把 `configJson` 与 `socksPass` 置空。
+- 说明边界：这不改变"凭据经 Want 参数跨进程传递"这个事实（见 V-3），只是缩短内存驻留时间。
+
+### V-3（中，已修）Want 参数没有大小保护
+
+- 位置：`VpnController.start()`
+- 现象：配置串随节点数/规则数增长，整串塞进 `Want.parameters`。超大配置时
+  `startVpnExtensionAbility` 会失败，而返回的错误码看不出"参数太大"。
+- 修法：发之前检查长度，超 `MAX_SESSION_CHARS`（64K 字符，保守值）就直接抛
+  "配置过大（N KB），无法通过启动参数传给 VPN 扩展"。
+- **未验证**：Want 参数的真实上限没有公开数字，64K 是我取的保守阈值；实测配置约 4–8KB。
+
+### V-4（低，记录）凭据以明文经过 Want 参数
+
+- 现状：`configJson` 含真实凭据，经 `Want.parameters` 从 UI 进程传到扩展进程，不落盘。
+- 风险评估：两个 ability 同属本应用，Want 参数不落盘、不经网络；主要暴露面是
+  系统侧对 ability 启动参数的记录/快照（具体行为取决于系统版本，未取证）。
+- 备选方案及否决理由：
+  1. **写沙箱文件传**：等于把明文凭据落盘，比现在更差；
+  2. **只传节点 id，扩展进程自己读配置并解凭据**：需要扩展进程能读 HUKS/Asset Store，
+     而扩展进程的权限与生命周期受限（且不得引用部分 Kit），风险更高；
+  3. **自建 IPC（wantAgent 回调 / 本地 socket）**：控制面与数据面已经有两个通道
+     （状态文件 + Want），再加一个通道会让"谁是真相源"变模糊。
+- 结论：维持现状，作为已知取舍记录；若后续真机取证发现系统会记录 Want 参数，再改方案 2。
+
+### V-5（低，记录）onDestroy 的 shutdown 是异步的
+
+- 现象：`onDestroy()` 里 `this.shutdown().then(...)`，方法本身同步返回；系统不保证等它完成。
+- 影响：极端情况下 tun/内核清理被打断，残留由下一次启动的 `rollback`/端口占用暴露。
+- 现状可接受（shutdown 内每步都有超时），记录不修。
+
+### 第二轮没有覆盖的
+
+- `Forwarding.start(tunFd, ...)` 的实现（tun 侧读写循环、UDP、背压）本轮**只看接口**，没读实现。
+- 真机行为：`202 Non-system applications use system APIs` 仍是当前唯一硬门，
+  上述改动全部只做到"编译 + 逻辑自洽"，**运行时未验证**。
+
+---
+
+## 六、给下一步的建议顺序
 
 1. R-2 / R-1 的**真机复验**（构造"A 失败 B 成功"和"模拟落盘失败"两个场景）。
 2. R-5 定方案（ss + 传输）。
 3. 单独一轮审 `VpnExtAbility` 的跨进程配置传递与凭据生命周期。
 4. 上架前把 R-7（DevPanel 开关）和 R-6（清空数据的别名清理）一起收掉。
+
+---
+

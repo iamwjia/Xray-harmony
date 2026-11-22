@@ -21,6 +21,12 @@ export class VpnController {
   static readonly START_TIMEOUT_MS: number = 15000;
   /** 停止等待：扩展侧要停转发、停内核、销 tun，5s 是实测上限 */
   static readonly DISCONNECT_TIMEOUT_MS: number = 5000;
+  /**
+   * 会话参数上限（字符数，保守值）。
+   * Want 参数的官方建议是"轻量"，具体上限未公开；64K 字符（≈64KB JSON）远低于常见限制，
+   * 同时远高于实测配置（几十节点 + 几十条规则约 4–8KB）。
+   */
+  static readonly MAX_SESSION_CHARS: number = 64 * 1024;
 
   private static running: boolean = false;
 
@@ -34,10 +40,22 @@ export class VpnController {
    */
   static async start(bundleName: string, abilityName: string, session: VpnSession,
     timeoutMs: number = VpnController.START_TIMEOUT_MS): Promise<boolean> {
+    const params: Record<string, Object> = session.toParameters();
+    // Want 参数要跨进程序列化，官方建议保持"轻量"。配置串随节点数与规则数增长，
+    // 真到超大配置时 startVpnExtensionAbility 会失败，而错误信息看不出是"参数太大"。
+    // 这里先拦住并说清原因——阈值取保守值，宁可在大配置上提前报错，
+    // 也不要抛一个用户和我们都读不懂的错误码。
+    const raw: Object | undefined = params[VpnSession.PARAM_SESSION];
+    const size: number = typeof raw === 'string' ? (raw as string).length : 0;
+    if (size > VpnController.MAX_SESSION_CHARS) {
+      Logger.error(`vpn session payload too large: ${size} chars`);
+      throw new Error(`配置过大（${Math.floor(size / 1024)} KB），无法通过启动参数传给 VPN 扩展；` +
+        `请减少节点或规则数量后重试`);
+    }
     const want: Want = {
       bundleName: bundleName,
       abilityName: abilityName,
-      parameters: session.toParameters()
+      parameters: params
     };
     let timer: number = -1;
     const timeout = new Promise<boolean>((resolve) => {

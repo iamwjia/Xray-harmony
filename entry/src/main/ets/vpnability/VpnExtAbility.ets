@@ -113,6 +113,10 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
    * 顺序是刻意的：**先起内核，再建 tun**。
    * 反过来，tun 一旦建立系统就开始往里送流量，而此刻 SOCKS 还没在监听，
    * 这批流量会被直接丢掉——表现是"连上的一瞬间所有应用断网"。
+   *
+   * 失败处理也是刻意的：**内核一旦起来，后面任何一步失败都必须把内核停掉**。
+   * 否则 SOCKS 端口一直占着、进程里还挂着一个内核，下一次连接的报错会变成
+   * "端口被占用"这种和真实原因无关的形式，排查成本极高。
    */
   private async bootstrap(): Promise<void> {
     const s: VpnSession | null = this.session;
@@ -121,36 +125,71 @@ export default class MyVpnExtAbility extends VpnExtensionAbility {
     }
 
     hilog.info(DOMAIN, TAG, 'starting kernel in extension process');
+    // 这一步失败时内核没起来，不需要回滚
     await this.kernel.start(s.configJson, KernelService.CONNECT_TIMEOUT_MS);
     hilog.info(DOMAIN, TAG, 'kernel running in extension process');
 
-    this.conn = vpnExtension.createVpnConnection(this.context);
-    this.tunFd = await this.conn.create(this.buildConfig());
-    hilog.info(DOMAIN, TAG, 'tun established fd=%{public}d address=%{public}s/%{public}d mtu=%{public}d',
-      this.tunFd, TUN_ADDRESS, TUN_PREFIX, TUN_MTU);
+    try {
+      this.conn = vpnExtension.createVpnConnection(this.context);
+      this.tunFd = await this.conn.create(this.buildConfig());
+      hilog.info(DOMAIN, TAG, 'tun established fd=%{public}d address=%{public}s/%{public}d mtu=%{public}d',
+        this.tunFd, TUN_ADDRESS, TUN_PREFIX, TUN_MTU);
 
-    // 转发层尚未接入，这里明确说明后果，不做"已接上"的假象：
-    // tun 已建立而无人读 fd 时，设备流量会被吸进黑洞（显示已连接但没有网络）。
-    // tun 已就绪：把 fd 交给转发层。这一步之后，设备全局流量才真的进代理。
-    // 失败不能当成“已连接”：tun 已建立但无人读，流量会被吸进黑洞。
-    const fr: ForwardingResult = Forwarding.start(this.tunFd, s.socksPort, s.socksUser, s.socksPass);
-    if (!fr.ok) {
-      hilog.error(DOMAIN, TAG, 'forwarding start failed: %{public}s', fr.error);
-      VpnStateFile.put(this.context, 'error', 0, `转发启动失败：${fr.error}`);
-      // 已建的 tun 不能留着：没人读的 tun 会把设备流量后掉
+      // tun 已就绪：把 fd 交给转发层。这一步之后，设备全局流量才真的进代理。
+      // 失败不能当成“已连接”：tun 已建立但无人读，流量会被吸进黑洞。
+      const fr: ForwardingResult = Forwarding.start(this.tunFd, s.socksPort, s.socksUser, s.socksPass);
+      if (!fr.ok) {
+        throw new Error(`转发启动失败：${fr.error}`);
+      }
+
+      // 内核已经持有配置，明文凭据没有理由继续留在本进程内存里
+      this.dropSessionSecrets();
+
+      // 回传给应用进程。msg 不带任何敏感信息（无地址、无 fd、无口令）。
+      VpnStateFile.put(this.context, 'running', 0,
+        '内核、tun 与转发层均就绪');
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'bootstrap step failed, rolling back: %{public}s', MyVpnExtAbility.describe(e));
+      await this.rollback();
+      throw e as Error;
+    }
+  }
+
+  /** 配置与 SOCKS 口令用完即弃：内核与转发层各自持有自己的副本 */
+  private dropSessionSecrets(): void {
+    const s: VpnSession | null = this.session;
+    if (s === null) {
+      return;
+    }
+    s.configJson = '';
+    s.socksPass = '';
+  }
+
+  /**
+   * 启动中任一环节失败后的清理：转发 → tun → 内核，顺序与 shutdown 一致。
+   * 每一步独立 try：前一步失败不能连带后面的清理也不做（那正是"半成品状态"的来源）。
+   */
+  private async rollback(): Promise<void> {
+    try {
+      Forwarding.stop();
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, 'rollback: forwarding stop failed');
+    }
+    if (this.conn !== null) {
       try {
         await this.conn.destroy();
       } catch (e) {
-        hilog.warn(DOMAIN, TAG, 'destroy tun after forwarding failure failed');
+        hilog.warn(DOMAIN, TAG, 'rollback: tun destroy failed');
       }
       this.conn = null;
       this.tunFd = -1;
-      return;
     }
-
-    // 回传给应用进程。msg 不带任何敏感信息（无地址、无 fd、无口令）。
-    VpnStateFile.put(this.context, 'running', 0,
-      '内核、tun 与转发层均就绪');
+    try {
+      await this.kernel.stop(KernelService.DISCONNECT_TIMEOUT_MS);
+      hilog.info(DOMAIN, TAG, 'rollback: kernel stopped');
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'rollback: kernel stop failed');
+    }
   }
 
   /** 先停内核再销毁 tun：避免"网卡还在、转发已死"的中间态 */
