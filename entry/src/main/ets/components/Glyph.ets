@@ -119,13 +119,15 @@ export struct NavTile {
   @Prop label: string = '';
   /** 副标题：写"当前是什么"，避免用户为了看一眼状态而点进去 */
   @Prop hint: string = '';
+  /** 图标颜色按功能分组（数据/规则/外部/诊断/系统），不是每格一个随机色 */
+  @Prop iconColor: ResourceColor = $r('app.color.accent');
   onTap: () => void = () => {
   };
   @State pressed: boolean = false;
 
   build() {
     Column({ space: Space.xs }) {
-      Glyph({ kind: this.kind, color: this.pressed ? $r('app.color.accent_pressed') : $r('app.color.accent') })
+      Glyph({ kind: this.kind, color: this.iconColor })
       Text(this.label)
         .fontSize(FontSize.bodyLg)
         .lineHeight(LineHeight.bodyLg)

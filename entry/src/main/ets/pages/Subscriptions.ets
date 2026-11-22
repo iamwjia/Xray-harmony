@@ -369,16 +369,16 @@ struct Subscriptions {
   rowEndActions(rec: SubRecord) {
     Row() {
       Column({ space: 2 }) {
-        Glyph({ kind: 'sub', color: $r('app.color.accent'), box: 20 })
+        Glyph({ kind: 'sub', color: $r('app.color.text_on_accent'), box: 20 })
         Text('更新')
           .fontSize(FontSize.caption)
           .lineHeight(LineHeight.caption)
-          .fontColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
       }
       .width(84)
       .height('100%')
       .justifyContent(FlexAlign.Center)
-      .backgroundColor($r('app.color.accent_subtle'))
+      .backgroundColor($r('app.color.action_probe'))
       .onClick(() => {
         this.closeSwipe();
         this.doRefresh(rec);
@@ -395,7 +395,7 @@ struct Subscriptions {
       .width(84)
       .height('100%')
       .justifyContent(FlexAlign.Center)
-      .backgroundColor($r('app.color.danger'))
+      .backgroundColor($r('app.color.action_delete'))
       .onClick(() => {
         this.closeSwipe();
         this.confirmRemove(rec);

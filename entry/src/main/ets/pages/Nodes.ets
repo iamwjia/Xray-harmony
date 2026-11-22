@@ -463,21 +463,21 @@ struct Nodes {
     this.swipeRev = this.swipeRev + 1;
   }
 
-  /** 左滑露出（行右端）：测连通性 + 删除。用底色区分"看一眼"和"删掉" */
+  /** 左滑露出（行右端）：测连通性 + 删除。实色块 + 白字，按动作类型分色，不按深浅区分 */
   @Builder
   rowEndActions(item: XrayNode) {
     Row() {
       Column({ space: 2 }) {
-        Glyph({ kind: 'probe', color: $r('app.color.accent'), box: 20 })
+        Glyph({ kind: 'probe', color: $r('app.color.text_on_accent'), box: 20 })
         Text('测连通')
           .fontSize(FontSize.caption)
           .lineHeight(LineHeight.caption)
-          .fontColor($r('app.color.accent'))
+          .fontColor($r('app.color.text_on_accent'))
       }
       .width(84)
       .height('100%')
       .justifyContent(FlexAlign.Center)
-      .backgroundColor($r('app.color.accent_subtle'))
+      .backgroundColor($r('app.color.action_probe'))
       .onClick(() => {
         this.closeSwipe();
         this.probeNode(item.id);
@@ -494,7 +494,7 @@ struct Nodes {
       .width(84)
       .height('100%')
       .justifyContent(FlexAlign.Center)
-      .backgroundColor($r('app.color.danger'))
+      .backgroundColor($r('app.color.action_delete'))
       .onClick(() => {
         this.closeSwipe();
         this.confirmDeleteById(item.id);
@@ -504,20 +504,20 @@ struct Nodes {
     .height('100%')
   }
 
-  /** 右滑露出（行左端）：编辑 */
+  /** 右滑露出（行左端）：编辑。紫色，与"测连通"的蓝、"删除"的红互不混淆 */
   @Builder
   rowStartActions(item: XrayNode) {
     Column({ space: 2 }) {
-      Glyph({ kind: 'edit', color: $r('app.color.accent'), box: 20 })
+      Glyph({ kind: 'edit', color: $r('app.color.text_on_accent'), box: 20 })
       Text('编辑')
         .fontSize(FontSize.caption)
         .lineHeight(LineHeight.caption)
-        .fontColor($r('app.color.accent'))
+        .fontColor($r('app.color.text_on_accent'))
     }
     .width(84)
     .height('100%')
     .justifyContent(FlexAlign.Center)
-    .backgroundColor($r('app.color.accent_subtle'))
+    .backgroundColor($r('app.color.action_edit'))
     .onClick(() => {
       this.closeSwipe();
       this.openEdit(item.id);

@@ -421,15 +421,36 @@ struct Index {
       // 副标题直接写"当前是什么"，省得为了看一眼状态点进去再退出来。
       Column({ space: Space.sm }) {
         Row({ space: Space.sm }) {
-          NavTile({ kind: 'nodes', label: '节点', hint: this.nodeCountHint(), onTap: () => this.nav('pages/Nodes') })
-          NavTile({ kind: 'sub', label: '订阅', hint: this.subHint(), onTap: () => this.nav('pages/Subscriptions') })
-          NavTile({ kind: 'routes', label: '分流', hint: this.routingHint(), onTap: () => this.nav('pages/RoutingRules') })
+          // 图标色按功能族：蓝=数据（节点/备份）、紫=外部内容（订阅）、
+          // 青=规则（分流）、琥珀=诊断（日志）、灰=系统（设置）。
+          // 不是每格一个随机色——颜色要能回答问题（"这一类"），不是装饰。
+          NavTile({
+            kind: 'nodes', label: '节点', hint: this.nodeCountHint(),
+            iconColor: $r('app.color.accent'), onTap: () => this.nav('pages/Nodes')
+          })
+          NavTile({
+            kind: 'sub', label: '订阅', hint: this.subHint(),
+            iconColor: $r('app.color.proto_vmess'), onTap: () => this.nav('pages/Subscriptions')
+          })
+          NavTile({
+            kind: 'routes', label: '分流', hint: this.routingHint(),
+            iconColor: $r('app.color.proto_trojan'), onTap: () => this.nav('pages/RoutingRules')
+          })
         }.width('100%')
 
         Row({ space: Space.sm }) {
-          NavTile({ kind: 'logs', label: '日志', hint: '运行记录', onTap: () => this.nav('pages/Logs') })
-          NavTile({ kind: 'backup', label: '备份', hint: '加密导出', onTap: () => this.nav('pages/Backup') })
-          NavTile({ kind: 'settings', label: '设置', hint: '更多', onTap: () => this.nav('pages/Settings') })
+          NavTile({
+            kind: 'logs', label: '日志', hint: '运行记录',
+            iconColor: $r('app.color.proto_ss'), onTap: () => this.nav('pages/Logs')
+          })
+          NavTile({
+            kind: 'backup', label: '备份', hint: '加密导出',
+            iconColor: $r('app.color.accent'), onTap: () => this.nav('pages/Backup')
+          })
+          NavTile({
+            kind: 'settings', label: '设置', hint: '更多',
+            iconColor: $r('app.color.text_secondary'), onTap: () => this.nav('pages/Settings')
+          })
         }.width('100%')
       }
       .width('100%')

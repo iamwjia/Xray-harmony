@@ -1,30 +1,176 @@
 {
   "color": [
-    { "name": "bg_canvas", "value": "#F2F3F5" },
-    { "name": "bg_surface", "value": "#FFFFFF" },
-    { "name": "bg_surface_alt", "value": "#F7F8FA" },
-    { "name": "bg_chip", "value": "#EDEFF2" },
-    { "name": "border_subtle", "value": "#E3E5E9" },
-    { "name": "border_strong", "value": "#C7CBD1" },
-    { "name": "text_primary", "value": "#1A1A1A" },
-    { "name": "text_secondary", "value": "#5A5F66" },
-    { "name": "text_tertiary", "value": "#6B7280" },
-    { "name": "text_on_accent", "value": "#FFFFFF" },
-    { "name": "accent", "value": "#1565D8" },
-    { "name": "accent_pressed", "value": "#0D4FB0" },
-    { "name": "accent_subtle", "value": "#EAF1FE" },
-    { "name": "selected_row_bg", "value": "#EAF1FE" },
-    { "name": "success", "value": "#17703A" },
-    { "name": "warning", "value": "#9A5B00" },
-    { "name": "warning_subtle", "value": "#FFF4E5" },
-    { "name": "danger", "value": "#B3261E" },
-    { "name": "danger_subtle", "value": "#FDECEA" },
-    { "name": "status_disconnected", "value": "#6B7280" },
-    { "name": "status_connecting", "value": "#A35F00" },
-    { "name": "status_connected", "value": "#17703A" },
-    { "name": "status_error", "value": "#B3261E" },
-    { "name": "focus_ring", "value": "#1565D8" },
-    { "name": "scrim", "value": "#73000000" },
-    { "name": "start_window_background", "value": "#FFFFFF" }
+    {
+      "name": "bg_canvas",
+      "value": "#F2F3F5"
+    },
+    {
+      "name": "bg_surface",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "bg_surface_alt",
+      "value": "#F7F8FA"
+    },
+    {
+      "name": "bg_chip",
+      "value": "#EDEFF2"
+    },
+    {
+      "name": "border_subtle",
+      "value": "#E3E5E9"
+    },
+    {
+      "name": "border_strong",
+      "value": "#C7CBD1"
+    },
+    {
+      "name": "text_primary",
+      "value": "#1A1A1A"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#5A5F66"
+    },
+    {
+      "name": "text_tertiary",
+      "value": "#6B7280"
+    },
+    {
+      "name": "text_on_accent",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "accent",
+      "value": "#1565D8"
+    },
+    {
+      "name": "accent_pressed",
+      "value": "#0D4FB0"
+    },
+    {
+      "name": "accent_subtle",
+      "value": "#EAF1FE"
+    },
+    {
+      "name": "selected_row_bg",
+      "value": "#EAF1FE"
+    },
+    {
+      "name": "success",
+      "value": "#17703A"
+    },
+    {
+      "name": "warning",
+      "value": "#9A5B00"
+    },
+    {
+      "name": "warning_subtle",
+      "value": "#FFF4E5"
+    },
+    {
+      "name": "danger",
+      "value": "#B3261E"
+    },
+    {
+      "name": "danger_subtle",
+      "value": "#FDECEA"
+    },
+    {
+      "name": "status_disconnected",
+      "value": "#6B7280"
+    },
+    {
+      "name": "status_connecting",
+      "value": "#A35F00"
+    },
+    {
+      "name": "status_connected",
+      "value": "#17703A"
+    },
+    {
+      "name": "status_error",
+      "value": "#B3261E"
+    },
+    {
+      "name": "focus_ring",
+      "value": "#1565D8"
+    },
+    {
+      "name": "scrim",
+      "value": "#73000000"
+    },
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "action_probe",
+      "value": "#1565D8"
+    },
+    {
+      "name": "action_edit",
+      "value": "#6D28D9"
+    },
+    {
+      "name": "action_delete",
+      "value": "#B3261E"
+    },
+    {
+      "name": "proto_vless",
+      "value": "#1565D8"
+    },
+    {
+      "name": "proto_vless_bg",
+      "value": "#EAF1FE"
+    },
+    {
+      "name": "proto_vmess",
+      "value": "#6D28D9"
+    },
+    {
+      "name": "proto_vmess_bg",
+      "value": "#F3EEFE"
+    },
+    {
+      "name": "proto_trojan",
+      "value": "#0F766E"
+    },
+    {
+      "name": "proto_trojan_bg",
+      "value": "#E3F4F1"
+    },
+    {
+      "name": "proto_ss",
+      "value": "#8A5100"
+    },
+    {
+      "name": "proto_ss_bg",
+      "value": "#FFF4E5"
+    },
+    {
+      "name": "group_a",
+      "value": "#0F766E"
+    },
+    {
+      "name": "group_a_bg",
+      "value": "#E3F4F1"
+    },
+    {
+      "name": "group_b",
+      "value": "#6D28D9"
+    },
+    {
+      "name": "group_b_bg",
+      "value": "#F3EEFE"
+    },
+    {
+      "name": "group_c",
+      "value": "#8A5100"
+    },
+    {
+      "name": "group_c_bg",
+      "value": "#FFF4E5"
+    }
   ]
 }

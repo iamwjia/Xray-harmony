@@ -58,6 +58,64 @@ export struct NodeRow {
     return p;
   }
 
+  /**
+   * 协议色标：四种协议各占一个色相（蓝/紫/青/琥珀），同一协议在任何页面都是同一颜色。
+   *
+   * 为什么值得上色：协议是"这行能不能用"的第一判据（不同协议的握手与失败原因完全不同），
+   * 眼睛扫一列小方块就能分出"我这一堆节点里哪些是 vless"，比逐行读文字快一个数量级。
+   * 颜色不是唯一信息载体——旁边仍写着协议名，色盲用户也不丢信息。
+   */
+  private static protocolText(p: string): Resource {
+    if (p === 'vmess') {
+      return $r('app.color.proto_vmess');
+    }
+    if (p === 'trojan') {
+      return $r('app.color.proto_trojan');
+    }
+    if (p === 'shadowsocks') {
+      return $r('app.color.proto_ss');
+    }
+    return $r('app.color.proto_vless');
+  }
+
+  private static protocolBg(p: string): Resource {
+    if (p === 'vmess') {
+      return $r('app.color.proto_vmess_bg');
+    }
+    if (p === 'trojan') {
+      return $r('app.color.proto_trojan_bg');
+    }
+    if (p === 'shadowsocks') {
+      return $r('app.color.proto_ss_bg');
+    }
+    return $r('app.color.proto_vless_bg');
+  }
+
+  /** 分组按名字取色：同名恒同色，用户能靠颜色认出"我那一组" */
+  private static groupIdx(g: string): number {
+    let h: number = 0;
+    for (let i = 0; i < g.length; i++) {
+      h = (h * 31 + g.charCodeAt(i)) % 9973;
+    }
+    return h % 3;
+  }
+
+  private static groupText(g: string): Resource {
+    const i: number = NodeRow.groupIdx(g);
+    if (i === 1) {
+      return $r('app.color.group_b');
+    }
+    return i === 2 ? $r('app.color.group_c') : $r('app.color.group_a');
+  }
+
+  private static groupBg(g: string): Resource {
+    const i: number = NodeRow.groupIdx(g);
+    if (i === 1) {
+      return $r('app.color.group_b_bg');
+    }
+    return i === 2 ? $r('app.color.group_c_bg') : $r('app.color.group_a_bg');
+  }
+
   @Builder
   overflowMenu() {
     Column() {
@@ -146,10 +204,17 @@ export struct NodeRow {
 
         // 元信息行：host 可截断，**:port 独立且恒完整**（地址:端口是排障检索键，尾部不能被吃掉）
         Row({ space: Space.xs }) {
-          Text(`${NodeRow.protocolShort(this.protocol)} \u00b7`)
-            .fontSize(FontSize.caption)
-            .lineHeight(LineHeight.caption)
-            .fontColor($r('app.color.text_tertiary'))
+          // 协议色标：色底 + 色字，取代原来的"协议名 ·"，既省一次分隔符也自带检索色
+          Text(NodeRow.protocolShort(this.protocol))
+            .fontSize(FontSize.fontChip)
+            .lineHeight(LineHeight.fontChip)
+            .fontWeight(FontWeight.Medium)
+            .padding({ left: Space.xs, right: Space.xs, top: 3, bottom: 3 })
+            .backgroundColor(NodeRow.protocolBg(this.protocol))
+            .fontColor(NodeRow.protocolText(this.protocol))
+            .borderRadius(Radius.chip)
+            .maxLines(1)
+            .margin({ right: Space.xs })
             .accessibilityLevel('no')
           Text(this.address)
             .fontSize(FontSize.caption)
@@ -171,8 +236,8 @@ export struct NodeRow {
               .lineHeight(LineHeight.fontChip)
               .fontWeight(FontWeight.Medium)
               .padding({ left: Space.sm, right: Space.sm, top: 6, bottom: 6 })
-              .backgroundColor($r('app.color.accent_subtle'))
-              .fontColor($r('app.color.accent'))
+              .backgroundColor(NodeRow.groupBg(this.group))
+              .fontColor(NodeRow.groupText(this.group))
               .borderRadius(Radius.chip)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
