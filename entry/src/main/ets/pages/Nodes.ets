@@ -323,6 +323,21 @@ struct Nodes {
         .borderRadius(Radius.panel)
         .enabled(!this.busy)
         .onClick(() => this.doSmartImport())
+
+      // 导入完就能就地管理订阅，不必先退回设置页
+      Text('管理订阅')
+        .height(Height.hit)
+        .width('100%')
+        .fontSize(FontSize.bodySm)
+        .fontColor($r('app.color.accent'))
+        .textAlign(TextAlign.Center)
+        .maxLines(1)
+        .accessibilityText('打开订阅管理')
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/Subscriptions' }).catch((e: Error) => {
+            this.setNotice(`打开订阅管理失败：${e.message}`, 2);
+          });
+        })
     }
     .width('100%')
     .padding(Space.md)

@@ -221,6 +221,23 @@ struct Settings {
         Divider()
         Row({ space: 8 }) {
           Column({ space: 2 }) {
+            Text('订阅管理').fontSize(FontSize.bodySm).maxLines(1)
+            Text('已添加的订阅、上次更新时间；可单独更新或删除（删订阅不删已导入的节点）')
+              .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('管理').fontSize(FontSize.bodySm)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/Subscriptions' }).catch((e: Error) => {
+                this.persistError = `打开订阅管理失败：${e.message}`;
+              });
+            })
+        }
+        .width('100%')
+        Divider()
+        Row({ space: 8 }) {
+          Column({ space: 2 }) {
             Text('运行日志').fontSize(FontSize.bodySm).maxLines(1)
             Text('查看应用内日志并导出（已脱敏）；出问题时用这个代替连电脑抓 hilog')
               .fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)

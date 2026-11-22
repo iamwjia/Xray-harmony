@@ -14,6 +14,7 @@
 import { http as httpClient } from '@kit.NetworkKit';
 import { Bytes } from '../platform/Bytes';
 import { Logger } from '../platform/Logger';
+import { SecretStore } from '../platform/SecretStore';
 import { ConfigService } from './ConfigService';
 import { ShareLinkParser } from './ShareLinkParser';
 import { SubRecord, SubscriptionStore } from './SubscriptionStore';
@@ -185,5 +186,69 @@ export class SubscriptionService {
   static listSubscriptions(): SubRecord[] {
     const subs: SubRecord[] | null = SubscriptionStore.load();
     return subs === null ? [] : subs;
+  }
+
+  /** 按 id 找订阅记录；找不到返回 null（页面刷新后 id 可能已失效） */
+  static findSubscription(subId: string): SubRecord | null {
+    const list: SubRecord[] = SubscriptionService.listSubscriptions();
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === subId) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 更新单个订阅：从安全存储取回 URL 再重新导入一次。
+   *
+   * 为什么不能让页面自己拼 URL 再调 importFromUrl：URL 里通常带 token，
+   * 页面一旦持有它，日志、异常文案、崩溃栈都可能把它带出去。这里只在内部存活一次。
+   */
+  static async refresh(subId: string): Promise<SubscriptionImportResult> {
+    const result = new SubscriptionImportResult();
+    result.subId = subId;
+    const rec: SubRecord | null = SubscriptionService.findSubscription(subId);
+    if (rec === null) {
+      result.error = '订阅已不存在，请刷新列表';
+      return result;
+    }
+    const url: string | null = await SubscriptionStore.getUrl(rec.urlRef);
+    if (url === null || url.length === 0) {
+      result.error = '订阅地址已丢失（安全存储中找不到），请重新添加';
+      return result;
+    }
+    return await SubscriptionService.importFromUrl(url, rec.name);
+  }
+
+  /**
+   * 删除单个订阅记录（连同安全存储里的 URL）。
+   *
+   * **不删已导入的节点**：节点表里没有"来源订阅"字段，删订阅顺手删节点会造成
+   * "改一个订阅，另一个订阅的节点也跟着消失"的连带损失。要清节点请在节点页删。
+   */
+  static async remove(subId: string): Promise<boolean> {
+    const rec: SubRecord | null = SubscriptionService.findSubscription(subId);
+    if (rec === null) {
+      return false;
+    }
+    const list: SubRecord[] = SubscriptionService.listSubscriptions();
+    const kept: SubRecord[] = [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id !== subId) {
+        kept.push(list[i]);
+      }
+    }
+    if (!SubscriptionStore.save(kept)) {
+      Logger.error('subscription remove: failed to persist subscription list');
+      return false;
+    }
+    // 记录删掉了但 URL 还留在安全存储里，等于留了一份没人认领的凭据
+    const ok: boolean = await SecretStore.remove(rec.urlRef);
+    if (!ok) {
+      Logger.warn('subscription remove: record removed but url cleanup failed');
+    }
+    Logger.info(`subscription removed: nodes kept, url cleanup=${ok ? 'ok' : 'failed'}`);
+    return true;
   }
 }
