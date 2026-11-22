@@ -36,6 +36,7 @@
 > **统计基线**：下表基于 `Index.ets` **261 行**版本（2026-11-22 09:05 读取）。
 > 之后 `Index.ets` 已增至 **354 行**，新增「连接前请先了解」全屏须知弹层（`noticeItem` 序号徽标 + `#99000000` 遮罩），带 **5 处新硬编码色值**（`#99000000` `#FFFFFF` `#1976D2` `#333333`）与 1 个 20×20 徽标。
 > ⇒ 该新界面同样要令牌化，规范已补 **§4.10（弹层/遮罩）** 与 **§5.9**。**新写的界面必须直接引令牌，不要等"以后再统一"。**
+> **2026-11-22 leader 确认**：`Index.ets` 的 354 行结构已稳定（持久化后端由 `PersistentStorage` 改为 preferences/KvStore、读盘移至 `onWindowStageCreate`，实测冷启动 `onboarding=true` 生效），后续只令牌化样式，不动布局层级 ⇒ §5.1 / §5.9 可直接施工。
 
 ### 1.1 硬编码规模
 
@@ -89,7 +90,7 @@
 - `↑`/`↓`：用户只在"把常用节点排到前面"时用一次，之后长期不动；一次操作藏在菜单里代价极小。而 `协议 · 地址:端口 · 分组 · 选中态` 四要素是**每次扫读都要看**的，**永不隐藏**。
 - `编辑`：低频（导入后基本不改），且整行菜单零距离可达。
 - `删除`：破坏性操作，放进菜单反而**降低误触**（现在它是唯一一个紧贴其他按钮的红色文字）。
-- 收益：文字列从 **152vp → 218vp**（304 − 指示位 24 − 间隙 10 − 溢出 44 − 间隙 8），元信息不再截断。
+- 收益：文字列从 **152vp → 222vp**（精确核算见 §11.4：316 − 12 指示 − 34 形态 − 48 溢出；本节此前按 24 指示位估的下界 218 以 §11.4 为准），元信息不再截断。
 
 ### 2.2 编辑表单 18 个控件 + 键盘
 
@@ -191,7 +192,7 @@
 
 > 深色模式下 `border_strong` 的 1.63:1 是**非文本**用途（WCAG 非文本要求 3:1，此项不达标但只用于装饰性空心圆；选中状态由 `accent` 图标承担，故不构成信息缺失）。若要严格达标，改 `#8E959E`（3.05:1）。
 
-### 3.2 字号与行高（7 档，只许这 7 个数）
+### 3.2 字号与行高（8 档，只许这 8 个数）
 
 | 令牌 | size / lineHeight | 字重 | 用途 | 替换掉的现状 |
 |---|---|---|---|---|
@@ -200,13 +201,19 @@
 | `title-md` | 16 / 24 | 600 | Section 标题（设置分组、许可章节） | 14 / 13 Medium |
 | `body-lg` | 15 / 22 | 400 / 600 | 节点名、规则 pattern | 15 / 14 |
 | `body` | 14 / 22 | 400 | 正文、设置项、输入框内文 | 13 / 12 |
-| `body-sm` | 13 / 20 | 400 | 说明、提示、按钮文字 | 12 / 11 |
+| `body-sm` | 13 / 20 | 400 | 说明、提示、按钮文字、**可点筛选 chip** | 12 / 11 |
 | `caption` | 12 / 16 | 400 | 元信息（协议·地址:端口）、时间戳、计数 | 11 / 10 |
+| **`font_chip`** | **11 / 16** | **500** | **标签类**：节点行的分组 chip、许可页的许可证 chip（**不可点击的短标签**，≤4 字） | 10 |
 
 **硬规则（必须）**：
 
-- **禁止 `fontSize(10)` 与 `fontSize(11)`**。当前这两档承载了元信息、日志正文、说明文字，全部上移到 `caption`(12) 或 `body-sm`(13)。字号小于 12 的文本在 360vp 屏上属于"可读性风险"，不是审美偏好。
-- **禁止出现 7 档以外的字号**；需要更强调就用字重（600）而不是加字号。
+- **禁止 `fontSize(10)`**：现状 10fp 全部上移到 `caption`(12)。
+- **`fontSize(11)` 只允许一种用途：`font_chip`**（标签类短标签）。它**是一个档位，不是一个例外**——不是"某处可以破例"，而是"标签必须用这一档"。任何正文、说明、元信息、按钮文字使用 11fp 即违规。
+- **区分两种 chip，不许混**：
+  - **标签 chip**（`font_chip` 11/16，**不可点击**）：节点行的分组标签、许可页许可证标签。视觉高 ≥28vp；行内命中区由整行（≥64）承担，不单独设点击区。
+  - **筛选 chip**（`body-sm` 13/20，**可点击**）：分组筛选、日志级别、分流模式。命中区 **44×44**，圆角 999。
+  - 若标签 chip 需要独立可点（如点击按分组筛选），下沉为筛选 chip 规格：外层 44 容器 + 内层 28 视觉，**反过来（视觉 44 / 命中 28）不允许**。
+- **禁止出现 8 档以外的字号**；需要更强调就用字重（600）而不是加字号。
 - **每一处 `fontSize` 必须显式配 `lineHeight`**（对应表里的值）。这是"零处 lineHeight"的正面修正。
 - 可换行文本必须 `maxLines` + `textOverflow({overflow: TextOverflow.Ellipsis})`，禁止依赖默认裁切。
 
@@ -239,7 +246,10 @@
 | `h-button-primary` | 48 | 主操作（连接/断开/保存） |
 | `h-input` | 44 | 所有 `TextInput` |
 | `h-row-min` | 64 | 节点行 / 规则行（两行文本） |
+| `h-chip-label` | **28** | 标签 chip 的视觉高度下限（`font_chip` 11fp + 上下 padding 2–6；**低于 28 会薄成一条线**） |
 | `h-page-header` | 56 | 页面顶栏 |
+
+> **28 / 44 的关系**：标签 chip 视觉 28vp 是允许的，因为它的命中区由整行（≥64）承担；一旦 chip 需要独立可点，**外层必须 44**（内层仍可 28）。反向（视觉 44 / 命中 28）不允许。
 
 **描边**：卡片/行用 `1vp border_subtle`（**不用阴影**，深色下阴影不可见且引入视觉噪声）；输入框 `1.5vp border_strong`；聚焦 `2vp focus_ring`。
 
@@ -277,24 +287,32 @@
 |---|---|
 | 容器 | `padding 20`，圆角 16，`bg_surface`，`1vp border_subtle` |
 | 状态行 | 状态点 10vp 圆（`status_*`）+ 间距 8 + 状态文字 `display` 24/32 w600（`status_*` 色） |
-| hint | `body-sm` 13/20 `text_secondary`，最多 2 行 |
+| hint（状态描述） | `body-sm` 13/20 `text_secondary`，最多 2 行；未选节点「当前仅在本机提供代理」/ 已选「当前走 <节点名>」（§10.4，**不含实现词**） |
 | busyHint | `body-sm` 13/20 `accent`（替换现状 11fp） |
-| SOCKS 行 | `caption` 12/16 `text_tertiary`，**保留**（排障必需），格式 `本地 SOCKS 127.0.0.1:<port>（口令鉴权）` |
+| 本机代理地址 | **诊断类信息层级**：`caption` 12/16 `text_tertiary`（**不得与节点名/状态同权重**），文案「本机代理地址 127.0.0.1:<port>」；**长按 500ms 复制** `127.0.0.1:<port>`（`pasteboard.setData` + 轻提示），不改视觉；`accessibilityText` 追加「长按可复制」 |
 | 调试串 `state=` | **删除**，移到 `DevPanel`（10fp + `#AAAAAA`，既是纯调试信息又最小字号） |
 | 主按钮 | 全宽 × **48**，圆角 24，`accent` 底 / `text_on_accent` 字（`body` 14 w600） |
 
 ### 4.4 `NodeRow`（节点行，核心组件）
 
+> **以 §11.4 为准**：那里是逐属性清单 + 精确宽度核算（文字列 222vp）与两个命中区的边界处理。本节给设计意图，§11.4 给施工值。
+
 ```
 ┌───────────────────────────────────────────────────────┐  高 ≥64
-│ ▌ ✓    香港 01 ①                    分组 ②     [⋯] ③ │  ← 名称 15/22
-│ 3       vless · hk01.example.com:443 ④           44×44│  ← 元信息 12/16
+│ ▌ ✓    香港 01                              44×44    │  ← 名称 15/22 独占 222vp
+│ 3      vless · hk01.exam…:443                    ②   │  ← 元信息 12/16
+│        ①      ④                ④          ③    [⋯]  │
 └───────────────────────────────────────────────────────┘
-   ① 选中时 w600，未选中 w400，单行省略
-   ② 分组 chip：11fp，padding h6/v2，圆角 4，底 accent_subtle，字 accent；无分组时不占位
+   ① 协议短名（vless/vmess/trojan/ss），固定不截断
+   ② **分组 chip 在元信息行右侧**（leader 2026-11-22 裁决：从名称行移出）
+      `font_chip` 11/16 w500，padding h8/v6（视觉高 = 16+12 = **28**），圆角 4，
+      底 `accent_subtle`，字 `accent`，**maxWidth 60 + Ellipsis（超 4 字截断）**，
+      `accessibilityText` 报**全名**；无分组时不占位；命中区由整行承担
    ③ 溢出按钮 44×44，图标 20vp（sys.symbol.ellipsis，不可用则用 "⋯"）
-   ④ 格式固定 `protocol · host:port`，host 过长时中间省略（保 port）
+   ④ 地址段：`host` 用 `layoutWeight(1)` 可截断（中间省略），**`:port` 单独一个 Text 恒不截断**
 ```
+
+**排布裁决理由（leader 原话转述）**：把标签和名称放同一行，**名称会被分组名长度漂移挤压**——名称是用户自己起的检索键，被压就找不到自己的节点；地址是技术字段，截断可接受。移到元信息行后，容量不再取决于用户起了多长的分组名，**名称永远独占 222vp**。
 
 | 状态 | 底色 | 指示 |
 |---|---|---|
@@ -417,14 +435,14 @@ label  caption 12/16 text_tertiary          ← 间距 4
 |---|---|---|---|
 | 页面 `Column space / padding` | 16 / 16 | 建议 | 12 / 左右 16、上下 12 |
 | 应用名 | 24 / Bold | 建议 | `title-lg` 20/28 w600（与其它页标题同档，节省 4vp） |
-| 副标题 | 12 / `#999999` | 必须 | `body-sm` 13/20 `text_secondary`；**文案待裁决**（"内核直连驱动（socks + freedom，未接节点）"是开发语，见 §10-4） |
+| 副标题 | 12 / `#999999` | 必须 | `body-sm` 13/20 `text_secondary`；文案固定为**「本地转发，规则由你定」**（§10.4，≤16 字，**不含状态信息**） |
 | 警告横幅 ×2 | 12 / padding 10 / radius 8 / `#FFF3E0`+`#8D6E63`、`#FFEBEE`+`#B71C1C` | 必须 | `Banner` 组件：13/20、padding 12、radius 8、`warning_subtle`+`warning`、`danger_subtle`+`danger` |
 | 状态卡容器 | padding 20 / radius 12 / `#F5F5F5` | 必须 | padding 20 / radius 16 / `bg_surface` + 1vp `border_subtle` |
 | 状态文字 | 22 / `colorHex` | 建议 | `display` 24/32 w600 + 状态点 10vp |
 | hint | 13 / `#666666` | 建议 | 13/20 `text_secondary` |
 | busyHint | 11 / `#1976D2` | 必须 | 13/20 `accent` |
 | `state=` 调试串 | 10 / `#AAAAAA` | 必须 | **删除**（移至 DevPanel） |
-| SOCKS 信息 | 10 / `#90A4AE`（对比 **2.59:1**） | 必须 | 12/16 `text_tertiary`；保留但去掉"（已启用口令鉴权）"括号内的实现细节 → "本地 SOCKS 127.0.0.1:1080" |
+| 本机代理地址（原 `socksInfo` 行） | 10 / `#90A4AE`（对比 **2.59:1**） | 必须 | 诊断类信息层级：`caption` 12/16 `text_tertiary`，文案 **「本机代理地址 127.0.0.1:<port>」**；**长按复制**该地址（D-3，只加事件、不改视觉）；`accessibilityText` 带「长按可复制」（§10.4.3） |
 | 主按钮 | `width('70%')` / 40（默认） | 必须 | 全宽 × 48，radius 24 |
 | 当前节点行 | padding 12 / radius 8 / `#FAFAFA` | 建议 | padding 12 / radius 12 / `bg_surface_alt` |
 | 「更换」按钮 | 12fp / 40 | 必须 | Secondary 44 高、13fp、最小宽 64 |
@@ -447,7 +465,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 列表 `List space` | 8 | — | 8（不变） |
 | 节点行 padding | 12 / radius 8 | 建议 | v12 h12 / radius 12 / minHeight 64 |
 | 节点名 | 15（选中 Bold） | 建议 | 15/22，选中 w600 |
-| 分组 chip | 10fp / `#5C6BC0` / `#E8EAF6` | 必须 | 11fp / `accent` / `accent_subtle`（10fp 低于下限） |
+| 分组 chip | 10fp / `#5C6BC0` / `#E8EAF6` | 必须 | **`font_chip`** 11/16 w500（10fp 低于下限）；`accent` 字 / `accent_subtle` 底；**位置移到元信息行右侧**（leader 裁决），`maxWidth 60` + Ellipsis，读屏报全名 |
 | 元信息 | 11 / `#777777` | 必须 | 12/16 `text_tertiary`，`maxLines 1` + ellipsis，host 中间省略 |
 | 5 个点击区 | `↑`(14fp) `↓`(14fp) `选择`(12) `编辑`(12) `删除`(12)，命中区 14×16 ~ 24×17 | **必须** | 整行（≥64 高）+ 44×44 溢出菜单（见 §2.1、§4.4） |
 | 选中样式 | `#E8F5E9` 绿底 + `#2E7D32` 绿字 | **必须** | `accent_subtle` 底 + 3vp accent 竖条 + `checkmark` + w600（见 §2.3） |
@@ -517,6 +535,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 「刷新」「清空」 | 11fp / 40；清空 `#8D6E63` | 必须 | 44 命中；清空改 **Text/Danger**（不可撤销操作） |
 | 结果提示 | 11 / `#1976D2` | 必须 | 13/20 按结果分色 |
 | 空状态文案 | 11 / `#999999` | 必须 | 12/18 `text_tertiary` + 居中 |
+| **诊断行（新增，§10.4.3 D-2）** | 无 | **必须** | 紧贴脱敏说明下方一行 `caption` 12/16 `text_tertiary`，三态：已连接「当前代理地址 127.0.0.1:<port>」/ 已断开「最近一次代理地址 127.0.0.1:<port>（已断开）」/ 从未连接「暂无代理地址记录（本次启动未连接过）」；**长按复制**端口（同 D-3）。**不得放进列表区**（否则被日志淹没） |
 | 日志行 | padding 8 / radius 6 / `#FAFAFA` / `space 4` | 建议 | v8 h12 / radius 8 / `bg_surface_alt` / `space 6` |
 | level | 10 / 级别色 | 必须 | 12/16 **w600** + 级别色 |
 | time | 10 / `#999999` | 必须 | 12/16 `text_tertiary` |
@@ -531,7 +550,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 章节标题 | 14 Medium / `margin top 6` | 建议 | `title-md` 16/24 w600，上间距 24 |
 | 组件卡 | padding 10 / radius 6 / `#FAFAFA` | 建议 | padding 12 / radius 8 / `bg_surface_alt` |
 | 组件名 | 13 Medium | 建议 | 15/22 w600 |
-| 许可证标签 | 10 / `#5C6BC0` | 必须 | 11fp chip（`accent_subtle` 底 + `accent` 字），圆角 4 |
+| 许可证标签 | 10 / `#5C6BC0` | 必须 | **`font_chip`** 11/16 w500 + 底 `accent_subtle` + 字 `accent`，圆角 4，视觉高 28（`h-chip-label`） |
 | 正文 | 11 / `#444444`（6 处） | 必须 | 13/**20** `text_secondary` |
 | 修改情况 | 11 / 绿或红 | 必须 | 13/20，`success`/`danger` + **保留文字**（不能只靠色） |
 | 页脚说明 | 10 / `#999999` | 必须 | 12/18 `text_tertiary` |
@@ -573,7 +592,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 │ ←16→                                      │
 │  Tunnelix                     20/28 w600  │  距顶 12
 │  ↓8                                       │
-│  未连接节点时仅启用本地 SOCKS   13/20 次要 │
+│  本地转发，规则由你定          13/20 次要 │
 │  ↓12                                      │
 │ ┌───────────────────────────────────────┐ │
 │ │ ⚠ 配置读取异常，已使用默认值…         │ │  Banner 13/20
@@ -583,8 +602,8 @@ label  caption 12/16 text_tertiary          ← 间距 4
 │ ┌──────────── StatusHero ────────────────┐ │  radius 16
 │ │ padding 20                             │ │  padding 20
 │ │  ●  未连接           24/32 w600        │ │  ● = 10vp 点
-│ │  点击下方按钮启动内核   13/20 次要     │ │
-│ │  本地 SOCKS 127.0.0.1:1080 12/16 三级  │ │
+│ │  当前仅在本机提供代理  13/20 次要     │ │  hint（随状态变）
+│ │  本机代理地址 127.0.0.1:1080 12/16 三级│ │
 │ │  ┌───────────────────────────────────┐ │ │
 │ │  │            连 接                  │ │ │  48 高, radius 24
 │ │  └───────────────────────────────────┘ │ │
@@ -612,17 +631,19 @@ label  caption 12/16 text_tertiary          ← 间距 4
 │ [ 全部 ][ 香港 ][ 日本 ]  →13fp/44 高，可横滚│  首尾留 16
 │  ↓8                                          │
 │ ┌─────────────────────────────────────────┐ │ 行 1：选中
-│ │▌ ✓   香港 01              [香港]   [⋯] │ │ 高 64
-│ │ 3     vless · hk01.ex.com:443      44   │ │
+│ │▌ ✓   香港 01                      [⋯]   │ │ 高 64，名称独占 222
+│ │ 3     vless · hk01.e…:443    [香港] 44  │ │ chip 在元信息行右
 │ └─────────────────────────────────────────┘ │
 │  ↓8                                          │
 │ ┌─────────────────────────────────────────┐ │ 行 2：未选中
-│ │  ○   日本 02               [日本]   [⋯] │ │
-│ │      vmess · jp02.example.com:8443      │ │
+│ │  ○   日本 02                       [⋯]   │ │
+│ │      vmess · jp02.example.com:8443      │ │ 无分组时 host 141vp
 │ └─────────────────────────────────────────┘ │
 │  ↓8                                          │
-│   文字列可用宽度 = 304 − 24(指示) − 10 − 44 − 8│
-│                  = 218vp（元信息不再截断）    │
+│   文字列 = 316 − 12(竖条) − 34(形态) − 48(溢出)│
+│          = 222vp，名称恒 222（chip 在第二行） │
+│   host：无 chip ≈141vp / 有 chip ≈77vp，      │
+│         **:port 恒不截断**                    │
 └─────────────────────────────────────────────┘
    整行 64×全宽 = 命中区①   [⋯] 44×44 = 命中区②
 ```
@@ -729,6 +750,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 ┌──────────────────────────────────────────────┐
 │ [←] 运行日志 20/28                  127 条   │ 56
 │ 脱敏说明 12/18 三级                           │
+│ 当前代理地址 127.0.0.1:1080  12/16 三级       │ ← D-2 诊断行（长按复制）
 │ [全部][INFO][WARN][ERROR]   [刷新][清空]     │ 全部 44 高
 │  ↓8                                           │
 │ ┌───────────────────────────────────────────┐ │ 行 padding v8/h12
@@ -867,7 +889,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 |---|---|---|---|
 | A-01 | 所有可点击元素命中区 **≥44×44vp** | 必须 | 逐个 `onClick` 组件检查：显式 `height(44)` 或 padding 后 ≥44；文字按钮不得依赖字形尺寸 |
 | A-02 | 正文对比度 **≥4.5:1**，大字（≥20fp 或 15fp w600）≥3:1 | 必须 | 令牌表已达标；任何新增色值必须计算后填表 |
-| A-03 | 无 `fontSize(10)` / `fontSize(11)` | 必须 | `grep "fontSize(1[01])"` 命中数 = 0 |
+| A-03 | 禁用 `fontSize(10)`；`fontSize(11)` 仅限 `font_chip` 档 | 必须 | `grep "fontSize(10)"` = 0；`grep "fontSize(11)"` 的命中必须全部是标签 chip |
 | A-04 | 每处 `fontSize` 都有 `lineHeight` | 必须 | 抽查 8 页，缺 1 处即不通过 |
 | A-05 | 颜色不单独承载语义 | 必须 | 选中态=竖条+图标+字重；日志级别=色+文字；组件修改情况=色+文字 |
 | A-06 | 长文本不溢出、不裁字 | 必须 | 所有可换行文本有 `maxLines` + `TextOverflow.Ellipsis`，或 `maxLines` 足够 |
@@ -879,6 +901,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | A-12 | 破坏性操作可撤回或二次确认 | 必须 | 删除节点、清空日志：现状有确认/有说明，保持 |
 | A-13 | 系统字体放大 1.3× 后无截断 | 必须 | 模拟器把字体调到最大，检查标题/按钮/列表行 |
 | A-14 | 触控目标之间不重叠 | 必须 | 相邻命中区边界间距 ≥0（建议 8）；节点行整行与溢出按钮必须真正分离 |
+| A-17 | 诊断信息可得且可复制（§10.4.3 D-1~D-3） | 必须 | 三查：①诊断行是 `caption` 12/16 `text_tertiary`，不与节点名/状态同权重；②**首页与 Logs 两处都能读到端口，且断连后 Logs 仍显示"最近一次"**；③长按复制结果**严格等于** `127.0.0.1:<port>` |
 
 **A-10 的补充说明**：这条是给"美化"设的边界。本规格里唯一的"隐藏"是 `↑ ↓ 编辑 删除`，它们**不属于四要素**，且被移到 1 次点击可达的菜单里；四要素在任何状态下都完整可见。
 
@@ -900,14 +923,17 @@ label  caption 12/16 text_tertiary          ← 间距 4
 
 ---
 
-## 9. 实施顺序（4 批，建议按此提交）
+## 9. 实施顺序（按 team-leader 2026-11-22 指定顺序）
+
+**先做示范，再铺开**：`Nodes` 端到端达标（§11 全篇）后，leader 以它为其余页面的验收标准。
 
 | 批次 | 内容 | 验收 |
 |---|---|---|
 | **B1 令牌层** | 写 `base/element/color.json`（**25 个色令牌 + 保留 `start_window_background`，共 26 键**）+ `dark/element/color.json`（同 26 键）+ 字号/间距常量 `common/Token.ets`；`ConnectionViewModel` 的 `colorHex` 改语义枚举 | `grep "'#RRGGBB'"` 在 `pages/` = 0（B1 完成后可暂留 ViewModel） |
-| **B2 组件层** | `PageHeader`、`Banner`、`NodeRow`、`FormField`、`ChipGroup`、`EmptyState` 六个组件（新建 `components/` 目录） | 8 页全部改用组件，页内不再手写 `Row/Column` 骨架 |
-| **B3 逐页** | 按 §5 清单改 8 页；优先 `Nodes`（§2.1/§2.3 两个重点）→ `Index` → `NodeEdit`（§2.2）→ 其余 | A-01/A-03/A-10 全绿 |
-| **B4 深色** | 补 `dark` 资源 + 4 处深色专属问题（横幅/选中行/输入框/日志级别） | §7.4 判据全过；8 页深色截图归档 |
+| **B2 组件层** | `PageHeader`、`Banner`、`NodeRow`、`FormField`、`ChipGroup`、`EmptyState` 六个组件（新建 `components/` 目录） | 页内不再手写 `Row/Column` 骨架 |
+| **B3 示范：`Nodes`** | 按 **§11** 全篇施工（5 步），做到"可抄即能写码"的粒度 | §11.7 七条 + §11.8 八项脚本全过 |
+| **B4 逐页铺开** | 顺序：`Index`（含 §5.9 须知弹层）→ `NodeEdit` → `RoutingRules` → `Logs` → `Settings` → `Licenses` → `DevPanel` | 每页按 §11.9"可照抄 / 须逐页定"两张表验收 |
+| **B5 深色走查** | 4 处高发点：横幅 / 选中行 / 输入框边界 / 日志级别 + 首页须知弹层 | §7.4 判据全过；8 页深色截图归档 |
 
 **建议每批都跑一次的机器可查项**（PowerShell / Git Bash 均可）：
 
@@ -921,20 +947,330 @@ label  caption 12/16 text_tertiary          ← 间距 4
 
 ---
 
-## 10. 待 team-leader 裁决（4 项，均超出纯视觉职权）
+## 10. 已裁决事项（team-leader 裁决于 2026-11-22，4/4 全部同意，含执行约束）
 
-| # | 事项 | 我的建议 | 影响面 |
+> 本节从"待裁决"转为**已生效施工约束**。实现时按"结论"执行；"约束"是 leader 追加的条件，属于验收项。
+
+### 10.1 DevPanel 入口移入 Settings ✅ 已裁决（2026-11-22）
+
+- **结论**：首页移除「开发者面板（PoC 探针）」入口；移至 `Settings` 底部新分组「开发者选项」。
+- **约束（leader 追加）**：**不进主导航、不做隐藏手势**。"它现在是唯一能触发失败路径的调试面，别做成只有知道的人能找到。"
+- **落点**：§5.1 首页删除该按钮行；§5.4 Settings 增加「开发者选项」分组（用 `FormSection`：标题 `title-md` 16/24 w600 + 1vp `border_subtle` + 一行 Secondary 按钮「打开开发者面板」44 高）。
+- **验收**：首页 `grep 'DevPanel'` = 0；`Settings` 有且仅有一个入口；从 Settings 可 2 次点击内到达 DevPanel。
+
+### 10.2 删除「选择/已选中」文案，改形态差异 ✅ 已裁决（2026-11-22）
+
+- **结论**：删除行内「选择 / 已选中」文字；选中态用**左侧 3vp 指示条 + 背景层级**表达。
+- **约束（leader 追加，两条，均为验收项）**：
+  1. **不要只靠颜色**：必须同时有位置编码（3vp 竖条）与形态编码（24vp `checkmark` / 空心圆），字重 w600 作为第三重。
+  2. **该行必须挂 `accessibilityText` 把「已选中」读出来**——"删视觉文案不等于删语义"。未选中行读"未选中"。
+- **同时生效**：节点行命中区收为 **2 个**（整行 = 选择；右侧「…」= 编辑/删除/上移/下移，见 §10.3 与 §13）。
+- **验收**：A-05 / A-07 两条同时通过；读屏遍历节点列表时每行都能听到"已选中/未选中"。
+
+### 10.3 移除 HTTP/2 传输选项 ✅ 已裁决（2026-11-22）
+
+- **结论**：从 `NodeEdit` 的 `transports` 数组移除 `HTTP2`；保留 `validate()` 内对已存 `HTTP2` 节点的拒绝逻辑（老数据仍可能带它）。
+- **理由**：内核侧 HTTP/2 传输已移除，UI 留着就是"能选但一定失败"。
+- **验收**：`grep "HTTP2"` 在 `pages/NodeEdit.ets` 只剩 `validate()` 分支与其错误文案，选项数组内 0 命中。
+
+### 10.4 首页文案：定位语与状态句分离 ✅ 已裁决（2026-11-22，第二版：禁用 "SOCKS" 字样）
+
+**结论**：`SOCKS` 是协议名，用户读不懂，也违反"不写实现细节"。文案拆成两条，**各归各位**：
+
+| 位置 | 文案 | 规格 | 变量性 |
 |---|---|---|---|
-| 1 | **DevPanel 入口从首页移入 Settings → 关于** | 建议移 | IA 变更；首页底部目前三个入口（节点列表/设置/开发者面板），开发者面板占一级位置会误导普通用户 |
-| 2 | **删除"选择/已选中"文字，改图形指示** | 建议删 | 交互文案变更；需确认 `E15`/PoC 文档里有没有引用这句文案做验收 |
-| 3 | **HTTP2 从传输选项移除** | 建议移除 | 现状"可选但必被 validate 拒"，属自相矛盾的交互；移除不影响已存节点（已存节点仍会走校验） |
-| 4 | **首页副标题文案产品化** | "未选择节点时仅启用本地 SOCKS" | 文案归需求侧；现状"内核直连驱动（socks + freedom，未接节点）"是开发语 |
+| **副标题位**（应用名下方） | **「本地转发，规则由你定」**（11 字，≤16 字） | `body-sm` 13/20 `text_secondary` | **固定**，不随状态变化 |
+| **状态描述位**（状态行内，即 `hint`） | 见 10.4.1 三档回退 | `body-sm` 13/20 `text_secondary` | **随状态变化**，只出现在状态行 |
 
-另：`↑↓` 若日后想升级成"长按拖动排序"，属 P2，本规格不纳入；菜单项已满足功能需求。
+#### 10.4.1 状态句三档回退（顺序写死，不许各写各的）
+
+| 档 | 条件 | 文案 |
+|---|---|---|
+| 1 | 有节点名（`name` 非空） | **「当前走 <节点名>」** |
+| 2 | 无节点名，但有 `host:port` | **「当前走 <host:port>」** |
+| 3 | 两者都没有 | **「当前已连接（未选节点）」** |
+
+未连接态（DISCONNECTED / ERROR）不套用此表，仍用「当前仅在本机提供代理」与错误原因。
+
+#### 10.4.2 `deriveView()` 签名约束（从接口上堵住实现词回流）
+
+- 入参**只允许传展示字符串**（如 `nodeDisplay: string`），**禁止**传 `socks` / `port` / `mode` / 任何实现字段。
+- 理由：一旦签名里出现实现字段，后续维护者必然在 `deriveView()` 内部拼出 "SOCKS :1080" 这种字符串，文案规范会从最底层被绕过。**签名是比约定更强的约束。**
+- 三档回退的拼接在**页面侧**完成（页面知道 `name` 与 `host:port`），`deriveView(nodeDisplay)` 只负责选择模板句。
+
+**连带的 3 处必改（否则验收过不去）**：
+
+1. `ConnectionViewModel.deriveView()` 的 4 条 `hint` 现在都含 "SOCKS"/"内核" 字样（如"点击开关启动内核（当前仅本地 SOCKS，未接节点）"、"内核已启动（本地 SOCKS 监听中，尚未接入节点）"）→ 全部按 10.4.1 改。
+2. 首页 `socksInfo` 那一行（`本地 SOCKS 127.0.0.1:<port>（已启用口令鉴权）`）→ 改 **「本机代理地址 127.0.0.1:<port>」**，归**诊断类信息**层级：`caption` 12/16 `text_tertiary`（**不得与节点名 `body-lg` / 状态 `display` 同权重**）。**信息保留**，只换词、去掉实现细节括号。
+3. `DevPanel` 的说明文字可保留技术词（那是调试面），但**首页与 Settings 用户可见文案不含** SOCKS / freedom / 内核直连。
+
+#### 10.4.3 诊断信息三条附加约束（leader 2026-11-22 拍板"保留信息、换词"）
+
+> 理由（leader 原话）：端口每次连接轮换，是用户报障时唯一能自证的线索；删掉信息等于把排障成本转给下一个人。
+
+| # | 约束 | 落点 |
+|---|---|---|
+| D-1 | 该行归**诊断类信息**层级（次要色 + 12fp），**不能与节点名/状态同权重** | §4.3 StatusHero：`caption` 12/16 `text_tertiary` |
+| D-2 | **Logs 页也必须能读到当前代理端口**——首页那行不能是唯一暴露点，否则用户一断连就无从查 | §5.6：Logs 顶部加诊断行（见下） |
+| D-3 | **长按复制** `127.0.0.1:<port>`，报障时用户能直接粘出来。**不改视觉，只加事件**（不加图标、不加下划线、不改颜色） | §4.3 / §5.1：`LongPressGesture`(500ms) → `pasteboard.setData` → 轻提示「已复制」 |
+
+**Logs 页诊断行规格（D-2）**：
+
+| 状态 | 文案 | 样式 |
+|---|---|---|
+| 已连接 | `当前代理地址 127.0.0.1:<port>`（长按复制） | `caption` 12/16 `text_tertiary`，紧贴脱敏说明下方 |
+| 已断开、但本次启动内连接过 | `最近一次代理地址 127.0.0.1:<port>（已断开）`（长按复制） | 同上 |
+| 本次启动从未连接 | `暂无代理地址记录（本次启动未连接过）` | 同上 |
+
+- **为什么要第三种状态**：D-2 的理由是"用户一断连就无从查"。若断连后直接显示"暂无端口"，这条约束就等于没做。**"最近一次"必须能读到**，否则用户报障时手里没有可自证的地址。
+- **实现前提（已批准 2026-11-22）**：`SocksGuard` 暴露一个**只读** `lastEndpoint()`（仅进程内存，**不持久化**；应用重启后为空，此时落到第三种文案）。纯读接口，不改轮换逻辑、不写盘。
+
+**`lastEndpoint()` 三条硬约束（leader 批准时追加，防止"只读"变借口）**：
+
+| # | 约束 | 判定方式 |
+|---|---|---|
+| L-1 | 返回**不可变快照**（`{host, port}` 或空）；调用方拿到的对象**不允许改回写进** `SocksGuard` | 返回副本/冻结对象；评审确认无 setter、无共享引用 |
+| L-2 | 只在**"绑定成功"那一刻**更新；**断开时不置空**（置空就把要解决的场景删掉了）；进程死亡后自然为空 → 落第三态 | 单测：连接 → 断开 → 仍可读到原值 |
+| L-3 | **不持久化、不进日志缓冲、不参与轮换决策**；允许被反复读而不改变任何状态（**幂等**） | 单测：连续调用 3 次返回值相等，且 `SocksGuard` 内部状态不变 |
+- 数据来源：`SocksGuard` 当前端点；页面 `onPageShow` 读一次即可（与首页同源）。
+- 可选（建议，不需要可跳过）：连接成功时 `Logger.info` 打一行「本地代理端口 <port>」，让导出日志里也留痕——**这一行必须脱敏后仍保留端口**（端口不是凭据，漏掉它反而废掉 D-2 的意义）。
+
+**验收（可判定）**：
+- `grep -i 'socks\|freedom\|内核直连'` 在 `pages/Index.ets` 的用户可见字符串（`Text('…')`、`TextInput` placeholder、`hint` 赋值）**= 0**；`ConnectionViewModel` 的 `hint` 字符串同样 = 0（`DevPanel` 除外）。
+- `deriveView` 签名参数里**不含** `socks / port / mode / credential` 任一字段名（`grep "deriveView("` 人工过一次）。
+- 三档回退可逐个构造验证：有 name / 只有 host:port / 都无。
+- 副标题位**只有**定位语；任何状态句出现在副标题层即不通过（副标题 `Text` 绑定源必须是常量）。
+- 副标题 ≤16 字且单行不折行；`<节点名>` 不做截断（超长交给 `Ellipsis`）。
+- 长按诊断行 → 剪贴板内容**等于** `127.0.0.1:<port>`（无多余空白与括号）；长按 500ms 内不得触发整行点击。
+- 断连后进 Logs 页，仍能看到「最近一次代理地址 127.0.0.1:<port>（已断开）」（D-2 反例检查：连接态读到端口不能只靠首页）。
+
+### 10.5 遗留（不阻塞，仍待确认）
+
+| # | 事项 | 状态 |
+|---|---|---|
+| 5 | `↑↓` 是否升级为"长按拖动排序" | 未决，P2；菜单项已满足功能，不升级不阻塞 |
+| 6 | 删除「选择」文案是否影响 `E15` / PoC 文档里的验收引用 | **需文档侧自查**（§10.2 已裁决执行，若 PoC 引用了这句文案需同步改口径） |
 
 ---
 
-## 11. 明确不做（边界）
+## 11. Nodes 端到端示范（其余页面的验收标准）
+
+> 本节是 **leader 指定的示范样本**：其余页面按此粒度施工，不达标即返工。§2.1 / §4.4 的估算数值以本节为准（本节精确到每个属性）。
+> 现状基线：`pages/Nodes.ets` **361 行**（2026-11-22 复核，尚未改造）。
+
+### 11.1 施工顺序（5 步，缺一步不算完成）
+
+| 步骤 | 动作 | 产物 |
+|---|---|---|
+| S0 | 建令牌：`base/element/color.json` + `dark/element/color.json`（26 键，见 11.2）+ `common/Token.ets`（字号/间距/高度常量） | 两套资源同键 |
+| S1 | 建 `components/PageHeader.ets`、`components/NodeRow.ets`、`components/EmptyState.ets` | 三个组件 |
+| S2 | 改写 `Nodes.ets` 骨架：顶栏 + 导入面板 + 分组 chips + List + 空态 | 页内无 hex、无 10fp（11fp 仅 `font_chip`） |
+| S3 | 接选中态三重编码 + `accessibilityText` + 溢出菜单 | A-01 / A-05 / A-07 通过 |
+| S4 | 深色走查：4 处高发点（选中行底、chip 底、横幅、输入框边界） | 深色截图无白块 |
+
+### 11.2 令牌文件（可直接落盘，26 键，base/dark 一一对应）
+
+`entry/src/main/resources/base/element/color.json`
+
+```
+bg_canvas            #F2F3F5     bg_surface           #FFFFFF
+bg_surface_alt       #F7F8FA     bg_chip              #EDEFF2
+border_subtle        #E3E5E9     border_strong        #C7CBD1
+text_primary         #1A1A1A     text_secondary       #5A5F66
+text_tertiary        #6B7280     text_on_accent       #FFFFFF
+accent               #1565D8     accent_pressed       #0D4FB0
+accent_subtle        #EAF1FE     selected_row_bg      #EAF1FE
+success              #17703A     warning              #9A5B00
+warning_subtle       #FFF4E5     danger               #B3261E
+danger_subtle        #FDECEA     status_disconnected  #6B7280
+status_connecting    #A35F00     status_connected     #17703A
+status_error         #B3261E     focus_ring           #1565D8
+scrim                #73000000   start_window_background  #FFFFFF
+```
+
+`entry/src/main/resources/dark/element/color.json`
+
+```
+bg_canvas            #0E1013     bg_surface           #171A1F
+bg_surface_alt       #1E2228     bg_chip              #232830
+border_subtle        #2B3037     border_strong        #3A414B
+text_primary         #E6E8EB     text_secondary       #A8AFB9
+text_tertiary        #8B939D     text_on_accent       #0E1013
+accent               #6BA1FF     accent_pressed       #8CBBFF
+accent_subtle        #1B2740     selected_row_bg      #1B2740
+success              #4CCB77     warning              #F0B65B
+warning_subtle       #2A2214     danger               #FF7B72
+danger_subtle        #2A1715     status_disconnected  #8B939D
+status_connecting    #F0B65B     status_connected     #4CCB77
+status_error         #FF7B72     focus_ring           #6BA1FF
+scrim                #A6000000   start_window_background  #0E1013
+```
+
+> `scrim` 用 8 位 ARGB：`#73000000` = 黑 45%，`#A6000000` = 黑 65%（`Index` 现在的 `#99000000` = 60%，浅色下偏重）。
+> 键名固定不可自创；新增色必须同时改两个文件并重算对比度。
+> `common/Token.ets` 需同步导出字号常量 8 个（`display 24 / titleLg 20 / titleMd 16 / bodyLg 15 / body 14 / bodySm 13 / caption 12 / fontChip 11`）与行高、间距、高度、圆角常量；页面里**不许再写字面量数字**。
+
+### 11.3 `Nodes` 页骨架（逐元素属性清单）
+
+| # | 元素 | 组件与属性（照抄即可） |
+|---|---|---|
+| 1 | 页面根 | `Column({space:0})` `.width('100%')` `.height('100%')` `.backgroundColor($r('app.color.bg_canvas'))` |
+| 2 | 顶栏 | `PageHeader({title:'节点列表', count: visibleNodes().length})` → 高 56，左右 padding 16，返回 44×44 图标 20vp，标题 `title-lg` 20/28 w600，计数 `caption` 12/16 `text_tertiary` 右对齐 |
+| 3 | 导入按钮 | 44×44，图标 20vp（`+` / `×`），`.accessibilityText(this.showImport ? '收起导入面板' : '导入节点或订阅')` |
+| 4 | 导入面板 | `Column({space:12})` padding 12，`bg_surface_alt`，`radius-card` 8，**左右外边距 16** |
+| 5 | 导入输入框 | `TextInput` 高 `h-input` 44，字号 `body` 14，占位符 `text_tertiary`，`.borderRadius(8)` |
+| 6 | 导入按钮 | 高 44，最小宽 72，`body-sm` 13，Primary（全宽） |
+| 7 | 面板说明 | `caption` 12/16 `text_tertiary`（"vless/vmess/trojan/ss 走单条导入；http(s) 走订阅导入"） |
+| 8 | 结果提示 `importMsg` | `body-sm` 13/20；**按结果分色**：`total===0 || error 非空` → `danger`；`failed>0` → `warning`；否则 `accent`。`.accessibilityText('导入结果：' + importMsg)` |
+| 9 | 分组 chips 容器 | `Scroll`(Horizontal)，Row `space 8`，**首尾 padding 16** |
+| 10 | chip | 高 44，圆角 999，水平 padding 16，`body-sm` 13；选中 `accent`/`text_on_accent`；未选 `bg_chip`/`text_secondary`。`.accessibilityText(g + (选中?'，当前筛选':'') )` |
+| 11 | 列表 | `List({space:8})` `.layoutWeight(1)` `.width('100%')` `.padding({left:16,right:16})` |
+| 12 | 列表项 | `NodeRow`（见 11.4） |
+| 13 | 空态 | 见 11.6 |
+| 14 | 行间距 | 8（`List space`），**不再给 ListItem 额外 margin** |
+
+### 11.4 `NodeRow` 结构树（核心，两个命中区）
+
+```
+Row                                    // 命中区①：整行
+├── .width('100%')  .constraintSize({minHeight:64})
+├── .padding({left:0, right:12, top:10, bottom:10})
+├── .backgroundColor(sel ? app.color.selected_row_bg : app.color.bg_surface)
+├── .borderRadius(12)
+├── .border({width:1, color: sel ? Color.Transparent : app.color.border_subtle})
+├── .onClick(() => pick(id))                                   // = 选择
+├── .accessibilityLevel('yes')
+├── .accessibilityText(`${name}，${protocol}，${address}:${port}，${group||'未分组'}，${sel?'已选中':'未选中'}`)
+│
+├── Row()                              // ① 选中竖条
+│     .width(3).height(40).borderRadius(1.5).margin({right:9})
+│     .backgroundColor(sel ? app.color.accent : Color.Transparent)
+│
+├── Stack()                            // ② 选中形态（24×24）
+│     .width(24).height(24).margin({right:10})
+│   ├── if (sel)  SymbolGlyph($r('sys.symbol.checkmark')) .fontSize(20) .fontColor(accent)
+│   └── if (!sel) Circle .width(18).height(18) .border({width:1.5, color: border_strong})
+│
+├── Column({space:2})                  // ③ 文字列：layoutWeight(1) → 222vp
+│     .alignItems(HorizontalAlign.Start).layoutWeight(1)
+│   ├── Text(name) .fontSize(15) .lineHeight(22) .fontWeight(sel?600:400)
+│   │     .fontColor(text_primary) .maxLines(1) .textOverflow(Ellipsis)
+│   │     .width('100%')                // 名称独占 222vp，永不因 chip 被压
+│   │
+│   └── Row({space:4}) .width('100%')   // 元信息行：协议 + host + :port + chip
+│       ├── Text(protoShort) .fontSize(12).lineHeight(16).fontColor(text_tertiary)
+│       │     .maxLines(1)              // 短名，固定不截（见下方映射）
+│       ├── Text(' · ')  .fontSize(12).lineHeight(16).fontColor(text_tertiary)
+│       ├── Text(host) .fontSize(12).lineHeight(16).fontColor(text_tertiary)
+│       │     .layoutWeight(1).maxLines(1).textOverflow(Ellipsis)   // 可截，中间省略
+│       ├── Text(`:${port}`) .fontSize(12).lineHeight(16).fontColor(text_tertiary)
+│       │     .maxLines(1)              // **端口恒不截断**（A-10 四要素之一）
+│       └── if (group) Text(group)      // 分组 chip（leader 裁决：放在元信息行右侧）
+│             .fontSize(11).lineHeight(16).fontWeight(500)
+│             .padding({left:8,right:8,top:6,bottom:6})   // 16+12 = 视觉高 28
+│             .backgroundColor(accent_subtle).fontColor(accent).borderRadius(4)
+│             .maxLines(1).textOverflow(Ellipsis)
+│             .constraintSize({maxWidth:60})              // 超 4 字截断
+│             .accessibilityText(group)                   // 读屏报全名
+│
+└── Button/Stack                        // 命中区②：44×44
+      .width(44).height(44).margin({left:4})
+      .backgroundColor(Color.Transparent)
+      .onClick(() => openMenu(id))                            // 不冒泡到整行
+      .accessibilityText('节点操作：编辑、上移、下移、删除')
+    └── SymbolGlyph($r('sys.symbol.ellipsis')) .fontSize(20) .fontColor(text_secondary)
+```
+
+**宽度核算（两段式，别只记一个数）**
+
+文字列固定 **222vp**（316 − 竖条 12 − 形态 34 − 溢出 48）：
+
+| 场景 | 名称行 | 元信息行可用分配 | host 可用 |
+|---|---|---|---|
+| **无分组** | 222vp 独占 | 协议 ~47 + `:port` ~26 + 间隙 8 | **≈141vp ≈ 21 字符** |
+| **有分组**（chip ≤60） | **222vp 独占（不受影响）** | 协议 47 + `:port` 26 + chip 60 + 间隙 12 | **≈77vp ≈ 11 字符** |
+
+- 关键差异：**名称在两种场景下都是 222vp**，这正是 leader 裁决要换来的东西（原先 chip 在名称行时，名称被压到 ~156vp，且压多少取决于用户分组名多长）。
+- 有 chip 时 host 只剩 ~11 字符（如 `hk01.ex…:443`）：**中间省略保留头尾**，端口永远完整可见；地址是可截断的技术字段，名称是不可截断的检索键——取舍明确。
+- **协议短名映射**（展示层映射，不改数据）：`shadowsocks → ss`，其余 `vless / vmess / trojan` 原样。理由：`shadowsocks` 在 12fp 下要 73vp，白吃掉 host 的一半宽度。
+- 若实测仍嫌 host 太窄，备选方案 B（需你点头）：chip 在窄空间下降级为**纯文字**「· 分组名」（去掉底色与 padding，省 16vp），host 随之回到 ~93vp；代价是分组从"标签"退回"普通文字"，四要素仍可见但分组不再视觉分组化。
+
+**两个命中区是兄弟，不是嵌套**（leader 已确认按此执行）：
+- 整行 `Row.onClick` 只负责 `pick(id)`（选择）；
+- 溢出 `Button` **自己消费事件**（`Button` 自带手势会拦住父级 `onClick`）；
+- **禁止**在整行外再包一层 click 容器 / `gesture` 包裹层——那会重新变成"整行点击 + 子点击"的双层结构，两个命中区互相吃事件；
+- **禁止**给整行加 `hitTestBehavior(HitTestMode.Block)` 之类的兜底，行为要由"谁在上面"决定，不是由拦截决定；
+- 菜单打开时（`bindMenu` 自带遮罩），点同行落在遮罩上 → 只关菜单，**不得改变 `selectedId`**（自检 A-15）。
+
+### 11.5 溢出菜单（`bindMenu` 或 `Menu`）
+
+| 项 | 字号 | 颜色 | 说明 |
+|---|---|---|---|
+| 编辑 | 14 | `text_primary` | 打开 `NodeEdit` |
+| 上移 | 14 | `text_primary` | 首项时置灰（`text_tertiary` 且不可点） |
+| 下移 | 14 | `text_primary` | 末项时置灰 |
+| —（分隔） | 1vp | `border_subtle` | — |
+| 删除 | 14 | `danger` | 走既有 `AlertDialog` 二次确认（保留现有文案） |
+
+- 菜单项高度 **44**，最小宽 160。
+- **为什么这三项可以收进菜单**（信息密度硬约束的交代）：`↑↓` 用于"把常用节点排前面"，一次调整后长期不动；`编辑` 导入后极少触发；`删除` 是破坏性操作，收进菜单反而降低误触（现状它紧贴"编辑"）。**协议 / 地址:端口 / 分组 / 选中态四要素常驻，永不折叠**（A-10）。
+
+### 11.6 空态（现在完全缺失）
+
+```
+Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
+  SymbolGlyph(24vp, text_tertiary)
+  Text('还没有节点')            body 14/22  text_secondary
+  Text('粘贴分享链接或订阅地址即可导入')  body-sm 13/20  text_tertiary
+  Button('导入')  Primary 44 高 最小宽 120
+```
+- 判定：`visibleNodes().length === 0` 时必须出现（且分组筛选导致为空时文案改为"该分组下没有节点"，带「查看全部」按钮）。
+
+### 11.7 `Nodes` 可访问性自检（施工完逐条打勾）
+
+| # | 条件 | 本页具体检查点 | 结果 |
+|---|---|---|---|
+| A-01 | 所有命中区 ≥44×44 | 导入按钮 44×44、溢出 44×44、chips 44、导入/添加按钮 44、返回 44×44、整行 ≥64 | ☐ |
+| A-03 | 无 10fp；11fp 仅 `font_chip` 档 | 分组 chip 从 10→**11（`font_chip` 档位定义）**；页内不得出现其他 11fp | ☐ |
+| A-05 | 颜色非唯一载体 | 选中 = 竖条（位置）+ checkmark（形态）+ w600（字重），去掉颜色仍可辨 | ☐ |
+| A-07 | 读屏标签 | 整行 `accessibilityText`、溢出按钮、导入按钮、每个 chip | ☐ |
+| A-10 | 四要素常驻 | 协议、地址:端口、分组、选中态四者同时可见；**`:port` 单独 Text 恒不截断**（分组 chip 存在时只截 host） | ☐ |
+| A-11 | 空态 | 两处空态（无节点 / 分组为空）都有文案 + 动作 | ☐ |
+| A-13 | 字体放大 1.3× | 名称与元信息均 `maxLines(1)+Ellipsis`，不撑破行高 | ☐ |
+| **A-15** | **菜单打开时点同行不改选中态** | 点「…」开菜单 → 再点该行（命中遮罩）→ 菜单关闭且 `selectedId` 不变 | ☐ |
+| **A-16** | **两个命中区是兄弟不是嵌套** | 整行 `onClick` 只做 `pick`；溢出 `Button` 自消费事件；整行外层**无**额外 click 容器 | ☐ |
+
+> 注：分组 chip 的 11fp 是 **`font_chip` 档位的定义**（§3.2），不是例外条款——标签类短标签统一走这一档，正文/说明/元信息一律不许用 11fp。chip 视觉高 ≥28vp、行内命中区由整行（≥64）承担；若改造成独立可点，按 §3.2 下沉为筛选 chip（外层 44 / 内层 28）。
+
+### 11.8 验收脚本（改完立刻能跑）
+
+```
+1) 页面内硬编码色值     grep -n "'#" entry/src/main/ets/pages/Nodes.ets         → 0
+2) 过小字号             grep -n "fontSize(1[01])" …/pages/Nodes.ets             → 仅允许 fontChip 的 11，10 必须 0
+3) 无显式小高度         grep -n "\.height(3[0-9]\|4[0-3])" …/pages/Nodes.ets     → 0
+4) 非标间距             grep -n "space: 6\|padding(10)\|padding(6)" …/Nodes.ets  → 0
+5) 每处 fontSize 有行高  grep -c "lineHeight" ≥ grep -c "fontSize"（允许 chip 例外）
+6) 读屏标签数量         grep -c "accessibilityText" ≥ 6
+7) 两套资源同键         base/dark color.json 的 key 列表逐行 diff         → 无差异
+8) 深色截图             选中行 / chip / 输入框 / 空态                  → 无白底块
+9) lastEndpoint 幂等    连调 3 次返回值相等，且 SocksGuard 内部状态不变  → 通过
+                        （D-2 / L-3；连接→断开后仍可读到原值，L-2）
+10) 名称不被 chip 挤压   造 4 字分组名，名称宽度仍 = 222vp              → 通过
+11) 端口恒可见          造超长 host + 4 字分组，`:port` 完整显示        → 通过
+```
+
+### 11.9 示范 → 其余页面的复用约定
+
+| 可直接照抄 | 必须逐页定 |
+|---|---|
+| 令牌文件（26 键）、`PageHeader`、`EmptyState`、chips 尺寸、按钮三档、`Banner` 三变体、行高/间距阶梯 | 每页的**信息分组**（哪些字段归一个 Section）、**动作取舍**（哪些常驻、哪些进菜单）、**空/错/降级三态的文案** |
+| `NodeRow` 的"整行 + 44 溢出"双命中区模式 | `RuleRow` 的开关形态（建议 `Switch` 44 容器 + 溢出删除）、`LogRow` 是否需要长按复制 |
+| **"名称行只放名称，标签挂到元信息行"**（leader 裁决）：用户命名的字段永不与标签争宽度 | 各页"哪个字段是用户检索键"需自己判断（如 `RuleRow` 的 pattern 是检索键，状态标签不能挤它） |
+| 可访问性自检模板（`Nodes` 八条，含 A-15/A-16） | 每页自己的"读屏一句话"内容 |
+
+---
+
+## 12. 明确不做（边界）
 
 - **不引入任何图片/位图资源**，不用第三方 UI 库。图标只用 `SymbolGlyph($r('sys.symbol.*'))`；`sys.symbol` 具体名称随 SDK 版本变化，**若某个名称不存在，退化为字形字符**（`← ⋯ ⚠ ✓`），不得为此新增 media 资源。
 - **不加底部 Tab 栏**。当前是"首页 + 二级页"导航，加 Tab 会与"返回"顶栏重复，且减少列表垂直空间。现状导航结构保留，只重做样式。
@@ -944,7 +1280,7 @@ label  caption 12/16 text_tertiary          ← 间距 4
 
 ---
 
-## 12. 自查
+## 13. 自查
 
 | 项 | 结果 |
 |---|---|
@@ -956,3 +1292,11 @@ label  caption 12/16 text_tertiary          ← 间距 4
 | 深色两套令牌 + 不能反相清单 | ✅ §7.2 / §7.3 |
 | 触控 44vp 归为必须 | ✅ A-01，逐处点名 5 个点击区、36×36 按钮、节点/规则行内文字按钮 |
 | 线框图 + 尺寸标注 | ✅ §6 共 8 张（首页/列表/编辑/设置/规则/日志/许可/须知弹层） |
+| 裁决项写成"已裁决 + 结论 + 约束 + 日期" | ✅ §10（4 项全裁决，含 leader 追加的 2 条 Nodes 约束） |
+| 提供端到端示范（可抄即能写码） | ✅ §11：26 键令牌全值 + `NodeRow` 逐属性结构树 + 宽度核算 222vp + 溢出菜单 + 空态 + **八条自检（A-01…A-16）** + 八项脚本 |
+| 字号档位把 chip 收编为令牌 | ✅ §3.2 扩为 **8 档**，`font_chip` 11/16 是档位不是例外；配 `h-chip-label` 28 与"视觉 28 / 命中 44"方向约束（反向不允许） |
+| 事件结构写成可判定条款 | ✅ §11.4"兄弟不嵌套"五条 + A-15（菜单打开时点同行不改选中）/ A-16（外层无 click 容器） |
+| 首页文案不写实现细节 | ✅ §10.4 第二版：定位语「本地转发，规则由你定」+ **状态句三档回退（name → host:port → 未选节点）** + `deriveView()` **只传展示字符串的签名约束**；连带 `ViewModel` 4 条 `hint` 与 `socksInfo` 行一并改，验收 `grep -i 'socks\|freedom\|内核直连'` = 0 |
+| 诊断信息"保留信息、换词"（leader 拍板） | ✅ §10.4.3 D-1~D-3：诊断层级（12fp 次要）/ **Logs 也暴露端口（含"最近一次"三态）** / **长按复制**不改视觉；`lastEndpoint()` 三条硬约束 L-1~L-3（不可变快照、断开不置空、幂等）；检查表新增 **A-17**，脚本新增 9)~11) |
+| 名称不被标签挤压（leader 裁决） | ✅ §4.4 / §11.4 / §6.2 三处同步：分组 chip 移到元信息行右侧，名称恒 222vp；`:port` 单独 Text 恒不截断；两段式宽度核算（无 chip 141 / 有 chip 77）+ 备选方案 B |
+| 与代码现状对齐 | ✅ 2026-11-22 复核：`Nodes.ets` 仍 361 行（未改造，基线有效）；`Index.ets` 354 行（结构已稳定，§5.9 有效） |

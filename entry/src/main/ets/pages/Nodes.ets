@@ -5,6 +5,8 @@ import { ShareLinkParser } from '../service/ShareLinkParser';
 import { Logger } from '../platform/Logger';
 import { NodeEditParams } from './NodeEdit';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
+import { NodeRow } from '../components/NodeRow';
+import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
  * pages/Nodes.ets — 节点列表（本地假数据 + 选中切换）
@@ -137,7 +139,18 @@ struct Nodes {
   }
 
   /** 删除前二次确认：删除不可恢复，不做"点了就没了" */
-  private confirmDelete(item: XrayNode): void {
+  private confirmDeleteById(id: string): void {
+    let target: XrayNode | null = null;
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].id === id) {
+        target = this.nodes[i];
+        break;
+      }
+    }
+    if (target === null) {
+      return;
+    }
+    const item: XrayNode = target;
     AlertDialog.show({
       title: '删除节点',
       message: `将删除「${item.name}」及其保存的凭据，该操作不可恢复。`,
@@ -149,7 +162,7 @@ struct Nodes {
       },
       secondaryButton: {
         value: '删除',
-        fontColor: '#C62828',
+        fontColor: $r('app.color.danger'),
         action: () => {
           this.doDelete(item.id);
         }
@@ -220,142 +233,233 @@ struct Nodes {
       Logger.error(`import failed at secret store: ${msg}`);
     });
   }
-  build() {
-    Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(12)
-          .onClick(() => {
-            router.back();
+  /** 导入结果按严重程度分色：失败 → danger，部分成功 → warning，正常 → accent */
+  private importColor(): Resource {
+    const m: string = this.importMsg;
+    if (m.indexOf('失败') >= 0) {
+      return $r('app.color.danger');
+    }
+    if (m.indexOf('已存在') >= 0) {
+      return $r('app.color.warning');
+    }
+    return $r('app.color.accent');
+  }
+
+  @Builder
+  header() {
+    Row() {
+      Button({ type: ButtonType.Circle }) {
+        Text('\u2039').fontSize(IconSize.md).fontColor($r('app.color.text_primary'))
+      }
+      .width(Height.hit)
+      .height(Height.hit)
+      .backgroundColor(Color.Transparent)
+      .accessibilityText('返回')
+      .onClick(() => {
+        router.back();
+      })
+
+      Text('节点列表')
+        .fontSize(FontSize.titleLg)
+        .lineHeight(LineHeight.titleLg)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
+
+      Text(`${this.visibleNodes().length} 个`)
+        .fontSize(FontSize.caption)
+        .lineHeight(LineHeight.caption)
+        .fontColor($r('app.color.text_tertiary'))
+        .margin({ right: Space.sm })
+
+      Button({ type: ButtonType.Circle }) {
+        Text(this.showImport ? '\u00d7' : '+')
+          .fontSize(IconSize.md)
+          .fontColor($r('app.color.accent'))
+      }
+      .width(Height.hit)
+      .height(Height.hit)
+      .backgroundColor(Color.Transparent)
+      .accessibilityText(this.showImport ? '收起导入面板' : '导入节点或订阅')
+      .onClick(() => {
+        this.showImport = !this.showImport;
+        if (!this.showImport) {
+          this.importMsg = '';
+        }
+      })
+    }
+    .width('100%')
+    .height(Height.header)
+    .padding({ left: Space.xs, right: Space.sm })
+  }
+
+  @Builder
+  importPanel() {
+    Column({ space: Space.md }) {
+      TextInput({
+        placeholder: '粘贴分享链接（vless://…）或订阅地址（https://…）',
+        text: this.importInput
+      })
+        .height(Height.input)
+        .fontSize(FontSize.body)
+        .placeholderColor($r('app.color.text_tertiary'))
+        .backgroundColor($r('app.color.bg_surface'))
+        .borderRadius(Radius.panel)
+        .onChange((v: string) => {
+          this.importInput = v;
+        })
+
+      Text('vless / vmess / trojan / ss 走单条导入；http(s) 走订阅导入')
+        .fontSize(FontSize.caption)
+        .lineHeight(LineHeight.caption)
+        .fontColor($r('app.color.text_tertiary'))
+        .width('100%')
+
+      Button(this.busy ? '处理中…' : '导入')
+        .width('100%')
+        .height(Height.hit)
+        .fontSize(FontSize.bodySm)
+        .backgroundColor($r('app.color.accent'))
+        .fontColor($r('app.color.text_on_accent'))
+        .borderRadius(Radius.panel)
+        .enabled(!this.busy)
+        .onClick(() => this.doSmartImport())
+    }
+    .width('100%')
+    .padding(Space.md)
+    .backgroundColor($r('app.color.bg_surface_alt'))
+    .borderRadius(Radius.panel)
+  }
+
+  @Builder
+  groupChips() {
+    Scroll() {
+      Row({ space: Space.sm }) {
+        this.chip('全部', this.groupFilter.length === 0, () => {
+          this.groupFilter = '';
+        })
+        ForEach(this.groups, (g: string) => {
+          this.chip(g, this.groupFilter === g, () => {
+            this.groupFilter = g;
           })
-        Text('节点列表').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
-        Text(`${this.visibleNodes().length} 个`).fontSize(12).fontColor('#999999')
-        // 一个入口就够：点开才出现输入框，平时列表保持干净
-        Button(this.showImport ? '×' : '+')
-          .fontSize(16)
-          .width(36)
-          .height(36)
+        }, (g: string) => g)
+      }
+      .padding({ left: Space.lg, right: Space.lg })
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .width('100%')
+  }
+
+  @Builder
+  chip(label: string, active: boolean, action: () => void) {
+    Text(label)
+      .height(Height.hit)
+      .padding({ left: Space.lg, right: Space.lg })
+      .fontSize(FontSize.bodySm)
+      .fontColor(active ? $r('app.color.text_on_accent') : $r('app.color.text_secondary'))
+      .backgroundColor(active ? $r('app.color.accent') : $r('app.color.bg_chip'))
+      .borderRadius(Radius.pill)
+      .textAlign(TextAlign.Center)
+      .accessibilityText(active ? `${label}，当前筛选` : label)
+      .onClick(() => {
+        action();
+      })
+  }
+
+  @Builder
+  emptyState() {
+    Column({ space: Space.sm }) {
+      Text(this.groupFilter.length > 0 ? '该分组下没有节点' : '还没有节点')
+        .fontSize(FontSize.titleMd)
+        .lineHeight(LineHeight.titleMd)
+        .fontColor($r('app.color.text_secondary'))
+      Text(this.groupFilter.length > 0
+        ? `「${this.groupFilter}」里的节点都被移走了`
+        : '点右上角「+」，粘贴分享链接或订阅地址')
+        .fontSize(FontSize.bodySm)
+        .lineHeight(LineHeight.bodySm)
+        .fontColor($r('app.color.text_tertiary'))
+        .textAlign(TextAlign.Center)
+      if (this.groupFilter.length > 0) {
+        Button('查看全部')
+          .height(Height.hit)
+          .padding({ left: Space.lg, right: Space.lg })
+          .fontSize(FontSize.bodySm)
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor($r('app.color.text_primary'))
+          .borderRadius(Radius.pill)
           .onClick(() => {
-            this.showImport = !this.showImport;
-            if (!this.showImport) {
-              this.importMsg = '';
-            }
+            this.groupFilter = '';
           })
       }
-      .width('100%')
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .justifyContent(FlexAlign.Center)
+  }
 
-      // 导入面板：**单一输入框 + 自动识别**
-      // 以前是「分享链接」和「订阅地址」两个框，既占地方又容易填错。
-      // 现在按前缀判断：vless/vmess/trojan/ss → 单条链接；http(s) → 订阅。
+  build() {
+    Column({ space: 0 }) {
+      this.header()
+
       if (this.showImport) {
-        Column({ space: 8 }) {
-          TextInput({
-            placeholder: '粘贴分享链接（vless://…）或订阅地址（https://…）',
-            text: this.importInput
-          })
-            .fontSize(12)
-            .onChange((v: string) => {
-              this.importInput = v;
-            })
-          Row({ space: 8 }) {
-            Text('vless / vmess / trojan / ss 走单条导入；http(s) 走订阅导入')
-              .fontSize(10).fontColor('#999999').layoutWeight(1)
-            Button(this.busy ? '处理中…' : '导入')
-              .fontSize(12)
-              .enabled(!this.busy)
-              .onClick(() => this.doSmartImport())
-          }
-          .width('100%')
+        Column() {
+          this.importPanel()
         }
         .width('100%')
-        .padding(10)
-        .backgroundColor('#F5F5F5')
-        .borderRadius(8)
+        .padding({ left: Space.lg, right: Space.lg, bottom: Space.md })
       }
 
-      if (this.importMsg) {
-        Text(this.importMsg).fontSize(11).fontColor('#1976D2').width('100%')
+      if (this.importMsg.length > 0) {
+        Text(this.importMsg)
+          .fontSize(FontSize.bodySm)
+          .lineHeight(LineHeight.bodySm)
+          .fontColor(this.importColor())
+          .width('100%')
+          .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+          .accessibilityText(`导入结果：${this.importMsg}`)
       }
 
       // 分组筛选：只在真的有分组时出现，避免空界面上多一行无用控件
       if (this.groups.length > 0) {
-        Scroll() {
-          Row({ space: 6 }) {
-            Button('全部').fontSize(11)
-              .backgroundColor(this.groupFilter.length === 0 ? '#1976D2' : '#E0E0E0')
-              .fontColor(this.groupFilter.length === 0 ? '#FFFFFF' : '#333333')
-              .onClick(() => {
-                this.groupFilter = '';
-              })
-            ForEach(this.groups, (g: string) => {
-              Button(g).fontSize(11)
-                .backgroundColor(this.groupFilter === g ? '#1976D2' : '#E0E0E0')
-                .fontColor(this.groupFilter === g ? '#FFFFFF' : '#333333')
-                .onClick(() => {
-                  this.groupFilter = g;
-                })
-            }, (g: string) => g)
-          }
+        Column() {
+          this.groupChips()
         }
-        .scrollable(ScrollDirection.Horizontal)
         .width('100%')
+        .padding({ bottom: Space.sm })
       }
 
-      List({ space: 8 }) {
-        ForEach(this.visibleNodes(), (item: XrayNode) => {
-          ListItem() {
-            Row({ space: 8 }) {
-              Column({ space: 2 }) {
-                Row({ space: 6 }) {
-                  Text(item.name).fontSize(15)
-                    .fontWeight(item.id === this.selectedId ? FontWeight.Bold : FontWeight.Normal)
-                  if (item.group.length > 0) {
-                    Text(item.group).fontSize(10).fontColor('#5C6BC0')
-                      .padding({ left: 6, right: 6, top: 1, bottom: 1 })
-                      .backgroundColor('#E8EAF6').borderRadius(4)
-                  }
-                }
-                Text(`${item.protocol} · ${item.address}:${item.port}`).fontSize(11).fontColor('#777777')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-
-              Text('↑').fontSize(14).fontColor('#546E7A')
-                .onClick(() => {
-                  this.doMove(item.id, -1);
-                })
-              Text('↓').fontSize(14).fontColor('#546E7A')
-                .onClick(() => {
-                  this.doMove(item.id, 1);
-                })
-
-              Text(item.id === this.selectedId ? '已选中' : '选择')
-                .fontSize(12)
-                .fontColor(item.id === this.selectedId ? '#2E7D32' : '#1976D2')
-                .onClick(() => this.pick(item.id))
-
-              Text('编辑')
-                .fontSize(12)
-                .fontColor('#1976D2')
-                .onClick(() => this.openEdit(item.id))
-
-              Text('删除')
-                .fontSize(12)
-                .fontColor('#C62828')
-                .onClick(() => this.confirmDelete(item))
+      if (this.visibleNodes().length === 0) {
+        this.emptyState()
+      } else {
+        List({ space: Space.sm }) {
+          ForEach(this.visibleNodes(), (item: XrayNode) => {
+            ListItem() {
+              NodeRow({
+                nodeId: item.id,
+                name: item.name,
+                protocol: item.protocol,
+                address: item.address,
+                port: item.port,
+                group: item.group,
+                selected: item.id === this.selectedId,
+                onPick: (id: string) => this.pick(id),
+                onEdit: (id: string) => this.openEdit(id),
+                onMove: (id: string, delta: number) => this.doMove(id, delta),
+                onDelete: (id: string) => this.confirmDeleteById(id)
+              })
             }
-            .width('100%')
-            .padding(12)
-            .backgroundColor(item.id === this.selectedId ? '#E8F5E9' : '#FAFAFA')
-            .borderRadius(8)
-            .onClick(() => this.pick(item.id))
-          }
-        }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${this.cfgRev}`)
+          }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${item.id === this.selectedId}-${this.cfgRev}`)
+        }
+        .layoutWeight(1)
+        .width('100%')
+        .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
+        .scrollBar(BarState.Off)
       }
-      .layoutWeight(1)
-      .width('100%')
     }
     .width('100%')
     .height('100%')
-    .padding(16)
+    .backgroundColor($r('app.color.bg_canvas'))
   }
 }
