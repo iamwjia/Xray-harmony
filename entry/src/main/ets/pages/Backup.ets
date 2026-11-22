@@ -431,23 +431,26 @@ struct Backup {
               .width('100%')
 
             Row({ space: Space.sm }) {
+              // 「随机生成」是本页的主动作之一（口令是导出的前提），用主色；
+              // 它是二次操作，不是每屏唯一主操作（导出并分享才是），所以放在这一行里
+              // 而不是底部条里。
               Button('随机生成')
-              .backgroundColor($r('app.color.bg_chip'))
-              .fontColor($r('app.color.text_primary'))
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_chip'))
-                .fontColor($r('app.color.text_primary'))
+                .backgroundColor($r('app.color.accent'))
+                .fontColor($r('app.color.text_on_accent'))
                 .onClick(() => this.generatePassphrase())
+              // 「复制口令」在没口令时无事可做：禁用比"点了没反应"诚实。
               Button('复制口令')
-              .backgroundColor($r('app.color.bg_chip'))
-              .fontColor($r('app.color.text_primary'))
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_chip'))
-                .fontColor($r('app.color.text_primary'))
+                .enabled(this.exportPass.length > 0)
+                .backgroundColor(this.exportPass.length > 0
+                  ? $r('app.color.accent_subtle') : $r('app.color.bg_chip'))
+                .fontColor(this.exportPass.length > 0
+                  ? $r('app.color.accent') : $r('app.color.text_tertiary'))
                 .onClick(() => this.copyPassphrase())
             }
             .width('100%')

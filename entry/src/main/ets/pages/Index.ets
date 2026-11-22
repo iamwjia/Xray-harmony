@@ -59,6 +59,8 @@ struct Index {
   private cfg: ConfigService = ConfigService.getInstance();
   /** 连接成功的时刻（0 = 未连接） */
   private connectedAt: number = 0;
+  /** 连接尝试序号：用户中途取消后 +1，仍在 await 的那次尝试回来后发现自己已过期就不写状态 */
+  private attemptSeq: number = 0;
   private tickTimer: number = -1;
   /** 演示流量的累计值（只在演示模式下动） */
   private demoDown: number = 0;
@@ -283,6 +285,7 @@ struct Index {
   }
 
   private async runConnect(): Promise<void> {
+    const myAttempt: number = ++this.attemptSeq;
     // 首次连接必须先完成一次性明示：**在改状态之前**拦下，否则 UI 会先跳到“连接中”
     // 再弹窗，用户会以为已经连上了。明示确认后由 noticeOverlay 的按钮回调继续连接。
     if (!this.cfg.isOnboardingDone()) {
@@ -327,6 +330,11 @@ struct Index {
         Logger.warn(`vpn start call failed: ${VpnController.describeError(e)}`);
       });
       const st: VpnState = await VpnController.waitForState(this.ctx(), VpnController.START_TIMEOUT_MS);
+      // 用户在等待期间点了"取消"（或又发起了一次连接）：这次尝试已过期，
+      // 不能再把状态改成 ERROR —— 否则界面上会从"未连接"跳成"连接异常"。
+      if (myAttempt !== this.attemptSeq) {
+        return;
+      }
       this.busyHint = '';
       if (st.state === 'running') {
         this.vm.onKernelConnected();
@@ -338,6 +346,10 @@ struct Index {
       }
       this.refreshAll();
     } catch (err) {
+      if (myAttempt !== this.attemptSeq) {
+        // 这次尝试已被用户取消（或已被新的尝试取代）：错误属于废弃的流程，直接丢弃
+        return;
+      }
       const msg: string = VpnController.describeError(err as Object);
       this.busyHint = '';
       this.vm.onKernelError(msg);
@@ -350,6 +362,12 @@ struct Index {
   }
 
   private doDisconnect(): void {
+    const wasConnecting: boolean = this.view.busy;
+    if (wasConnecting) {
+      // 作废仍在进行的那次连接尝试，并说明"这是用户主动取消"而不是失败
+      this.attemptSeq++;
+      EventLog.push(1, '已取消连接（用户在启动过程中中止）');
+    }
     this.busyHint = '正在断开…';
     // 应用侧只能“请求”停止；真正的收尾（停转发 → 停内核 → 销 tun）在扩展进程里
     VpnController.stop('com.tunnelix.app', 'MyVpnExtAbility')
@@ -360,9 +378,15 @@ struct Index {
         this.refreshAll();
       })
       .catch((err: Object) => {
+        // 断开失败 ≠ 连接异常：用户是来断的，把它标成 ERROR 会让人以为连接出了问题
         const msg: string = VpnController.describeError(err);
         this.busyHint = '';
-        this.vm.onKernelError(msg);
+        this.vm.requestDisconnect();
+        // 正在启动时点取消，stop 本来就可能失败（进程还没建起来）——那是预期路径，
+        // 记成红色错误只会让用户以为出了问题；只有"已连上后再断开失败"才值得记。
+        if (!wasConnecting) {
+          EventLog.push(2, `断开时出错：${msg}`);
+        }
         this.refreshAll();
       });
   }
