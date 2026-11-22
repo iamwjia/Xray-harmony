@@ -608,6 +608,7 @@ struct Subscriptions {
       if (this.showAdd) {
         Column({ space: Space.sm }) {
           TextInput({ placeholder: '粘贴 http(s) 订阅地址', text: $$this.addInput })
+            .border({ width: 1, color: $r('app.color.border_input') })
             .fontSize(FontSize.bodySm)
             .height(Height.input)
             .onSubmit(() => {

@@ -275,18 +275,21 @@ struct NodeEdit {
         Column({ space: 10 }) {
           Text('名称').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.name }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.name = v;
             })
 
           Text('服务器地址').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.address }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.address = v;
             })
 
           Text('端口').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.port }).fontSize(FontSize.bodySm).type(InputType.Number)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.port = v;
             })
@@ -317,6 +320,7 @@ struct NodeEdit {
             // 与输入框同款浅底：白底在浅色页面里等于"看不见的控件"
             .backgroundColor($r('app.color.bg_chip'))
             .borderRadius(Radius.panel)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onSelect((index: number, value: string) => {
               this.transportIdx = index;
             })
@@ -337,30 +341,35 @@ struct NodeEdit {
 
           Text('SNI / serverName').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           TextInput({ text: $$this.serverName }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.serverName = v;
             })
 
           Text('WS 路径').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.wsPath }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.wsPath = v;
             })
 
           Text('WS Host').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.wsHost }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.wsHost = v;
             })
 
           Text('gRPC 服务名').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.grpcService }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.grpcService = v;
             })
 
           Text('flow（vless 可选）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           TextInput({ text: $$this.flow }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.flow = v;
             })
@@ -368,18 +377,21 @@ struct NodeEdit {
           // REALITY 参数：缺 publicKey 时握手必然失败，且内核不会在 parse 阶段报错
           Text('REALITY 公钥 publicKey（pbk）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           TextInput({ text: $$this.publicKey }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.publicKey = v;
             })
 
           Text('REALITY shortId（sid，可空）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           TextInput({ text: $$this.shortId }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.shortId = v;
             })
 
           Text('uTLS 指纹 fp（留空默认 chrome）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
           TextInput({ text: $$this.fingerprint }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.fingerprint = v;
             })
@@ -397,12 +409,14 @@ struct NodeEdit {
               })
           }
           TextInput({ text: $$this.group, placeholder: '输入新组名会覆盖上面的选择' }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.group = v;
             })
 
           Text('备注').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').maxLines(1)
           TextInput({ text: $$this.remark }).fontSize(FontSize.bodySm)
+            .border({ width: 1, color: $r('app.color.border_input') })
             .onChange((v: string) => {
               this.remark = v;
             })
@@ -410,6 +424,7 @@ struct NodeEdit {
           Column({ space: 4 }) {
             Text('凭据（UUID / 密码）').fontSize(FontSize.bodySm).fontColor($r('app.color.text_secondary')).width('100%').lineHeight(LineHeight.bodySm)
             TextInput({ placeholder: '留空表示不修改；填写则覆盖安全存储中的凭据', text: this.credentialInput })
+              .border({ width: 1, color: $r('app.color.border_input') })
               .fontSize(FontSize.bodySm)
               .type(InputType.Password)
               .onChange((v: string) => {

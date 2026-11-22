@@ -430,6 +430,7 @@ struct Backup {
             // 口令框必须用 $$ 双向绑定：@Builder 里的 `text: value` 只在首次渲染生效，
             // "随机生成"把值写进 @State 后，输入框不会重绘（用户看到的是"点了没反应"）。
             TextInput({ placeholder: '设置备份口令（至少 8 位）', text: $$this.exportPass })
+              .border({ width: 1, color: $r('app.color.border_input') })
               .type(InputType.Password)
               .height(Height.input)
               .fontSize(FontSize.body)
@@ -440,6 +441,7 @@ struct Backup {
                 this.exportPass = v;
               })
             TextInput({ placeholder: '再输一次', text: $$this.exportPass2 })
+              .border({ width: 1, color: $r('app.color.border_input') })
               .type(InputType.Password)
               .height(Height.input)
               .fontSize(FontSize.body)
@@ -566,6 +568,7 @@ struct Backup {
 
             // 同样用 $$：恢复页虽然不是"一键生成"，但输入后程序回填（如清空重填）也得刷新
             TextInput({ placeholder: '输入备份口令', text: $$this.importPass })
+              .border({ width: 1, color: $r('app.color.border_input') })
               .type(InputType.Password)
               .height(Height.input)
               .fontSize(FontSize.body)

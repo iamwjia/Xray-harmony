@@ -376,6 +376,7 @@ struct Nodes {
         .placeholderColor($r('app.color.text_tertiary'))
         .backgroundColor($r('app.color.bg_surface'))
         .borderRadius(Radius.panel)
+        .border({ width: 1, color: $r('app.color.border_input') })
         .onChange((v: string) => {
           this.importInput = v;
         })

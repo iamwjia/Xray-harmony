@@ -175,6 +175,10 @@
     {
       "name": "success_subtle",
       "value": "#E7F5EC"
+    },
+    {
+      "name": "border_input",
+      "value": "#A8AFB9"
     }
   ]
 }

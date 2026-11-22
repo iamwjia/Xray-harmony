@@ -264,6 +264,7 @@ struct RoutingRules {
 
         Row({ space: 8 }) {
           TextInput({ placeholder: '例如 example.com / keyword:google / 10.0.0.0/8', text: this.newPattern })
+            .border({ width: 1, color: $r('app.color.border_input') })
             .fontSize(FontSize.bodySm)
             .layoutWeight(1)
             .onChange((v: string) => {
