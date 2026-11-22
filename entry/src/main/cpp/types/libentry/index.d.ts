@@ -25,7 +25,7 @@ export const probeHostHttp: (host: string, port: number, path: string) => string
 export const probeSocksThroughKernel: (socksPort: number, user: string, pass: string,
   targetHost: string, targetPort: number, path: string) => string;
 
-// ×ª·¢½ÓÏß£º°Ñ tun fd ½»¸ø tun2socks£¨ÊµÏÖÎ»ÓÚºÏ²¢¿â£¬±¾²ãÖ»×ö dlsym µ÷ÓÃ£©¡£
-// ±ØÐëÔÚ´´½¨ tun µÄÄÇ¸ö½ø³Ì£¨VPN À©Õ¹½ø³Ì£©Àïµ÷ÓÃ£»·µ»Ø JSON {success,error}¡£
+// è½¬å‘æŽ¥çº¿ï¼šæŠŠ tun fd äº¤ç»™ tun2socksï¼ˆå®žçŽ°ä½äºŽåˆå¹¶åº“ï¼Œæœ¬å±‚åªåš dlsym è°ƒç”¨ï¼‰ã€‚
+// å¿…é¡»åœ¨åˆ›å»º tun çš„é‚£ä¸ªè¿›ç¨‹ï¼ˆVPN æ‰©å±•è¿›ç¨‹ï¼‰é‡Œè°ƒç”¨ï¼›è¿”å›ž JSON {success,error}ã€‚
 export const startForwarding: (tunFd: number, socksUrl: string) => string;
 export const stopForwarding: () => string;

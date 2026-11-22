@@ -177,12 +177,12 @@ EXIT=0
 
 ---
 
-## M5£ºGo `.so` ÔÚ OHOS ½ø³ÌÄÚÊµ²â£¨E7£©
+## M5ï¼šGo `.so` åœ¨ OHOS è¿›ç¨‹å†…å®æµ‹ï¼ˆE7ï¼‰
 
-> Ä¿±ê£ºÖ¤Ã÷ **Go runtime ÄÜÔÚ OHOS Ó¦ÓÃ½ø³ÌÄÚ³õÊ¼»¯²¢Ö´ĞĞ cgo µ÷ÓÃ**£¨`P-03` ºËĞÄ¼ÙÉè£©£¬ÓÃ x86_64 Ä£ÄâÆ÷¼´¿É£¬ÎŞĞèÕæ»ú¡£
-> ½áÂÛ£º**âœ…\ ³ÉÁ¢**£¨`buildtag=openharmony` + `cside=cgoping-c-side-ok`£©£¬²¢Ë³´ø²È³öÁ½Ìõ»á¿ÓËÀºóÀ´ÕßµÄÓ²¹æÔò¡£
+> ç›®æ ‡ï¼šè¯æ˜ **Go runtime èƒ½åœ¨ OHOS åº”ç”¨è¿›ç¨‹å†…åˆå§‹åŒ–å¹¶æ‰§è¡Œ cgo è°ƒç”¨**ï¼ˆ`P-03` æ ¸å¿ƒå‡è®¾ï¼‰ï¼Œç”¨ x86_64 æ¨¡æ‹Ÿå™¨å³å¯ï¼Œæ— éœ€çœŸæœºã€‚
+> ç»“è®ºï¼š**é‰åŒ¼ æˆç«‹**ï¼ˆ`buildtag=openharmony` + `cside=cgoping-c-side-ok`ï¼‰ï¼Œå¹¶é¡ºå¸¦è¸©å‡ºä¸¤æ¡ä¼šå‘æ­»åæ¥è€…çš„ç¡¬è§„åˆ™ã€‚
 
-### 1. ¹¹½¨£¨`toolchain/build-cgoping.ps1 -Arch x86_64`£©
+### 1. æ„å»ºï¼ˆ`toolchain/build-cgoping.ps1 -Arch x86_64`ï¼‰
 
 ```
 Arch   : x86_64  (GOARCH=amd64, ABI=x86_64, triple=x86_64-linux-ohos)
@@ -195,13 +195,13 @@ Validation (llvm-readelf):
 SONAME: [libcgoping.so]
 ```
 
-½Å±¾ÒÑÄÚÖÃ£º`-Arch arm64|x86_64`¡¢version-script¡¢SONAME¡¢ËÄÑé£¨°´¼Ü¹¹Ñ¡ `R_AARCH64_TLSDESC` / `R_X86_64_TLSDESC`£©¡£
+è„šæœ¬å·²å†…ç½®ï¼š`-Arch arm64|x86_64`ã€version-scriptã€SONAMEã€å››éªŒï¼ˆæŒ‰æ¶æ„é€‰ `R_AARCH64_TLSDESC` / `R_X86_64_TLSDESC`ï¼‰ã€‚
 
-### 2. ×°½øÓ¦ÓÃ²¢ÕæÊµµã»÷£¨Ä£ÄâÆ÷ `127.0.0.1:5555`£¬API 26£©
+### 2. è£…è¿›åº”ç”¨å¹¶çœŸå®ç‚¹å‡»ï¼ˆæ¨¡æ‹Ÿå™¨ `127.0.0.1:5555`ï¼ŒAPI 26ï¼‰
 
-HAP ÄÚÈ·ÈÏ£º`libs/x86_64/libcgoping.so`£¨1,379,976 B£¬strip ºó£©+ `libentry.so` µÄ `DT_NEEDED` Îª `libcgoping.so`£¨**²»ÊÇ¾ø¶ÔÂ·¾¶**£©¡£
+HAP å†…ç¡®è®¤ï¼š`libs/x86_64/libcgoping.so`ï¼ˆ1,379,976 Bï¼Œstrip åï¼‰+ `libentry.so` çš„ `DT_NEEDED` ä¸º `libcgoping.so`ï¼ˆ**ä¸æ˜¯ç»å¯¹è·¯å¾„**ï¼‰ã€‚
 
-`uitest dumpLayout` ¡ú `M5: call Go CGoPing() :: [116,1159][1200,1299]` ¡ú `uitest uiInput click 658 1229`£º
+`uitest dumpLayout` â†’ `M5: call Go CGoPing() :: [116,1159][1200,1299]` â†’ `uitest uiInput click 658 1229`ï¼š
 
 ```
 10-18 12:54:18.371 20363 20363 I A00001/XVPN_POC: M5 clicked
@@ -210,32 +210,32 @@ HAP ÄÚÈ·ÈÏ£º`libs/x86_64/libcgoping.so`£¨1,379,976 B£¬strip ºó£©+ `libentry.so` 
   "buildtag":"openharmony","cside":"cgoping-c-side-ok"}}
 ```
 
-½ø³Ì´æ»î£¨`ps` ÓĞ PID 20363£©£¬**ÎŞ SIGSEGV**¡£
+è¿›ç¨‹å­˜æ´»ï¼ˆ`ps` æœ‰ PID 20363ï¼‰ï¼Œ**æ—  SIGSEGV**ã€‚
 
-### 3. ÅĞ¶¨
+### 3. åˆ¤å®š
 
-| ¼ì²é | ½áÂÛ |
+| æ£€æŸ¥ | ç»“è®º |
 |---|---|
-| `dlopen("libcgoping.so")` ³É¹¦ | âœ…£¨ÈÕÖ¾ÎŞ\ dlopen Ê§°Ü·ÖÖ§£© |
-| `dlsym("CGoPing")` / `dlsym("CGoFree")` | âœ…£¨µ÷ÓÃ³É¹¦¡¢·µ»ØÖµ±»\ `CGoFree` ÊÍ·ÅºóÈÔÕıÈ·£© |
-| Go runtime ÔÚ OHOS ½ø³ÌÄÚ³õÊ¼»¯ | âœ…£¨ÄÜ·µ»Ø\ `runtime.GOARCH=amd64` µÈÔËĞĞÊ±ĞÅÏ¢£© |
-| È·ÊµÓÃ OHOS fork ±àÒë | âœ…\ `buildtag=openharmony`£¨`//go:build openharmony` Ì½Õë£© |
-| C¡úGo¡úC Ë«Ïòµ÷ÓÃÁ´ | âœ…\ `cside=cgoping-c-side-ok`£¨Go ²àµ÷ÓÃ C ²à `c_side_marker()`£© |
-| ±ÀÀ£ | âŒ\ ÎŞ |
+| `dlopen("libcgoping.so")` æˆåŠŸ | é‰å„ã„ˆç½©ç–šè½¡ dlopen å¤±è´¥åˆ†æ”¯ï¼‰ |
+| `dlsym("CGoPing")` / `dlsym("CGoFree")` | é‰å„Ç–é¥”è´¸æ™’Î‘â’ç¥·åˆ‚å½“ç±  `CGoFree` é‡Šæ”¾åä»æ­£ç¡®ï¼‰ |
+| Go runtime ï¿½ï¿½ OHOS ï¿½ï¿½ï¿½ï¿½ï¿½Ú³ï¿½Ê¼ï¿½ï¿½ | âœ…ï¿½ï¿½ï¿½Ü·ï¿½ï¿½ï¿½\ `runtime.GOARCH=amd64` ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Ï¢ï¿½ï¿½ |
+| ç¡®å®ç”¨ OHOS fork ç¼–è¯‘ | é‰åŒ¼ `buildtag=openharmony`ï¼ˆ`//go:build openharmony` æ¢é’ˆï¼‰ |
+| Câ†’Goâ†’C åŒå‘è°ƒç”¨é“¾ | é‰åŒ¼ `cside=cgoping-c-side-ok`ï¼ˆGo ä¾§è°ƒç”¨ C ä¾§ `c_side_marker()`ï¼‰ |
+| å´©æºƒ | é‰‚å­¿ æ—  |
 
-â‡’\ **`P-03` Ç°°ë£¨so ¼ÓÔØ + Go runtime ³õÊ¼»¯ + cgo µ÷ÓÃ£©ÔÚ OHOS ÉÏ³ÉÁ¢¡£**
+éˆ¬æŠƒ **`P-03` å‰åŠï¼ˆso åŠ è½½ + Go runtime åˆå§‹åŒ– + cgo è°ƒç”¨ï¼‰åœ¨ OHOS ä¸Šæˆç«‹ã€‚**
 
 ---
 
-## âš \ï¸\ M5 ²È³öÀ´µÄÁ½ÌõÓ²¹æÔò£¨±È"ÄÜ±à³ö so"¸üÈİÒ×¿ÓÈË£©
+## éˆ¿ç‡¶é””å»« M5 è¸©å‡ºæ¥çš„ä¸¤æ¡ç¡¬è§„åˆ™ï¼ˆæ¯”"èƒ½ç¼–å‡º so"æ›´å®¹æ˜“å‘äººï¼‰
 
-### ¹æÔò A£º`runtime.GOOS` **²»ÄÜ**ÓÃÀ´ÅĞ¶ÏÊÇ·ñÓÃÁË OHOS fork
-¸Ã fork ¶Ô `openharmony` Ä¿±ê**ºã¶¨ÉÏ±¨** `GOOS == "linux"`£º
+### è§„åˆ™ Aï¼š`runtime.GOOS` **ä¸èƒ½**ç”¨æ¥åˆ¤æ–­æ˜¯å¦ç”¨äº† OHOS fork
+è¯¥ fork å¯¹ `openharmony` ç›®æ ‡**æ’å®šä¸ŠæŠ¥** `GOOS == "linux"`ï¼š
 
 ```go
 // src/internal/goos/gengoos.go
 if target == "openharmony" {
-    fmt.Fprintf(&buf, "const GOOS = `linux`\n\n")   // ¡û ¿ÌÒâÈç´Ë
+    fmt.Fprintf(&buf, "const GOOS = `linux`\n\n")   // â† åˆ»æ„å¦‚æ­¤
 }
 
 // src/internal/goos/zgoos_openharmony.go
@@ -243,53 +243,53 @@ const GOOS = `linux`
 const IsOpenharmony = 1
 ```
 
-â‡’\ ¿´µ½ `goos=linux` **²»´ú±í¹¤¾ßÁ´ÓÃ´í**¡£Î¨Ò»¿É¿¿ÅĞ¾İÊÇ `//go:build openharmony` ±àÒë±êÇ©Ì½Õë£¨`toolchain/smoke/tag_openharmony.go` ¡ú ·µ»ØÖµ `buildtag` ×Ö¶Î£©¡£
-**ÕâÌõÈô²»Ğ´Çå£¬»á°ÑÕıÈ·¹¹½¨ÎóÅĞÎª´íÎó£¬È»ºóÈÃÈËÈ¥»»¹¤¾ßÁ´°×ÕÛÌÚ¡£**
+éˆ¬æŠƒ çœ‹åˆ° `goos=linux` **ä¸ä»£è¡¨å·¥å…·é“¾ç”¨é”™**ã€‚å”¯ä¸€å¯é åˆ¤æ®æ˜¯ `//go:build openharmony` ç¼–è¯‘æ ‡ç­¾æ¢é’ˆï¼ˆ`toolchain/smoke/tag_openharmony.go` â†’ è¿”å›å€¼ `buildtag` å­—æ®µï¼‰ã€‚
+**è¿™æ¡è‹¥ä¸å†™æ¸…ï¼Œä¼šæŠŠæ­£ç¡®æ„å»ºè¯¯åˆ¤ä¸ºé”™è¯¯ï¼Œç„¶åè®©äººå»æ¢å·¥å…·é“¾ç™½æŠ˜è…¾ã€‚**
 
-### ¹æÔò B£ºÔ¤¹¹½¨ `.so` ±ØĞëÉè SONAME£¬ÇÒ±ØĞë·ÅÔÚ `libs/<abi>/`
-Êµ²âÁ½´ÎÊ§°Ü£¬¸÷×ÔÏÖÏó²»Í¬£º
+### è§„åˆ™ Bï¼šé¢„æ„å»º `.so` å¿…é¡»è®¾ SONAMEï¼Œä¸”å¿…é¡»æ”¾åœ¨ `libs/<abi>/`
+å®æµ‹ä¸¤æ¬¡å¤±è´¥ï¼Œå„è‡ªç°è±¡ä¸åŒï¼š
 
-1. **²»Éè SONAME**£ºÁ´½ÓÆ÷°Ñ**¹¹½¨ÆÚ¾ø¶ÔÂ·¾¶**Ğ´½ø `libentry.so` µÄ `DT_NEEDED`£¬°²×°ºóÆô¶¯¼´Ê§°Ü£º
+1. **ä¸è®¾ SONAME**ï¼šé“¾æ¥å™¨æŠŠ**æ„å»ºæœŸç»å¯¹è·¯å¾„**å†™è¿› `libentry.so` çš„ `DT_NEEDED`ï¼Œå®‰è£…åå¯åŠ¨å³å¤±è´¥ï¼š
    ```
    W MMG: key:default/entry First: failed Error loading shared library
    D:/projects/xray-harmony/entry/src/main/cpp/../libs/x86_64/libcgoping.so:
    (needed by /data/storage/el1/bundle/libs/x86_64/libentry.so)
    ```
-   â‡’\ ¼Ó `CGO_LDFLAGS=... -Wl,-soname,libcgoping.so` ºóÕı³££¨`DT_NEEDED` ±äÎª `libcgoping.so`£©¡£
-2. **ÊÔÍ¼´ÓÓ¦ÓÃË½ÓĞÄ¿Â¼ `dlopen` ¾ø¶ÔÂ·¾¶**£¨ÏÈ°Ñ so ·Å rawfile ÔÙÊÍ·Åµ½ `files/native/`£©£º
+   éˆ¬æŠƒ åŠ  `CGO_LDFLAGS=... -Wl,-soname,libcgoping.so` åæ­£å¸¸ï¼ˆ`DT_NEEDED` å˜ä¸º `libcgoping.so`ï¼‰ã€‚
+2. **è¯•å›¾ä»åº”ç”¨ç§æœ‰ç›®å½• `dlopen` ç»å¯¹è·¯å¾„**ï¼ˆå…ˆæŠŠ so æ”¾ rawfile å†é‡Šæ”¾åˆ° `files/native/`ï¼‰ï¼š
    ```
    M5 dlopen FAILED: [arg:/data/storage/el2/base/haps/entry/files/native/libcgoping.so]
    Error loading shared library ...: No error information
    ```
-   â‡’\ **É³Ïä/¹ÒÔØÏŞÖÆ£ºÓ¦ÓÃ files Ä¿Â¼ÏÂµÄ .so ²»¿É dlopen**£¨`No error information` ÊÇµäĞÍµÄÎŞÖ´ĞĞÈ¨ÏŞ/±»¾Ü±íÏÖ£©¡£
-   â‡’\ Î¨Ò»¿ÉĞĞÎ»ÖÃÊÇËæ°ü·Ö·¢µÄ `libs/<abi>/`£¨`/data/storage/el1/bundle/libs/<abi>/`£©¡£
+   éˆ¬æŠƒ **æ²™ç®±/æŒ‚è½½é™åˆ¶ï¼šåº”ç”¨ files ç›®å½•ä¸‹çš„ .so ä¸å¯ dlopen**ï¼ˆ`No error information` æ˜¯å…¸å‹çš„æ— æ‰§è¡Œæƒé™/è¢«æ‹’è¡¨ç°ï¼‰ã€‚
+   éˆ¬æŠƒ å”¯ä¸€å¯è¡Œä½ç½®æ˜¯éšåŒ…åˆ†å‘çš„ `libs/<abi>/`ï¼ˆ`/data/storage/el1/bundle/libs/<abi>/`ï¼‰ã€‚
 
-> ¸½´ø½áÂÛ£º**hvigor Ö»´ò°ü²ÎÓë CMake Á´½ÓÍ¼µÄ .so**¡£Î´Á´½ÓµÄÔ¤¹¹½¨¿â¼´Ê¹·ÅÔÚ `libs/<abi>/` Ò²²»»á½ø HAP£¨Êµ²â HAP ÄÚÖ»ÓĞ `libc++_shared.so`/`libentry.so`/`libprebuilt.so`£©¡£ÒªÈÃËü½ø°ü£¬±ØĞë `add_library(... SHARED IMPORTED)` + `target_link_libraries`£¨±¾ÏîÄ¿µÄ `prebuilt` Óë `cgoping` ¾ùÈç´Ë£©¡£ÔËĞĞÊ±ÈÔ¿ÉÓÃ `dlopen`+`dlsym` µ÷ÓÃ£¬Ö¤¾İÓïÒå²»ÊÜÓ°Ïì¡£
+> é™„å¸¦ç»“è®ºï¼š**hvigor åªæ‰“åŒ…å‚ä¸ CMake é“¾æ¥å›¾çš„ .so**ã€‚æœªé“¾æ¥çš„é¢„æ„å»ºåº“å³ä½¿æ”¾åœ¨ `libs/<abi>/` ä¹Ÿä¸ä¼šè¿› HAPï¼ˆå®æµ‹ HAP å†…åªæœ‰ `libc++_shared.so`/`libentry.so`/`libprebuilt.so`ï¼‰ã€‚è¦è®©å®ƒè¿›åŒ…ï¼Œå¿…é¡» `add_library(... SHARED IMPORTED)` + `target_link_libraries`ï¼ˆæœ¬é¡¹ç›®çš„ `prebuilt` ä¸ `cgoping` å‡å¦‚æ­¤ï¼‰ã€‚è¿è¡Œæ—¶ä»å¯ç”¨ `dlopen`+`dlsym` è°ƒç”¨ï¼Œè¯æ®è¯­ä¹‰ä¸å—å½±å“ã€‚
 
-## M5 ²ú³öÇåµ¥
+## M5 äº§å‡ºæ¸…å•
 
-| ÎÄ¼ş | ËµÃ÷ |
+| æ–‡ä»¶ | è¯´æ˜ |
 |---|---|
-| `toolchain/build-cgoping.ps1` | Ò»¼ü¹¹½¨ + ËÄÑé£¨º¬ SONAME¡¢version-script¡¢Á½¿Ó×¢ÊÍ£© |
-| `toolchain/smoke/go.mod` / `tag_openharmony.go` / `tag_default.go` | fork ÅĞ±ğÌ½Õë£¨build tag£© |
-| `entry/src/main/libs/x86_64/libcgoping.so` | x86_64 ²úÎï£¨SONAME ÒÑÉè£© |
-| `entry/src/main/cpp/cgo_bridge.cpp` | NAPI °ó¶¨£ºdlopen + dlsym + µ÷ÓÃ + `CGoFree` |
-| `entry/src/main/cpp/napi_init.cpp` / `CMakeLists.txt` | ×¢²á `m5CGoPing`¡¢¹ÒÔØ `cgoping` ²ÎÓë´ò°ü |
-| `entry/src/main/ets/pages/Index.ets` | µÚ 4 ¸ö°´Å¥ `M5: call Go CGoPing()` |
+| `toolchain/build-cgoping.ps1` | ä¸€é”®æ„å»º + å››éªŒï¼ˆå« SONAMEã€version-scriptã€ä¸¤å‘æ³¨é‡Šï¼‰ |
+| `toolchain/smoke/go.mod` / `tag_openharmony.go` / `tag_default.go` | fork åˆ¤åˆ«æ¢é’ˆï¼ˆbuild tagï¼‰ |
+| `entry/src/main/libs/x86_64/libcgoping.so` | x86_64 äº§ç‰©ï¼ˆSONAME å·²è®¾ï¼‰ |
+| `entry/src/main/cpp/cgo_bridge.cpp` | NAPI ç»‘å®šï¼šdlopen + dlsym + è°ƒç”¨ + `CGoFree` |
+| `entry/src/main/cpp/napi_init.cpp` / `CMakeLists.txt` | æ³¨å†Œ `m5CGoPing`ã€æŒ‚è½½ `cgoping` å‚ä¸æ‰“åŒ… |
+| `entry/src/main/ets/pages/Index.ets` | ç¬¬ 4 ä¸ªæŒ‰é’® `M5: call Go CGoPing()` |
 
 ---
 
-## ½áÂÛ±ß½ç£¨±Ø¶Á£¬·ÀÖ¹°Ñ½áÂÛËµ¹ıÍ·£©
+## ç»“è®ºè¾¹ç•Œï¼ˆå¿…è¯»ï¼Œé˜²æ­¢æŠŠç»“è®ºè¯´è¿‡å¤´ï¼‰
 
-- M5 µÄÖ¤¾İÀ´×Ô **x86_64 Ä£ÄâÆ÷£¨API 26£©**£¬¾İ´Ë¿ÉÈ·ÈÏ£º**Go runtime ÄÜÔÚ OHOS Ó¦ÓÃ½ø³ÌÄÚ³õÊ¼»¯²¢Íê³É cgo µ÷ÓÃ**£¨º¬ C¡úGo¡úC Ë«Ïò£©¡£
-- **arm64 Õæ»úÈÔÎ´ÑéÖ¤**£º`P-03` Ö»Ëã**¾Ö²¿Ö¤Êµ**¡£Õæ»úĞèÖØÅÜÍ¬Ò»Á´Â·£¨arm64 `libcgoping.so` + Í¬Ò»µã»÷¶¯×÷£©£¬²¢¶îÍâ¹Ø×¢ fork µÄ TLSDESC/ĞÅºÅ´¦ÀíÔÚÕæÊµ ABI ÏÂµÄ±íÏÖ¡£
-- Òò´Ë±¾½áÂÛ**²»ÄÜ**ÍâÍÆÎª¡¸Xray-core ÔÚ OHOS Õæ»ú¿ÉÓÃ¡¹¡ª¡ªÄÇĞèÒª `P-02`£¨±à libXray£©+ Õæ»ú¼ÓÔØµ÷ÓÃ²ÅÄÜ¶¨ÂÛ¡£
+- M5 çš„è¯æ®æ¥è‡ª **x86_64 æ¨¡æ‹Ÿå™¨ï¼ˆAPI 26ï¼‰**ï¼Œæ®æ­¤å¯ç¡®è®¤ï¼š**Go runtime èƒ½åœ¨ OHOS åº”ç”¨è¿›ç¨‹å†…åˆå§‹åŒ–å¹¶å®Œæˆ cgo è°ƒç”¨**ï¼ˆå« Câ†’Goâ†’C åŒå‘ï¼‰ã€‚
+- **arm64 çœŸæœºä»æœªéªŒè¯**ï¼š`P-03` åªç®—**å±€éƒ¨è¯å®**ã€‚çœŸæœºéœ€é‡è·‘åŒä¸€é“¾è·¯ï¼ˆarm64 `libcgoping.so` + åŒä¸€ç‚¹å‡»åŠ¨ä½œï¼‰ï¼Œå¹¶é¢å¤–å…³æ³¨ fork çš„ TLSDESC/ä¿¡å·å¤„ç†åœ¨çœŸå® ABI ä¸‹çš„è¡¨ç°ã€‚
+- å› æ­¤æœ¬ç»“è®º**ä¸èƒ½**å¤–æ¨ä¸ºã€ŒXray-core åœ¨ OHOS çœŸæœºå¯ç”¨ã€â€”â€”é‚£éœ€è¦ `P-02`ï¼ˆç¼– libXrayï¼‰+ çœŸæœºåŠ è½½è°ƒç”¨æ‰èƒ½å®šè®ºã€‚
 
-## ¸½£ºÈıÌõ¹¤¾ß²ã×¢ÒâÊÂÏî
+## é™„ï¼šä¸‰æ¡å·¥å…·å±‚æ³¨æ„äº‹é¡¹
 
-1. **²»ÄÜÓÃ `runtime.GOOS` ÅĞ¶ÏÊÇ·ñÓÃÁË OHOS fork**£¨fork ¶Ô openharmony Ä¿±êºãÎª `linux`£©¡ª¡ªÖ»ÄÜÓÃ `//go:build openharmony` ±àÒë±êÇ©Ì½Õë¡£
-2. **NDK µÄ `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` ÊÇ 171 ×Ö½ÚµÄ `#!/bin/sh` ½Å±¾**£¬Windows ²»ÄÜÖ´ĞĞ£»±ØĞë¸ÄÓÃ `clang.exe` + `-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`¡£
-3. **`hdc hilog` ÊÇÁ÷Ê½µÄ**£¨»áÒ»Ö±¸ú×ÅÉè±¸ÈÕÖ¾Ë¢£©£¬Òª¿´ÒÑ²úÉúµÄ»º³åÓÃ `hdc shell hilog -x`£¨»òÏÈ `hilog -r` Çå¿ÕÔÙ¸´ÏÖ£©¡£
+1. **ä¸èƒ½ç”¨ `runtime.GOOS` åˆ¤æ–­æ˜¯å¦ç”¨äº† OHOS fork**ï¼ˆfork å¯¹ openharmony ç›®æ ‡æ’ä¸º `linux`ï¼‰â€”â€”åªèƒ½ç”¨ `//go:build openharmony` ç¼–è¯‘æ ‡ç­¾æ¢é’ˆã€‚
+2. **NDK çš„ `aarch64-unknown-linux-ohos-clang` / `x86_64-unknown-linux-ohos-clang` æ˜¯ 171 å­—èŠ‚çš„ `#!/bin/sh` è„šæœ¬**ï¼ŒWindows ä¸èƒ½æ‰§è¡Œï¼›å¿…é¡»æ”¹ç”¨ `clang.exe` + `-target <triple> --sysroot=<ndk>/sysroot -D__MUSL__`ã€‚
+3. **`hdc hilog` æ˜¯æµå¼çš„**ï¼ˆä¼šä¸€ç›´è·Ÿç€è®¾å¤‡æ—¥å¿—åˆ·ï¼‰ï¼Œè¦çœ‹å·²äº§ç”Ÿçš„ç¼“å†²ç”¨ `hdc shell hilog -x`ï¼ˆæˆ–å…ˆ `hilog -r` æ¸…ç©ºå†å¤ç°ï¼‰ã€‚
 
 ---
 

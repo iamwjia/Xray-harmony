@@ -36,6 +36,9 @@ try {
     # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
     & $node 'scripts\check-text-style.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }
+    # 编码闸门：文本文件必须是合法 UTF-8（用 shell here-doc 追加中文会写成 GBK，编译不报错）
+    & $node 'scripts\check-encoding.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'check-encoding' }
 } finally { Pop-Location }
 
 # 2) 编译：arm64 是发布目标，顺带做 ArkTS 全量类型检查
