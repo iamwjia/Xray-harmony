@@ -334,14 +334,6 @@ struct Index {
           })
       }
       .width('100%')
-
-      Button('开发者面板（PoC 探针）').width('100%')
-        .backgroundColor('#455A64')
-        .onClick(() => {
-          router.pushUrl({ url: 'pages/DevPanel' }).catch((e: Error) => {
-            Logger.error(`nav DevPanel failed: ${e.message}`);
-          });
-        })
     }
     .width('100%')
     .height('100%')

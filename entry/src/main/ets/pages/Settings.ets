@@ -4,6 +4,7 @@ import { RoutingMode } from '../model/AppConfig';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelService } from '../service/KernelService';
 import { common } from '@kit.AbilityKit';
+import { PageHeader } from '../components/PageHeader';
 
 /**
  * pages/Settings.ets — 设置（最小项：日志级别 / 关于）
@@ -139,13 +140,17 @@ struct Settings {
   }
 
   build() {
-    Column({ space: 16 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(12)
-          .onClick(() => {
+    // 可滚：设置项已经多到一屏放不下，包在 Column 里会把底部（geo / 开发者选项）裁掉，
+    // 那样"入口存在但点不到"比没有入口更糟。
+    Scroll() {
+      Column({ space: 16 }) {
+      Row() {
+        PageHeader({
+          title: '设置',
+          onBack: () => {
             router.back();
-          })
-        Text('设置').fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1)
+          }
+        })
       }
       .width('100%')
 
@@ -281,10 +286,35 @@ struct Settings {
       .backgroundColor('#FAFAFA')
       .borderRadius(8)
 
-      Blank()
+      Column({ space: 4 }) {
+        Text('开发者选项')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+        Text('失败路径探针、内核与应用状态。正常使用不需要进来。')
+          .fontSize(12)
+          .fontColor('#777777')
+        Button('打开开发者面板')
+          .fontSize(12)
+          .width('100%')
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/DevPanel' }).catch((e: Error) => {
+              this.persistError = `打开开发者面板失败：${e.message}`;
+            });
+          })
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .padding(12)
+      .backgroundColor('#FAFAFA')
+      .borderRadius(8)
+      }
+      .width('100%')
+      .padding(16)
     }
     .width('100%')
     .height('100%')
-    .padding(16)
+    .align(Alignment.Top)
+    .scrollBar(BarState.Off)
+    .backgroundColor($r('app.color.bg_canvas'))
   }
 }
