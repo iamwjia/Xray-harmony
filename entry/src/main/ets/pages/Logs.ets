@@ -246,13 +246,13 @@ struct Logs {
               Column({ space: Space.xxs }) {
                 Row({ space: Space.xs }) {
                   Text(e.level)
-                    .fontSize(FontSize.fontChip)
-                    .lineHeight(LineHeight.fontChip)
-                    .fontWeight(FontWeight.Medium)
+                    .fontSize(FontSize.caption)
+                    .lineHeight(LineHeight.caption)
+                    .fontWeight(FontWeight.Bold)
                     .fontColor(this.levelColor(e.level))
                   Text(e.time)
-                    .fontSize(FontSize.fontChip)
-                    .lineHeight(LineHeight.fontChip)
+                    .fontSize(FontSize.caption)
+                    .lineHeight(LineHeight.caption)
                     .fontColor($r('app.color.text_tertiary'))
                 }
                 Text(e.msg)

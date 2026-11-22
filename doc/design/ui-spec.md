@@ -214,6 +214,7 @@
   - **筛选 chip**（`body-sm` 13/20，**可点击**）：分组筛选、日志级别、分流模式。命中区 **44×44**，圆角 999。
   - 若标签 chip 需要独立可点（如点击按分组筛选），下沉为筛选 chip 规格：外层 44 容器 + 内层 28 视觉，**反过来（视觉 44 / 命中 28）不允许**。
 - **禁止出现 8 档以外的字号**；需要更强调就用字重（600）而不是加字号。
+- **⚠ 机器归零 ≠ 语义达标（2026-11-22 实测教训）**：把 `fontSize(10)`/`11` 全换成 `FontSize.fontChip` 也能让"字面量 = 0"的脚本全绿，但 `fontChip` 是**标签档**，正文用它就是违规。`fontChip` 的用途白名单只有两种：① 标签 chip（分组/许可证标签）；② 徽标内数字。**任何多行、正文、元信息 Text 使用 `fontChip` 即违规**。判定见 §11.8 第 18 项。
 - **行高与字号的关系**：`lineHeight ≥ 1.4 × fontSize` 是正文默认；`< 1.4×` 只允许用于**单行标题 / 标签**（`title-md` 16/22 = 1.38、`font_chip` 11/16 = 1.45 均合规）。**多行正文低于 1.4× 即违规**。
 - **每一处 `fontSize` 必须显式配 `lineHeight`**（对应表里的值）。这是"零处 lineHeight"的正面修正。
 - 可换行文本必须 `maxLines` + `textOverflow({overflow: TextOverflow.Ellipsis})`，禁止依赖默认裁切。
@@ -1301,6 +1302,11 @@ Column({space:12}) .layoutWeight(1) .justifyContent(FlexAlign.Center)
                         字号取值集合 ⊆ {24,20,16,15,14,13,12,11}
                         （注意：`Text('\u2713')` 等图标走 IconSize，不算字号）
 17) host 常量唯一        全仓 grep "127.0.0.1" 仅常量定义 1 处（文档/注释除外）
+18) fontChip 不被滥用    逐处 `grep -n "FontSize.fontChip"` 人工过：
+                        · 合法：位于 chip 容器 / 单行 ≤4 字标签 / 徽标数字
+                        · 违规：多行正文、说明、元信息（2026-11-22 实测：Licenses 7 段正文、
+                          Logs 的 level/time、DevPanel 说明文字都曾被换成 fontChip 来"让脚本变绿")
+                        · 配套：该 Text 必须有 `maxLines(1)`，标签 chip 还要 `maxWidth 60`
 ```
 
 ### 11.9 示范 → 其余页面的复用约定

@@ -283,7 +283,8 @@ api failed: ${err.code} ${err.message}`;
               ConfigService.getInstance().debugForceLoadFailure();
               this.socksProbeResult = '已置位 loadFailed=true；返回首页可见横幅，save() 将被拦截';
             })
-          Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(FontSize.fontChip).width('100%')
+          Text('预期：首页顶部出现"配置读取异常，已使用默认值（原数据未被覆盖）"').fontSize(FontSize.caption)
+              .lineHeight(LineHeight.caption).width('100%')
 
           // 调试项：让下一次「连接」注入非法配置，用于验证失败路径（ERROR 且不卡 CONNECTING）
           Button('调试：下次连接注入非法配置 → 看 ERROR').width('100%')
