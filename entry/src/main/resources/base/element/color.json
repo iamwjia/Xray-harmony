@@ -171,6 +171,10 @@
     {
       "name": "group_c_bg",
       "value": "#FFF4E5"
+    },
+    {
+      "name": "success_subtle",
+      "value": "#E7F5EC"
     }
   ]
 }

@@ -171,6 +171,10 @@
     {
       "name": "group_c_bg",
       "value": "#2A2214"
+    },
+    {
+      "name": "success_subtle",
+      "value": "#13291C"
     }
   ]
 }

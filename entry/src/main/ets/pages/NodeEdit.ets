@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { XrayNode, TransportKind, SecurityKind } from '../model/AppConfig';
+import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
@@ -251,14 +252,12 @@ struct NodeEdit {
    */
   build() {
     Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(FontSize.bodySm)
-          .onClick(() => {
-            router.back();
-          })
-        Text('编辑节点').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1).maxLines(1)
-      }
-      .width('100%')
+      PageHeader({
+        title: '编辑节点',
+        onBack: () => {
+          router.back();
+        }
+      })
 
       Scroll() {
         Column({ space: 10 }) {

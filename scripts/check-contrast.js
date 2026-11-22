@@ -41,6 +41,7 @@ const PAIRS = [
   ['text_on_accent', 'action_delete', '白字-删除块', 4.5],
   // 状态色作为文字压在自己的浅底上
   ['danger', 'danger_subtle', '危险字-危险底', 4.5],
+  ['success', 'success_subtle', '成功字-成功底（测连通 12ms）', 4.5],
   ['warning', 'warning_subtle', '警告字-警告底', 4.5],
   ['accent', 'accent_subtle', '强调字-强调底', 4.5],
   // 协议色标：色字压色底

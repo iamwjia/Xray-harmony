@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { PageHeader } from '../components/PageHeader';
 import { Glyph } from '../components/Glyph';
+import { EventLog } from '../service/EventLog';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 import { SubRecord } from '../service/SubscriptionStore';
 import { SubscriptionImportResult, SubscriptionService } from '../service/SubscriptionService';
@@ -173,6 +174,7 @@ struct Subscriptions {
       this.reload();
       if (r.total === 0) {
         this.setNotice(`更新失败：${r.error.length > 0 ? r.error : '订阅里没有可识别的节点'}`, 2);
+      EventLog.push(2, `订阅「${rec.name}」更新失败`);
         return;
       }
       let text: string = `「${rec.name}」解析 ${r.total} 条，新增 ${r.added} 条`;
@@ -184,10 +186,12 @@ struct Subscriptions {
       }
       // 部分失败才是警告；"新增 + 已存在"是正常结果
       this.setNotice(text, r.failed > 0 ? 1 : 0);
+      EventLog.push(r.failed > 0 ? 1 : 0, `订阅「${rec.name}」更新：新增 ${r.added} 个节点`);
     }).catch((e: Object) => {
       this.busyId = '';
       const m: string = e instanceof Error ? e.message : String(e);
       this.setNotice(`更新失败：${m}`, 2);
+      EventLog.push(2, `订阅「${rec.name}」更新失败`);
       Logger.error(`subscription refresh failed: ${m}`);
     });
   }

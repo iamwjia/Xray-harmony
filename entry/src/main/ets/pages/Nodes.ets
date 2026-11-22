@@ -12,6 +12,7 @@ import { Glyph } from '../components/Glyph';
 import { ShareLinkBuilder } from '../service/ShareLinkBuilder';
 import { SecretStore } from '../platform/SecretStore';
 import { pasteboard } from '@kit.BasicServicesKit';
+import { EventLog } from '../service/EventLog';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -51,6 +52,10 @@ struct Nodes {
 
   /** 用于动作执行后收起已露出的行内操作 */
   private listScroller: Scroller = new Scroller();
+  /** 最近一次测连通：id + 文案 + 级别；只显示在被测的那一行上 */
+  @State probeResultId: string = '';
+  @State probeResultText: string = '';
+  @State probeResultLevel: number = 0;
   /** 下拉刷新：重新读盘（另一个入口导入了数据、或外部改了订阅时用） */
   @State refreshing: boolean = false;
   /**
@@ -138,15 +143,26 @@ struct Nodes {
     }
     const node: XrayNode = target;
     this.setNotice(`正在测「${node.name}」…`, 0);
+    this.probeResultId = node.id;
+    this.probeResultText = '测试中…';
+    this.probeResultLevel = 0;
     NodeProbe.probe(node).then((r: ProbeResult) => {
       if (r.ok) {
         this.setNotice(`「${node.name}」可达：TCP 握手 ${r.ms} ms`, 0);
+        EventLog.push(0, `测连通「${node.name}」：${r.ms} ms`);
+        this.probeResultText = `${r.ms} ms`;
+        this.probeResultLevel = 0;
       } else {
         this.setNotice(`「${node.name}」不可达：${r.error}`, 2);
+        EventLog.push(2, `测连通「${node.name}」失败：${r.error}`);
+        this.probeResultText = '失败';
+        this.probeResultLevel = 2;
       }
     }).catch((e: Object) => {
       const m: string = e instanceof Error ? e.message : String(e);
       this.setNotice(`测试失败：${m}`, 2);
+      this.probeResultText = '失败';
+      this.probeResultLevel = 2;
     });
   }
 
@@ -623,7 +639,9 @@ struct Nodes {
                 onMove: (id: string, delta: number) => this.doMove(id, delta),
                 onProbe: (id: string) => this.probeNode(id),
                 onDelete: (id: string) => this.confirmDeleteById(id),
-                onCopyLink: (id: string) => this.copyShareLink(id)
+                onCopyLink: (id: string) => this.copyShareLink(id),
+                probeText: item.id === this.probeResultId ? this.probeResultText : '',
+                probeLevel: this.probeResultLevel
               })
             }
             // 行内左滑：右侧露出「测连通性 / 删除」，按危险程度配色 + 图标；
@@ -658,6 +676,22 @@ struct Nodes {
           }, 400);
         })
       }
+
+      // 单手可达：顶栏那个「+」在屏幕顶端右侧，单手拿手机时很难够到。
+      // 底部再给一个同样入口（大命中区），两个入口指向同一个导入面板。
+      Row() {
+        Button(this.showImport ? '收起导入面板' : '＋ 导入节点 / 订阅地址')
+          .width('100%')
+          .height(Height.hit)
+          .fontSize(FontSize.bodySm)
+          .backgroundColor($r('app.color.bg_chip'))
+          .fontColor($r('app.color.text_primary'))
+          .onClick(() => {
+            this.showImport = !this.showImport;
+          })
+      }
+      .width('100%')
+      .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
     }
     .width('100%')
     .height('100%')

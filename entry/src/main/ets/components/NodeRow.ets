@@ -43,6 +43,14 @@ export struct NodeRow {
   /** 长按整行：复制分享链接（含凭据，调用方负责提示风险） */
   onCopyLink: (id: string) => void = () => {
   };
+  /**
+   * 这一行最近一次测连通的结果（空串 = 没测过）。
+   * 只在行上显示，是因为"测完只看顶部一行提示"太容易错过：用户点完会低头看结果，
+   * 而结果跑到了他视线之外的地方。
+   */
+  @Prop probeText: string = '';
+  /** 0 成功 / 2 失败 */
+  @Prop probeLevel: number = 0;
 
   private rowA11y(): string {
     const g: string = this.group.length > 0 ? this.group : '未分组';
@@ -252,6 +260,22 @@ export struct NodeRow {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+
+      // 测连通结果（只在本行测过之后出现）：直接贴在行上，不依赖顶部提示
+      if (this.probeText.length > 0) {
+        Text(this.probeText)
+          .fontSize(FontSize.fontChip)
+          .lineHeight(LineHeight.fontChip)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.probeLevel === 2 ? $r('app.color.danger') : $r('app.color.success'))
+          .padding({ left: Space.xs, right: Space.xs, top: 3, bottom: 3 })
+          .backgroundColor(this.probeLevel === 2
+            ? $r('app.color.danger_subtle') : $r('app.color.success_subtle'))
+          .borderRadius(Radius.chip)
+          .maxLines(1)
+          .margin({ left: Space.xs })
+          .accessibilityLevel('no')
+      }
 
       // 命中区②：溢出菜单（自己消费事件，不冒泡到整行）
       Button({ type: ButtonType.Circle }) {

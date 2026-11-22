@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { RoutingRule, RoutingMode } from '../model/AppConfig';
+import { PageHeader } from '../components/PageHeader';
 import { FontSize, LineHeight, Space, Height, Radius } from '../common/Token';
 import { ConfigService } from '../service/ConfigService';
 import { Logger } from '../platform/Logger';
@@ -149,15 +150,15 @@ struct RoutingRules {
 
   build() {
     Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        Button('返回').fontSize(FontSize.bodySm)
-          .onClick(() => {
-            router.back();
-          })
-        Text('分流').fontSize(FontSize.titleLg).fontWeight(FontWeight.Bold).layoutWeight(1).maxLines(1)
-        Text(`已启用 ${this.enabledCount()} 条`).fontSize(FontSize.caption).fontColor($r('app.color.text_tertiary')).lineHeight(LineHeight.caption)
-      }
-      .width('100%')
+      // 页头统一用 PageHeader：返回是箭头图标（44 命中区），标题与计数位置与其它页一致。
+      // 原先这里是 Button('返回')，默认按钮形态在五个页面里显得突兀。
+      PageHeader({
+        title: '分流',
+        countText: `已启用 ${this.enabledCount()} 条`,
+        onBack: () => {
+          router.back();
+        }
+      })
 
       // 分流模式：从设置页搬到它的归属页——模式与规则是同一件事的两层，
       // 分开放在两页会让用户来回跳着改。
