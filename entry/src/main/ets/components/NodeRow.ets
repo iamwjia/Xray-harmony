@@ -40,11 +40,14 @@ export struct NodeRow {
   };
   onProbe: (id: string) => void = () => {
   };
+  /** 长按整行：复制分享链接（含凭据，调用方负责提示风险） */
+  onCopyLink: (id: string) => void = () => {
+  };
 
   private rowA11y(): string {
     const g: string = this.group.length > 0 ? this.group : '未分组';
     const sel: string = this.selected ? '已选中' : '未选中';
-    return `${this.name}，${this.protocol}，${this.address}:${this.port}，${g}，${sel}`;
+    return `${this.name}，${this.protocol}，${this.address}:${this.port}，${g}，${sel}；长按可复制分享链接`;
   }
 
   /**
@@ -293,6 +296,17 @@ export struct NodeRow {
       // 命中区①：只做选中。编辑/排序/删除都在溢出菜单里，不在这里分流。
       this.onPick(this.nodeId);
     })
+    // 长按整行 = 复制分享链接。换机、求助、问"这节点还能用吗"都要把节点发出去，
+    // 现在没有这条路径就只能照着屏幕手打一遍。
+    // 用 parallelGesture：行的 onTouch/onClick 与列表的滑动都要正常，长按是并列识别，
+    // 用 .gesture() 会与列表的滑动手势互相等待，实测命令行注入的长按完全收不到。
+    .parallelGesture(
+      // 450ms：系统长按普遍是 500ms，取 450 才能被"标准长按"命中
+      LongPressGesture({ repeat: false, duration: 450 })
+        .onAction(() => {
+          this.onCopyLink(this.nodeId);
+        })
+    )
     .accessibilityLevel('yes')
     .accessibilityText(this.rowA11y())
   }

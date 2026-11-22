@@ -30,11 +30,11 @@
     },
     {
       "name": "text_secondary",
-      "value": "#5A5F66"
+      "value": "#52575E"
     },
     {
       "name": "text_tertiary",
-      "value": "#6B7280"
+      "value": "#666D77"
     },
     {
       "name": "text_on_accent",

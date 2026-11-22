@@ -451,25 +451,33 @@ struct Subscriptions {
       if (this.subs.length === 0) {
         this.emptyState()
       } else {
-        List({ space: Space.sm }) {
-          ForEach(this.subs, (rec: SubRecord) => {
-            ListItem() {
-              this.subRow(rec)
-            }
-            // 与节点行同一套手势：左滑露出「立即更新 / 删除」，右滑收回
-            .swipeAction({
-              end: {
-                builder: () => {
-                  this.rowEndActions(rec)
-                }
+        // 下拉刷新 = 更新全部过期订阅（与顶部「全部更新」同一件事，只是手势更顺）
+        Refresh({ refreshing: $$this.refreshingAll }) {
+          List({ space: Space.sm }) {
+            ForEach(this.subs, (rec: SubRecord) => {
+              ListItem() {
+                this.subRow(rec)
               }
-            })
-          }, (rec: SubRecord) => `${rec.id}-${rec.name}-${rec.nodeCount}-${rec.lastUpdated}-${this.busyId}-${this.swipeRev}`)
+              // 与节点行同一套手势：左滑露出「立即更新 / 删除」，右滑收回
+              .swipeAction({
+                end: {
+                  builder: () => {
+                    this.rowEndActions(rec)
+                  }
+                }
+              })
+            }, (rec: SubRecord) => `${rec.id}-${rec.name}-${rec.nodeCount}-${rec.lastUpdated}-${this.busyId}-${this.swipeRev}`)
+          }
+          .width('100%')
+          .height('100%')
+          .scrollBar(BarState.Off)
         }
         .layoutWeight(1)
         .width('100%')
         .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
-        .scrollBar(BarState.Off)
+        .onRefreshing(() => {
+          this.refreshStale();
+        })
       }
     }
     .width('100%')

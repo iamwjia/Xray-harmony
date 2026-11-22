@@ -9,6 +9,9 @@ import { NodeRow } from '../components/NodeRow';
 import { PageHeader } from '../components/PageHeader';
 import { NodeProbe, ProbeResult } from '../service/NodeProbe';
 import { Glyph } from '../components/Glyph';
+import { ShareLinkBuilder } from '../service/ShareLinkBuilder';
+import { SecretStore } from '../platform/SecretStore';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { FontSize, LineHeight, Space, Height, Radius, IconSize } from '../common/Token';
 
 /**
@@ -48,6 +51,8 @@ struct Nodes {
 
   /** 用于动作执行后收起已露出的行内操作 */
   private listScroller: Scroller = new Scroller();
+  /** 下拉刷新：重新读盘（另一个入口导入了数据、或外部改了订阅时用） */
+  @State refreshing: boolean = false;
   /**
    * 动作执行后收起左滑：当前 API 版本的 Scroller 没有 closeAllSwipeActions，
    * 只能让行重建一次（key 里带上这个版本号），重建后滑开状态自然复位。
@@ -457,6 +462,45 @@ struct Nodes {
     .justifyContent(FlexAlign.Center)
   }
 
+  /**
+   * 长按复制分享链接。凭据从安全存储临时取出，只在内存里拼进链接，不写日志、不落盘。
+   * 复制完的提示必须是警告级：剪贴板是其他应用能读的地方，链里含凭据。
+   */
+  private copyShareLink(id: string): void {
+    Logger.info(`copyShareLink: id=${id}`);
+    const nodes: XrayNode[] = this.cfg.getNodes();
+    let target: XrayNode | null = null;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].id === id) {
+        target = nodes[i];
+        break;
+      }
+    }
+    if (target === null) {
+      this.setNotice('节点已不存在，请下拉刷新后再试', 2);
+      return;
+    }
+    const node: XrayNode = target;
+    const alias: string = node.credentialRef.startsWith('node:')
+      ? node.credentialRef
+      : SecretStore.aliasForNode(node.id);
+    SecretStore.get(alias).then((secret: string | null) => {
+      if (secret === null || secret.length === 0) {
+        this.setNotice('这条节点没有可用凭据，无法生成分享链接', 2);
+        return;
+      }
+      const link: string = ShareLinkBuilder.build(node, secret);
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, link);
+      pasteboard.getSystemPasteboard().setData(data).then(() => {
+        this.setNotice('已复制分享链接（含凭据，等同于密码，别发到公开的地方）', 1);
+      }).catch((e: Error) => {
+        this.setNotice(`复制失败：${e.message}`, 2);
+      });
+    }).catch((e: Error) => {
+      this.setNotice(`读取凭据失败：${e.message}`, 2);
+    });
+  }
+
   private closeSwipe(): void {
     // 执行完动作就收起露出的操作，否则列表会留着一排开着的行。
     // 这一版 SDK 的 Scroller 没有 closeAllSwipeActions，只能靠重建行来复位滑动状态。
@@ -559,7 +603,9 @@ struct Nodes {
       if (this.visibleNodes().length === 0) {
         this.emptyState()
       } else {
-        List({ space: Space.sm, scroller: this.listScroller }) {
+        // 下拉刷新：重新读一次持久化（另一个入口刚导入、或订阅刚在别的页面更新过）
+        Refresh({ refreshing: $$this.refreshing }) {
+          List({ space: Space.sm, scroller: this.listScroller }) {
           ForEach(this.visibleNodes(), (item: XrayNode) => {
             ListItem() {
               NodeRow({
@@ -576,7 +622,8 @@ struct Nodes {
                 onEdit: (id: string) => this.openEdit(id),
                 onMove: (id: string, delta: number) => this.doMove(id, delta),
                 onProbe: (id: string) => this.probeNode(id),
-                onDelete: (id: string) => this.confirmDeleteById(id)
+                onDelete: (id: string) => this.confirmDeleteById(id),
+                onCopyLink: (id: string) => this.copyShareLink(id)
               })
             }
             // 行内左滑：右侧露出「测连通性 / 删除」，按危险程度配色 + 图标；
@@ -595,11 +642,21 @@ struct Nodes {
               }
             })
           }, (item: XrayNode) => `${item.id}-${item.name}-${item.group}-${item.protocol}-${item.address}-${item.port}-${item.id === this.selectedId}-${this.cfgRev}-${this.swipeRev}`)
+          }
+          .width('100%')
+          .height('100%')
+          .scrollBar(BarState.Off)
         }
         .layoutWeight(1)
         .width('100%')
         .padding({ left: Space.lg, right: Space.lg, bottom: Space.sm })
-        .scrollBar(BarState.Off)
+        .onRefreshing(() => {
+          this.reload();
+          // 留一点时间让指示器转完，否则手指一松就消失，用户会以为没刷新
+          setTimeout(() => {
+            this.refreshing = false;
+          }, 400);
+        })
       }
     }
     .width('100%')

@@ -104,4 +104,14 @@ export class Bytes {
       return '';
     }
   }
+
+  /** 文本 → Base64（vmess 链接与 ss 凭据都需要；走 UTF-8 字节，中文节点名不会乱码） */
+  static textToBase64(v: string): string {
+    try {
+      const helper = new util.Base64Helper();
+      return helper.encodeToStringSync(Bytes.encode(v));
+    } catch (e) {
+      return '';
+    }
+  }
 }

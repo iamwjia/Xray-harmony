@@ -39,6 +39,9 @@ try {
     # 文字层硬闸：可换行的 Text 必须有行高（中文缺行高会整段挤在一起，无法扫读）
     & $node 'scripts\check-text-style.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-text-style' }
+    # 对比度闸门：色标/白字/三级灰必须过 WCAG AA 4.5:1（改一个 hex 就能把字压到读不出）
+    & $node 'scripts\check-contrast.js'
+    if ($LASTEXITCODE -ne 0) { $failures += 'check-contrast' }
     # 编码闸门：文本文件必须是合法 UTF-8（用 shell here-doc 追加中文会写成 GBK，编译不报错）
     & $node 'scripts\check-encoding.js'
     if ($LASTEXITCODE -ne 0) { $failures += 'check-encoding' }
