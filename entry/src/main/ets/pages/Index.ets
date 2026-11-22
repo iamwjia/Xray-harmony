@@ -413,15 +413,26 @@ struct Index {
   }
 
   /** 块内那句"点了会发生什么"：状态大字已经有了，这里只写动作，不重复状态 */
+  /**
+   * 色块里那句"点了会发生什么"。
+   * 必须按状态枚举逐个写，不能靠"非 DISCONNECTED 就算已连"——实测连接中时
+   * 文案会落成"点此连接"，与标题的"连接中"互相矛盾（用户会以为点了是重新连）。
+   */
   private blockActionText(): string {
     const st: ConnState = this.vm.getState();
     if (st === ConnState.ERROR) {
       return '点此重试';
     }
-    if (st === ConnState.DISCONNECTED) {
-      return '点此连接';
+    // busy 先判：启动过程中 vm 状态可能还是 DISCONNECTED（要等扩展进程回传），
+    // 但界面上大字已经显示"连接中"，此时那句提示必须同步成"点此取消"，
+    // 否则标题说"连接中"、下面说"点此连接"，用户会以为点了是重新连。
+    if (this.view.busy || st === ConnState.CONNECTING) {
+      return '点此取消';
     }
-    return this.view.busy ? '点此取消' : '点此断开';
+    if (st === ConnState.CONNECTED) {
+      return '点此断开';
+    }
+    return '点此连接';
   }
 
   private buttonLabel(): string {
@@ -581,13 +592,14 @@ struct Index {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
+        // 连接中/断开中不让换节点：换完之后进行中的连接还指向旧节点，
+        // 用户会以为"换了但没生效"。禁用态同时要看起来是灰的（见下两行）。
         Button('更换')
-          .backgroundColor($r('app.color.bg_chip'))
-          .fontColor($r('app.color.text_primary'))
           .fontSize(FontSize.bodySm)
           .height(Height.hit)
-          .backgroundColor($r('app.color.bg_chip'))
-          .fontColor($r('app.color.text_primary'))
+          .enabled(!this.view.busy)
+          .backgroundColor(this.view.busy ? $r('app.color.bg_chip') : $r('app.color.accent_subtle'))
+          .fontColor(this.view.busy ? $r('app.color.text_tertiary') : $r('app.color.accent'))
           .onClick(() => {
             router.pushUrl({ url: 'pages/Nodes' }).catch((e: Error) => {
               Logger.error(`nav Nodes failed: ${e.message}`);

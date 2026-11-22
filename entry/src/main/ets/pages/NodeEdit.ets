@@ -419,6 +419,8 @@ struct NodeEdit {
       // （实测在模拟器上就是滚不动、按钮被键盘挡住的局面）。
       Button(this.saving ? '保存中…' : '保存')
         .width('100%')
+        .backgroundColor(!this.saving && this.existed ? $r('app.color.accent') : $r('app.color.bg_chip'))
+        .fontColor(!this.saving && this.existed ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
         .enabled(!this.saving && this.existed)
         .onClick(() => this.doSave())
     }

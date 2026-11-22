@@ -409,6 +409,8 @@ struct Settings {
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
+                .backgroundColor(!this.geoBusy ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(!this.geoBusy ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
                 .enabled(!this.geoBusy)
                 .onClick(() => this.confirmGeoUpdate())
               Button('从本地导入')

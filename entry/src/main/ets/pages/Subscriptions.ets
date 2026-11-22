@@ -541,7 +541,7 @@ struct Subscriptions {
             .height(Height.hit)
             .fontSize(FontSize.bodySm)
             .backgroundColor($r('app.color.warning_subtle'))
-            .fontColor($r('app.color.warning'))
+            .fontColor(!this.refreshingAll ? $r('app.color.warning') : $r('app.color.text_tertiary'))
             .enabled(!this.refreshingAll)
             .onClick(() => this.refreshStale())
         }
@@ -610,6 +610,8 @@ struct Subscriptions {
               .layoutWeight(1)
               .height(Height.hit)
               .fontSize(FontSize.bodySm)
+              .backgroundColor(!this.addBusy ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(!this.addBusy ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
               .enabled(!this.addBusy)
               .onClick(() => this.doAddSubscription())
             Button('取消')

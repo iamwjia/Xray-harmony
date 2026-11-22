@@ -348,8 +348,9 @@ struct Logs {
           .height(Height.hit)
           .fontSize(FontSize.bodySm)
           .enabled(this.entries.length > 0)
-          .backgroundColor($r('app.color.accent'))
-          .fontColor($r('app.color.text_on_accent'))
+          // 禁用时必须看着"不能点"：自定义背景色的按钮不会自动变灰
+          .backgroundColor(this.entries.length > 0 ? $r('app.color.accent') : $r('app.color.bg_chip'))
+          .fontColor(this.entries.length > 0 ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
           .onClick(() => this.doExport())
       }
       .width('100%')
