@@ -9,7 +9,7 @@ import nativeEntry from 'libentry.so';
 import { ConfigService } from '../service/ConfigService';
 import { KernelService } from '../service/KernelService';
 import { VpnController } from '../service/VpnController';
-import { VpnSession } from '../service/VpnSession';
+import { SessionBuildResult, VpnSessionFactory } from '../service/VpnSessionFactory';
 import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 import { GeoAssets } from '../service/GeoAssets';
 import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
@@ -108,29 +108,13 @@ struct DevPanel {
    * 规则悄悄不一致。
    */
   private async launchVpnSession(): Promise<void> {
-    const sel = this.cfg.getSelectedNode();
-    if (sel === null) {
-      this.vpnExtResult = '请先在节点列表里选择一个节点';
+    // 会话在 VpnSessionFactory 里组装：配置怎么写只有一处，避免两个进程各拼一份、规则惄惄不一致。
+    const built: SessionBuildResult = await VpnSessionFactory.build(this.cfg, true);
+    if (!built.ok || built.session === null) {
+      this.vpnExtResult = built.error.length > 0 ? built.error : '会话构造失败';
       return;
     }
-    const cred: string | null = await this.cfg.resolveCredential(sel);
-    if (cred === null) {
-      this.vpnExtResult = '节点凭据不可用，请重新导入该节点';
-      return;
-    }
-    const ep: SocksEndpoint = SocksGuard.rotate();
-    const mode = this.cfg.getConfig().settings.routingMode;
-    const cfgJson: string = KernelConfigBuilder.buildWithNode(sel, ep.port, mode,
-      ep.user, ep.password, cred, GeoAssets.isReady(), this.cfg.getRules());
-
-    const s = new VpnSession();
-    s.configJson = cfgJson;
-    s.socksPort = ep.port;
-    s.socksUser = ep.user;
-    s.socksPass = ep.password;
-    s.routingMode = mode as string;
-    hilog.info(DOMAIN, TAG, 'vpn session: %{public}s', s.describe());
-    await VpnController.start('com.tunnelix.app', 'MyVpnExtAbility', s);
+    await VpnController.start('com.tunnelix.app', 'MyVpnExtAbility', built.session);
   }
 
   private runNapiHello(): void {

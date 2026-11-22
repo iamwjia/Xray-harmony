@@ -19,6 +19,8 @@ import { VpnState, VpnStateFile } from '../platform/VpnStateFile';
 export class VpnController {
   /** 授权框等人点的时间上限；超时后必须给用户一个可理解的结论，而不是继续转圈 */
   static readonly START_TIMEOUT_MS: number = 15000;
+  /** 停止等待：扩展侧要停转发、停内核、销 tun，5s 是实测上限 */
+  static readonly DISCONNECT_TIMEOUT_MS: number = 5000;
 
   private static running: boolean = false;
 
@@ -104,6 +106,44 @@ export class VpnController {
         resolve();
       }, ms);
     });
+  }
+
+  /**
+   * 停止 VPN 扩展。
+   *
+   * 为什么不直接杀进程：系统不允许三方应用杀别人的进程，只能"请求"扩展停止；
+   * 真正的收尾（停转发 → 停内核 → 销毁 tun）在扩展进程的 `onDestroy` 里完成。
+   * 所以这里只发出请求，状态由状态文件回传（`stopped`）。
+   */
+  static async stop(bundleName: string, abilityName: string,
+    timeoutMs: number = VpnController.DISCONNECT_TIMEOUT_MS): Promise<boolean> {
+    const want: Want = {
+      bundleName: bundleName,
+      abilityName: abilityName
+    };
+    let timer: number = -1;
+    const timeout = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => {
+        resolve(false);
+      }, timeoutMs);
+    });
+    const call = vpnExtension.stopVpnExtensionAbility(want).then(() => true).catch((e: Object) => {
+      const err = e as BusinessErrorLike;
+      Logger.warn(`vpn stop failed code=${err.code === undefined ? 0 : err.code}`);
+      return false;
+    });
+    const ok: boolean = await Promise.race([call, timeout]);
+    if (timer !== -1) {
+      clearTimeout(timer);
+    }
+    VpnController.running = false;
+    if (!ok) {
+      // 注意：超时不等于"还在跑"，也不等于"已停"——调用方必须以后续状态文件为准
+      Logger.warn('vpn stop not confirmed within timeout');
+    } else {
+      Logger.info('vpn extension stop requested');
+    }
+    return ok;
   }
 
   static markStopped(): void {

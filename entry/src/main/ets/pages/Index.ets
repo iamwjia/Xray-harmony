@@ -2,8 +2,9 @@ import { router, promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ConnectionView, ConnState, ConnectionViewModel, StatusTone } from '../viewmodel/ConnectionViewModel';
 import { ConfigService } from '../service/ConfigService';
-import { KernelService, KernelError } from '../service/KernelService';
-import { KernelConfigBuilder } from '../service/KernelConfigBuilder';
+import { KernelError } from '../service/KernelService';
+import { SessionBuildResult, VpnSessionFactory } from '../service/VpnSessionFactory';
+import { VpnSession } from '../service/VpnSession';
 import { SocksEndpoint, SocksGuard } from '../service/SocksGuard';
 import { GeoAssets } from '../service/GeoAssets';
 import { XrayNode, RoutingMode } from '../model/AppConfig';
@@ -43,7 +44,7 @@ struct Index {
 
   private vm: ConnectionViewModel = new ConnectionViewModel();
   private cfg: ConfigService = ConfigService.getInstance();
-  private kernel: KernelService = KernelService.getInstance();
+  // 应用进程不再直接持有内核：数据面在扩展进程，应用侧只发请求 + 读状态文件
 
   aboutToAppear(): void {
     this.refreshAll();
@@ -163,63 +164,77 @@ struct Index {
     // v1 明文凭据在此迁移到 Asset Store（幂等）；失败不阻断连接，但必须可见
     await this.cfg.ensureSecureMigration();
 
-    const sel: XrayNode | null = this.cfg.getSelectedNode();
-    let credential: string = '';
-    if (sel !== null) {
-      const c: string | null = await this.cfg.resolveCredential(sel);
-      if (c === null) {
-        // 拿不到凭据就必须阻断：拿空串去连，内核只会给一个与真实原因无关的握手错误
-        this.busyHint = '';
-        this.vm.onKernelError('节点凭据不可用（安全存储中找不到对应密钥），请重新导入该节点');
-        this.refreshAll();
-        return;
-      }
-      credential = c;
+    // 会话只在一个地方组装（VpnSessionFactory），避免首页与开发者面板各拼一份配置
+    const built: SessionBuildResult = await VpnSessionFactory.build(this.cfg, true);
+    if (!built.ok) {
+      this.busyHint = '';
+      this.vm.onKernelError(built.error);
+      this.refreshAll();
+      return;
     }
-
-    const mode: RoutingMode = this.cfg.getConfig().settings.routingMode;
-    // 每次连接轮换本机代理端口与口令（loopback 同设备共享，不能免鉴权）
-    const ep: SocksEndpoint = SocksGuard.rotate();
-    const cfgJson: string = sel === null
-      ? KernelConfigBuilder.buildMinimal(ep.port, ep.user, ep.password)
-      : KernelConfigBuilder.buildWithNode(sel, ep.port, mode, ep.user, ep.password, credential,
-        GeoAssets.isReady(), this.cfg.getRules());
+    const session: VpnSession | null = built.session;
+    if (session === null) {
+      this.busyHint = '';
+      this.vm.onKernelError('会话构造失败');
+      this.refreshAll();
+      return;
+    }
     // 用户看不懂协议名，但端口是报障时唯一能自证的线索 —— 换词不删信息
-    this.socksInfo = `本机代理地址 ${SocksGuard.LOCAL_HOST}:${ep.port}`;
-    this.socksPortText = `${SocksGuard.LOCAL_HOST}:${ep.port}`;
+    this.socksInfo = `本机代理地址 ${SocksGuard.LOCAL_HOST}:${built.socksPort}`;
+    this.socksPortText = `${SocksGuard.LOCAL_HOST}:${built.socksPort}`;
+    this.refreshAll();
 
     try {
-      await this.kernel.start(cfgJson, KernelService.CONNECT_TIMEOUT_MS);
-      this.vm.onKernelConnected();
+      // 数据面只能在扩展进程：tun fd 只在创建它的进程内有效。
+      // 不再在应用进程起内核——否则两边各有一个内核，状态互不可见。
+      //
+      // 注意这里**不 await 启动调用**：首次连接会弹系统授权对话框，
+      // 用户不点之前该 promise 不会 settle——但扩展进程很可能已经起来并写了状态。
+      // 所以以“状态文件”为准，而不是以调用是否返回为准。
+      VpnController.start('com.tunnelix.app', 'MyVpnExtAbility', session).catch((e: Object) => {
+        Logger.warn(`vpn start call failed: ${VpnController.describeError(e)}`);
+      });
+      const st: VpnState = await VpnController.waitForState(this.ctx(), VpnController.START_TIMEOUT_MS);
       this.busyHint = '';
+      if (st.state === 'running') {
+        this.vm.onKernelConnected();
+      } else {
+        const why: string = VpnController.describeStateCode(st.code);
+        this.vm.onKernelError(why.length > 0 ? why : (st.msg.length > 0 ? st.msg : '扩展进程未能就绪'));
+      }
       this.refreshAll();
     } catch (err) {
-      const msg: string = this.toReadable(err as Object);
+      const msg: string = VpnController.describeError(err as Object);
       this.busyHint = '';
       this.vm.onKernelError(msg);
       this.refreshAll();
-      // 失败/超时可能留下"半启动"内核（占着端口），必须后台收尾，
-      // 否则用户点重试会直接被端口占用挡住。不 await：用户已经在看错误文案，不该再等 5 秒。
-      this.kernel.bestEffortStop().then(() => {
+      // 失败后可能留下半启动的扩展进程，发一次停止请求兜底
+      VpnController.stop('com.tunnelix.app', 'MyVpnExtAbility').then(() => {
         Logger.warn('post-failure cleanup finished');
       });
     }
   }
 
   private doDisconnect(): void {
-    this.busyHint = '正在停止内核…';
-    this.kernel.stop(KernelService.DISCONNECT_TIMEOUT_MS)
+    this.busyHint = '正在断开…';
+    // 应用侧只能“请求”停止；真正的收尾（停转发 → 停内核 → 销 tun）在扩展进程里
+    VpnController.stop('com.tunnelix.app', 'MyVpnExtAbility')
       .then(() => {
         this.vm.requestDisconnect();
         this.busyHint = '';
         this.refreshAll();
       })
       .catch((err: Object) => {
-        const msg: string = this.toReadable(err);
+        const msg: string = VpnController.describeError(err);
         this.busyHint = '';
         this.vm.onKernelError(msg);
         this.refreshAll();
       });
+  }
+
+  /** 取应用上下文（状态文件在沙箱目录，两个进程同一份） */
+  private ctx(): common.UIAbilityContext {
+    return getContext(this) as common.UIAbilityContext;
   }
 
   /** 按钮文案：ERROR 态明确给出「重试」，而不是让用户猜「连接」还能不能再点 */
