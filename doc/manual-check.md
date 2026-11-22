@@ -107,9 +107,16 @@ $hdc = "C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains
 
 ## 3. 数据面（必须真机）`[设备]`
 
-- [ ] **`202` 是否消失**：点连接 → 状态文件 `vpn_state.json` 里不再是
-      `{"state":"error","code":202,"msg":"Non-system applications use system APIs"}`
-      （这是决定产品可行性的一条）
+- [ ] **授权路径是否走通（这条比"202 是否消失"更重要）**：点连接 → ①是否弹出系统 VPN 授权对话框
+      ②点"允许"后 `vpn_state.json` 是否进入 `running`（而不是 `error`）
+      ③`hilog` 里 `XVPN_EXT` 是否出现 `tun established fd=`
+      > 口径更正（2026-11-23）：原先这里写的是"202 是否消失，决定产品可行性"。
+      > 复查发现 202 是在**绕过授权**（`aa start --ps` 直接拉扩展）时出现的，
+      > 而 SDK 要求必须先 `startVpnExtensionAbility` 才能 `createVpnConnection`。
+      > 所以 202 不能作为"第三方应用不能建 VPN"的证据。详见 `doc/poc/dataplane-process-split.md` 的更正段。
+- [ ] **模拟器上的实测结论（已做，2026-11-23）**：走真实路径点连接 → 界面停在"连接中…"→ 15s 后
+      "连接异常：等待扩展进程响应超时"；**没有出现授权弹窗**、没有生成 `vpn_state.json`、
+      日志里没有 `XVPN_EXT` 输出。即：卡在"授权这一步无人应答"，不是卡在 202。
 - [ ] **转发生效**：连接后从设备访问外网域名成功；服务端日志出现 `connection opened`（`accepted` 不算）
 - [ ] **DNS 走隧道**：`tcpdump` 观察 53 端口流量走 tun，而不是本地直连
 - [ ] **断开顺序**：断开后 tun 已销毁、无残留（`ip link` 里没有 vpn-tun）

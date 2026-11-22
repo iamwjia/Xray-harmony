@@ -106,3 +106,26 @@ XVPN_EXT: bootstrap failed: code=202 msg=Non-system applications use system APIs
 所以 202 更可能是「本次不是授权会话」而不是「第三方不能用」。
 需要确认：三方应用走正式 `startVpnExtensionAbility` 流程时是否会得到同样错误。
 这条直接决定产品可行性，必须在真机优先验证。
+
+**2026-11-23 复查（把上面的推测变成了结论的一半）**
+
+1. 走**真实路径**（点首页「连接」→ `VpnController.start` → `startVpnExtensionAbility`）实测：
+   界面停在"连接中…"，**没有出现任何系统授权弹窗**；15s 后 UI 报
+   "连接异常：等待扩展进程响应超时"；`vpn_state.json` **根本没被创建**；日志里没有 `XVPN_EXT` 输出。
+   → 即：真实路径**没走到 `create()`**，压根没有 202。
+2. 查模拟器镜像里的授权组件：
+   ```
+   hdc shell "bm dump -n com.huawei.hmos.vpndialog"   → error: failed to get information
+   hdc shell "bm dump -a | grep -i vpn"                → （无输出，镜像里没有任何 VPN 相关包）
+   ```
+   → **模拟器镜像里没有 VPN 授权对话框组件**，所以 `startVpnExtensionAbility` 不可能完成授权。
+3. 因此 202 的性质定为：**「绕过授权、直接 `aa start` 拉起扩展后再调 `create()`」的后果**，
+   不是"第三方应用不能建 VPN"的证据。规格层证据：d.ts 全文 0 处 `@systemapi`、
+   该 API 无 `@permission` 标注、模块头注释写明这是"提供给第三方应用的 VPN 能力"。
+4. 仍未验证：**真机走完整授权流程后 `create()` 是否返回 fd**。
+   残余风险很具体——`ohos.permission.MANAGE_VPN` 在 SDK 的 `PermissionDefinitions.json` 里是
+   `availableLevel: system_basic` + `availableType: SYSTEM`，第三方应用申请不到；
+   若某个实现要求它，那就是真·硬限制。公开 API 没有标注它，且定位是第三方 VPN，
+   但这只能说明"应该不需要"，不能证明"一定不需要"。
+5. 判定方法（真机 10 分钟）：装 HAP → 点连接 → 看①是否弹授权框 ②允许后 `vpn_state.json`
+   是否 `running` ③`hilog | grep XVPN_EXT` 是否出现 `tun established fd=`。三条都过才算通。
