@@ -113,6 +113,15 @@ struct RoutingRules {
     return '';
   }
 
+  /** 能不能点「添加」：用与提交时同一套校验，避免"高亮但点了报错" */
+  private canAddRule(): boolean {
+    const p: string = this.newPattern.trim();
+    if (p.length === 0) {
+      return false;
+    }
+    return this.validate(p).length === 0;
+  }
+
   private doAdd(): void {
     const p: string = this.newPattern.trim();
     const err: string = this.validate(p);
@@ -260,15 +269,16 @@ struct RoutingRules {
             .onChange((v: string) => {
               this.newPattern = v;
             })
-          // 与其它"添加"类按钮一致：统一命中高；输入为空时禁用（点了只会弹报错）
+          // 按**真实校验结果**启用，而不是"非空"：输入 example 却选了 IP 时，
+          // 按钮高亮但点了只会弹报错，等于把校验推给用户。
           Button('添加')
             .fontSize(FontSize.bodySm)
             .height(Height.hit)
-            .backgroundColor(this.newPattern.trim().length > 0
+            .backgroundColor(this.canAddRule()
               ? $r('app.color.accent') : $r('app.color.bg_chip'))
-            .fontColor(this.newPattern.trim().length > 0
+            .fontColor(this.canAddRule()
               ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-            .enabled(this.newPattern.trim().length > 0)
+            .enabled(this.canAddRule())
             .onClick(() => this.doAdd())
         }
         .width('100%')

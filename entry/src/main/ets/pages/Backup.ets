@@ -144,6 +144,19 @@ struct Backup {
    * 一个必须保留的退路：若系统没有分享面板（比如部分模拟器镜像），
    * `show()` 会抛错。此时文件已在沙箱里，页面要把文件名告诉用户并指向「导出到文件」。
    */
+  /**
+   * 导出前置条件：口令 ≥8 位且两次一致。
+   * 按钮一开始就实心可点，等于把"口令没填/不一致"的校验推给用户点一下才告诉他。
+   */
+  private canExport(): boolean {
+    return !this.exporting && this.exportPass.length >= 8 && this.exportPass === this.exportPass2;
+  }
+
+  /** 恢复前置条件：选了文件 + 输入了口令 */
+  private canImport(): boolean {
+    return !this.importing && this.importName.length > 0 && this.importPass.length > 0;
+  }
+
   private doExportAndShare(): void {
     const weak: string = BundleCrypto.weaknessHint(this.exportPass);
     if (weak.length > 0) {
@@ -408,18 +421,18 @@ struct Backup {
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor(!this.exporting ? $r('app.color.accent') : $r('app.color.bg_chip'))
-                .fontColor(!this.exporting ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-                .enabled(!this.exporting)
+                .backgroundColor(this.canExport() ? $r('app.color.accent') : $r('app.color.bg_chip'))
+                .fontColor(this.canExport() ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+                .enabled(this.canExport())
                 .onClick(() => this.doExportAndShare())
               Button('导出到文件')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
                 .backgroundColor($r('app.color.bg_surface'))
-                .fontColor($r('app.color.accent'))
-                .border({ width: 1, color: $r('app.color.accent') })
-                .enabled(!this.exporting)
+                .fontColor(this.canExport() ? $r('app.color.accent') : $r('app.color.text_tertiary'))
+                .border({ width: 1, color: this.canExport() ? $r('app.color.accent') : $r('app.color.border_subtle') })
+                .enabled(this.canExport())
                 .onClick(() => this.doExport())
             }
             .width('100%')
@@ -435,14 +448,15 @@ struct Backup {
               // 「随机生成」是本页的主动作之一（口令是导出的前提），用主色；
               // 它是二次操作，不是每屏唯一主操作（导出并分享才是），所以放在这一行里
               // 而不是底部条里。
-              // 随机生成不是本页主操作（主操作是"导出并分享"），回落到浅底；
-              // 否则一页上出现两个实心蓝，主次就没了
+              // 本页统一两种可点形态：实心主色（推进流程）+ 描边（一切可选动作）。
+              // "浅底"留给选项组与"取消/收起"，不再掺进来。
               Button('随机生成')
                 .layoutWeight(1)
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
-                .backgroundColor($r('app.color.bg_chip'))
-                .fontColor($r('app.color.text_primary'))
+                .backgroundColor($r('app.color.bg_surface'))
+                .fontColor($r('app.color.accent'))
+                .border({ width: 1, color: $r('app.color.accent') })
                 .onClick(() => this.generatePassphrase())
               // 「复制口令」在没口令时无事可做：禁用比"点了没反应"诚实。
               Button('复制口令')
@@ -450,11 +464,14 @@ struct Backup {
                 .height(Height.hit)
                 .fontSize(FontSize.bodySm)
                 .enabled(this.exportPass.length > 0)
-                // 与「随机生成」同款填充浅底：两者是同一排的辅助动作，
-                // 一个 tinted 一个 chip 会显得像两种级别
-                .backgroundColor($r('app.color.bg_chip'))
+                .backgroundColor($r('app.color.bg_surface'))
                 .fontColor(this.exportPass.length > 0
-                  ? $r('app.color.text_primary') : $r('app.color.text_tertiary'))
+                  ? $r('app.color.accent') : $r('app.color.text_tertiary'))
+                .border({
+                  width: 1,
+                  color: this.exportPass.length > 0
+                    ? $r('app.color.accent') : $r('app.color.border_subtle')
+                })
                 .onClick(() => this.copyPassphrase())
             }
             .width('100%')
@@ -531,9 +548,9 @@ struct Backup {
               .width('100%')
               .height(Height.hit)
               .fontSize(FontSize.bodySm)
-              .backgroundColor(!this.importing ? $r('app.color.accent') : $r('app.color.bg_chip'))
-              .fontColor(!this.importing ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
-              .enabled(!this.importing)
+              .backgroundColor(this.canImport() ? $r('app.color.accent') : $r('app.color.bg_chip'))
+              .fontColor(this.canImport() ? $r('app.color.text_on_accent') : $r('app.color.text_tertiary'))
+              .enabled(this.canImport())
               .onClick(() => this.doImport())
 
             if (this.importDetails.length > 0) {
